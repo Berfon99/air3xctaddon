@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_name">AIR3 XCT Addon</string>
+    <string name="menu_settings">Settings</string>
+    <string name="menu_about">About</string>
+    <string name="add_config">Add Configuration</string>
+    <string name="select_event">Select Event</string>
+    <string name="select_sound">Select Sound</string>
+    <string name="select_volume">Select Volume</string>
+    <string name="volume_max">Maximum</string>
+    <string name="volume_system">System</string>
+    <string name="play_count">Play Count</string>
+    <string name="delete">Delete</string>
+</resources>
