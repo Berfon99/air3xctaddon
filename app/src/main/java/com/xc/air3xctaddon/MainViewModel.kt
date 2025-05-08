@@ -1,6 +1,7 @@
 package com.xc.air3xctaddon
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.room.Room
@@ -24,6 +25,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             dao.getAllConfigs().collect { configs ->
                 _configs.value = configs
+                Log.d("MainViewModel", "Configs updated: ${configs.map { it.event.name }}")
             }
         }
     }
@@ -40,12 +42,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 position = position
             )
             dao.insert(config)
+            Log.d("MainViewModel", "Added config for event: ${event.name}")
         }
     }
 
     fun updateConfig(config: EventConfig) {
         viewModelScope.launch {
             dao.update(config)
+            Log.d("MainViewModel", "Updated config: ${config.event.name}")
         }
     }
 
@@ -58,6 +62,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     dao.updatePosition(cfg.id, index)
                 }
             }
+            Log.d("MainViewModel", "Deleted config: ${config.event.name}")
         }
     }
 
@@ -71,11 +76,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     dao.updatePosition(config.id, index)
                 }
             }
+            Log.d("MainViewModel", "Reordered configs from $from to $to")
         }
     }
 
     fun getAvailableEvents(): List<Event> {
         val usedEvents = _configs.value.map { it.event }
-        return Event.values().filter { it !in usedEvents }
+        val availableEvents = Event.values().filter { it !in usedEvents }
+        Log.d("MainViewModel", "Available events: ${availableEvents.map { it.name }}")
+        return availableEvents
     }
 }

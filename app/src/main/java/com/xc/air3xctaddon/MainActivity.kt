@@ -1,12 +1,12 @@
 package com.xc.air3xctaddon
 
 import android.os.Bundle
-import android.os.Environment
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -19,9 +19,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xc.air3xctaddon.ui.theme.AIR3XCTAddonTheme
 import java.io.File
@@ -44,6 +45,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
     val configs by viewModel.configs.collectAsState()
     val context = LocalContext.current
     var showMenu by remember { mutableStateOf(false) }
+    val availableEvents by remember { derivedStateOf { viewModel.getAvailableEvents() } }
 
     Scaffold(
         topBar = {
@@ -57,36 +59,39 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                         expanded = showMenu,
                         onDismissRequest = { showMenu = false }
                     ) {
-                        DropdownMenuItem(onClick = {
-                            showMenu = false
-                            // Navigate to Settings
-                            context.startActivity(android.content.Intent(context, SettingsActivity::class.java))
-                        }) {
-                            Text("Settings")
-                        }
-                        DropdownMenuItem(onClick = {
-                            showMenu = false
-                            // Navigate to About
-                            context.startActivity(android.content.Intent(context, AboutActivity::class.java))
-                        }) {
-                            Text("About")
-                        }
+                        DropdownMenuItem(
+                            content = { Text("Settings") },
+                            onClick = {
+                                showMenu = false
+                                context.startActivity(android.content.Intent(context, SettingsActivity::class.java))
+                            }
+                        )
+                        DropdownMenuItem(
+                            content = { Text("About") },
+                            onClick = {
+                                showMenu = false
+                                context.startActivity(android.content.Intent(context, AboutActivity::class.java))
+                            }
+                        )
                     }
                 }
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = {
-                // Add default config
-                viewModel.addConfig(
-                    event = viewModel.getAvailableEvents().firstOrNull() ?: return@FloatingActionButton,
-                    soundFile = "",
-                    volumeType = VolumeType.SYSTEM,
-                    volumePercentage = 100,
-                    playCount = 1
-                )
-            }) {
-                Icon(Icons.Default.Add, contentDescription = "Add Configuration")
+            if (availableEvents.isNotEmpty()) {
+                FloatingActionButton(onClick = {
+                    // Add default config with first available event
+                    viewModel.addConfig(
+                        event = availableEvents.first(),
+                        soundFile = "",
+                        volumeType = VolumeType.SYSTEM,
+                        volumePercentage = 100,
+                        playCount = 1
+                    )
+                    Log.d("MainScreen", "FAB clicked, added config")
+                }) {
+                    Icon(Icons.Default.Add, contentDescription = "Add Configuration")
+                }
             }
         }
     ) { padding ->
@@ -127,22 +132,14 @@ fun ConfigRow(
     var playCount by remember { mutableStateOf(config.playCount.toString()) }
 
     val context = LocalContext.current
-    var isDragging by remember { mutableStateOf(false) }
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(if (isDragging) Color.LightGray else Color.White)
+            .background(Color.Cyan) // Debug: Confirm Row is rendered
             .padding(8.dp)
-            .pointerInput(Unit) {
-                detectDragGesturesAfterLongPress(
-                    onDragStart = { isDragging = true },
-                    onDragEnd = { isDragging = false },
-                    onDrag = { change, dragAmount ->
-                        change.consume()
-                        // Simplified drag handling; actual implementation needs more logic
-                    }
-                )
+            .clickable {
+                Log.d("ConfigRow", "Row clicked for config: ${config.event.name}")
             },
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -160,14 +157,19 @@ fun ConfigRow(
         Spacer(modifier = Modifier.width(8.dp))
 
         // Sound File Button
-        Button(onClick = {
-            // List files in Sounds folder
-            val soundsDir = File(context.filesDir, "Sounds")
-            val soundFiles = soundsDir.listFiles()?.map { it.name } ?: emptyList()
-            // For simplicity, pick first or empty
-            soundFile = soundFiles.firstOrNull() ?: ""
-            onUpdate(config.copy(soundFile = soundFile))
-        }) {
+        Button(
+            onClick = {
+                Log.d("ConfigRow", "Sound button clicked")
+                // List files in Sounds folder
+                val soundsDir = File(context.filesDir, "Sounds")
+                soundsDir.mkdirs() // Ensure Sounds directory exists
+                val soundFiles = soundsDir.listFiles()?.map { it.name } ?: emptyList()
+                // For simplicity, pick first or empty
+                soundFile = soundFiles.firstOrNull() ?: ""
+                onUpdate(config.copy(soundFile = soundFile))
+            },
+            modifier = Modifier.background(Color.Green) // Debug: Confirm Button is rendered
+        ) {
             Text(if (soundFile.isEmpty()) "Select Sound" else soundFile)
         }
 
@@ -218,7 +220,10 @@ fun ConfigRow(
         Spacer(modifier = Modifier.width(8.dp))
 
         // Delete Button
-        IconButton(onClick = onDelete) {
+        IconButton(onClick = {
+            Log.d("ConfigRow", "Delete button clicked")
+            onDelete()
+        }) {
             Icon(Icons.Default.Delete, contentDescription = "Delete")
         }
     }
@@ -234,27 +239,52 @@ fun DropdownMenuSpinner(
     var expanded by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf(selectedItem) }
 
-    Box {
-        OutlinedTextField(
-            value = selected,
-            onValueChange = {},
-            label = { Text(label) },
+    Log.d("DropdownMenuSpinner", "Rendering DropdownMenuSpinner with Items: $items, Selected: $selected, Expanded: $expanded")
+
+    Box(
+        modifier = Modifier
+            .background(Color.Yellow) // Debug: Highlight clickable area
+            .focusable() // Ensure touch events are receivable
+    ) {
+        Text(
+            text = selected,
             modifier = Modifier
                 .width(150.dp)
-                .clickable { expanded = true },
-            readOnly = true
+                .background(Color.White) // Debug: Ensure text is visible
+                .padding(8.dp)
+                .clickable {
+                    expanded = true
+                    Log.d("DropdownMenuSpinner", "Text clicked, expanded set to true")
+                },
+            fontSize = 16.sp,
+            textAlign = TextAlign.Start
         )
         DropdownMenu(
             expanded = expanded,
-            onDismissRequest = { expanded = false }
+            onDismissRequest = {
+                expanded = false
+                Log.d("DropdownMenuSpinner", "Dropdown dismissed, expanded set to false")
+            }
         ) {
-            items.forEach { item ->
-                DropdownMenuItem(onClick = {
-                    selected = item
-                    onItemSelected(item)
-                    expanded = false
-                }) {
-                    Text(item)
+            if (items.isEmpty()) {
+                DropdownMenuItem(
+                    content = { Text("No events available") },
+                    onClick = {
+                        expanded = false
+                        Log.d("DropdownMenuSpinner", "No events available clicked")
+                    }
+                )
+            } else {
+                items.forEach { item ->
+                    DropdownMenuItem(
+                        content = { Text(item) },
+                        onClick = {
+                            selected = item
+                            onItemSelected(item)
+                            expanded = false
+                            Log.d("DropdownMenuSpinner", "Item selected: $item")
+                        }
+                    )
                 }
             }
         }
