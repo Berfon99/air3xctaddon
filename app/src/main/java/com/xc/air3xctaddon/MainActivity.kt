@@ -23,9 +23,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xc.air3xctaddon.ui.theme.AIR3XCTAddonTheme
 import java.io.File
+import java.io.FileOutputStream
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -126,7 +128,7 @@ fun ConfigRow(
     index: Int
 ) {
     var event by remember { mutableStateOf(config.event) }
-    var soundFile by remember { mutableStateOf(config.soundFile) }
+    var soundFile by remember(config.soundFile) { mutableStateOf(config.soundFile) } // Sync with config
     var volumeType by remember { mutableStateOf(config.volumeType) }
     var volumePercentage by remember { mutableStateOf(config.volumePercentage) }
     var playCount by remember { mutableStateOf(config.playCount.toString()) }
@@ -137,10 +139,7 @@ fun ConfigRow(
         modifier = Modifier
             .fillMaxWidth()
             .background(Color.Cyan) // Debug: Confirm Row is rendered
-            .padding(8.dp)
-            .clickable {
-                Log.d("ConfigRow", "Row clicked for config: ${config.event.name}")
-            },
+            .padding(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Event Spinner
@@ -160,15 +159,33 @@ fun ConfigRow(
         Button(
             onClick = {
                 Log.d("ConfigRow", "Sound button clicked")
-                // List files in Sounds folder
-                val soundsDir = File(context.filesDir, "Sounds")
-                soundsDir.mkdirs() // Ensure Sounds directory exists
-                val soundFiles = soundsDir.listFiles()?.map { it.name } ?: emptyList()
-                // For simplicity, pick first or empty
-                soundFile = soundFiles.firstOrNull() ?: ""
-                onUpdate(config.copy(soundFile = soundFile))
+                val soundsDir = File(context.getExternalFilesDir(null), "Sounds")
+                Log.d("ConfigRow", "Sounds directory: ${soundsDir.absolutePath}")
+                try {
+                    val created = soundsDir.mkdirs()
+                    Log.d("ConfigRow", "Sounds directory created: $created, exists: ${soundsDir.exists()}")
+                    // Check existing sound files
+                    val soundFiles = soundsDir.listFiles()?.map { it.name }?.filter { it.endsWith(".wav") || it.endsWith(".mp3") } ?: emptyList()
+                    var selectedSound = soundFiles.firstOrNull()
+                    if (selectedSound == null && soundFiles.isEmpty()) {
+                        // Create a test sound file if no valid sound files exist
+                        val testFile = File(soundsDir, "test_sound.txt")
+                        FileOutputStream(testFile).use { it.write("Test sound".toByteArray()) }
+                        selectedSound = testFile.name
+                        Log.d("ConfigRow", "Created test sound file: $selectedSound")
+                    }
+                    Log.d("ConfigRow", "Selected sound file: ${selectedSound ?: "None"}")
+                    soundFile = selectedSound ?: ""
+                    onUpdate(config.copy(soundFile = soundFile))
+                    Log.d("ConfigRow", "Updated config with soundFile: $soundFile")
+                } catch (e: Exception) {
+                    Log.e("ConfigRow", "Error accessing Sounds directory", e)
+                }
             },
-            modifier = Modifier.background(Color.Green) // Debug: Confirm Button is rendered
+            modifier = Modifier
+                .focusable() // Ensure touch events are receivable
+                .zIndex(1f) // Ensure button is not overlapped
+                .background(Color.Green) // Debug: Confirm Button is rendered
         ) {
             Text(if (soundFile.isEmpty()) "Select Sound" else soundFile)
         }
