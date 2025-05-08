@@ -32,6 +32,8 @@ import java.io.FileOutputStream
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Copy sound files from assets to external storage at startup
+        copySoundFilesFromAssets()
         setContent {
             AIR3XCTAddonTheme {
                 MainScreen()
@@ -39,6 +41,40 @@ class MainActivity : ComponentActivity() {
         }
         // Start the foreground service
         startService(android.content.Intent(this, LogMonitorService::class.java))
+    }
+
+    private fun copySoundFilesFromAssets() {
+        val soundsDir = File(getExternalFilesDir(null), "Sounds")
+        try {
+            soundsDir.mkdirs()
+            Log.d("MainActivity", "Sounds directory for assets: ${soundsDir.absolutePath}, exists: ${soundsDir.exists()}")
+            // Check existing sound files
+            val existingFiles = soundsDir.listFiles()?.map { it.name }?.filter { it.endsWith(".mp3") || it.endsWith(".wav") }?.sorted() ?: emptyList()
+            Log.d("MainActivity", "Existing sound files: $existingFiles")
+            if (existingFiles.isNotEmpty()) {
+                Log.d("MainActivity", "Skipping copy, sound files already exist")
+                return
+            }
+            // List files in assets/sounds
+            val assetFiles = assets.list("sounds")?.filter { it.endsWith(".mp3") || it.endsWith(".wav") }?.sorted() ?: emptyList()
+            Log.d("MainActivity", "Sound files in assets/sounds: $assetFiles")
+            if (assetFiles.isEmpty()) {
+                Log.w("MainActivity", "No .mp3 or .wav files found in assets/sounds")
+                return
+            }
+            // Copy each file
+            assetFiles.forEach { fileName ->
+                val inputStream = assets.open("sounds/$fileName")
+                val outputFile = File(soundsDir, fileName)
+                FileOutputStream(outputFile).use { outputStream ->
+                    inputStream.copyTo(outputStream)
+                }
+                inputStream.close()
+                Log.d("MainActivity", "Copied sound file: $fileName to ${outputFile.absolutePath}")
+            }
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error copying sound files from assets", e)
+        }
     }
 }
 
@@ -118,6 +154,14 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
     }
 }
 
+// Sealed class to represent the state of sound files
+sealed class SoundFilesState {
+    object Loading : SoundFilesState()
+    data class Success(val files: List<String>) : SoundFilesState()
+    object Empty : SoundFilesState()
+    data class Error(val message: String) : SoundFilesState()
+}
+
 @Composable
 fun ConfigRow(
     config: EventConfig,
@@ -132,12 +176,29 @@ fun ConfigRow(
     var volumeType by remember { mutableStateOf(config.volumeType) }
     var volumePercentage by remember { mutableStateOf(config.volumePercentage) }
     var playCount by remember { mutableStateOf(config.playCount.toString()) }
+    // Workaround to force recomposition
+    var forceRecompose by remember { mutableStateOf(0) }
+    // State for dropdown menu
+    var soundMenuExpanded by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
 
+    // Load sound files state
+    val soundFilesState by produceState<SoundFilesState>(initialValue = SoundFilesState.Loading, key1 = soundMenuExpanded) {
+        value = try {
+            val soundsDir = File(context.getExternalFilesDir(null), "Sounds")
+            val soundFiles = soundsDir.listFiles()?.map { it.name }?.filter { it.endsWith(".mp3") || it.endsWith(".wav") }?.sorted() ?: emptyList()
+            Log.d("ConfigRow", "Available sound files: $soundFiles")
+            if (soundFiles.isEmpty()) SoundFilesState.Empty else SoundFilesState.Success(soundFiles)
+        } catch (e: Exception) {
+            Log.e("ConfigRow", "Error accessing Sounds directory", e)
+            SoundFilesState.Error("Error accessing files")
+        }
+    }
+
     Row(
         modifier = Modifier
-            .fillMaxWidth()
+            .fillMaxSize()
             .background(Color.Cyan) // Debug: Confirm Row is rendered
             .padding(8.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -155,39 +216,64 @@ fun ConfigRow(
 
         Spacer(modifier = Modifier.width(8.dp))
 
-        // Sound File Button
-        Button(
-            onClick = {
-                Log.d("ConfigRow", "Sound button clicked")
-                val soundsDir = File(context.getExternalFilesDir(null), "Sounds")
-                Log.d("ConfigRow", "Sounds directory: ${soundsDir.absolutePath}")
-                try {
-                    val created = soundsDir.mkdirs()
-                    Log.d("ConfigRow", "Sounds directory created: $created, exists: ${soundsDir.exists()}")
-                    // Check existing sound files
-                    val soundFiles = soundsDir.listFiles()?.map { it.name }?.filter { it.endsWith(".wav") || it.endsWith(".mp3") } ?: emptyList()
-                    var selectedSound = soundFiles.firstOrNull()
-                    if (selectedSound == null && soundFiles.isEmpty()) {
-                        // Create a test sound file if no valid sound files exist
-                        val testFile = File(soundsDir, "test_sound.txt")
-                        FileOutputStream(testFile).use { it.write("Test sound".toByteArray()) }
-                        selectedSound = testFile.name
-                        Log.d("ConfigRow", "Created test sound file: $selectedSound")
+        // Sound File Button with Dropdown
+        Box {
+            Button(
+                onClick = {
+                    Log.d("ConfigRow", "Sound button clicked")
+                    soundMenuExpanded = true
+                },
+                modifier = Modifier
+                    .focusable() // Ensure touch events are receivable
+                    .zIndex(1f) // Ensure button is not overlapped
+                    .background(Color.Green) // Debug: Confirm Button is rendered
+            ) {
+                Text(if (soundFile.isEmpty()) "Select Sound" else soundFile)
+            }
+            DropdownMenu(
+                expanded = soundMenuExpanded,
+                onDismissRequest = { soundMenuExpanded = false }
+            ) {
+                when (val state = soundFilesState) {
+                    is SoundFilesState.Loading -> {
+                        DropdownMenuItem(
+                            content = { Text("Loading...") },
+                            onClick = { /* Do nothing */ }
+                        )
                     }
-                    Log.d("ConfigRow", "Selected sound file: ${selectedSound ?: "None"}")
-                    soundFile = selectedSound ?: ""
-                    onUpdate(config.copy(soundFile = soundFile))
-                    Log.d("ConfigRow", "Updated config with soundFile: $soundFile")
-                } catch (e: Exception) {
-                    Log.e("ConfigRow", "Error accessing Sounds directory", e)
+                    is SoundFilesState.Success -> {
+                        state.files.forEach { fileName ->
+                            DropdownMenuItem(
+                                content = { Text(fileName) },
+                                onClick = {
+                                    soundFile = fileName
+                                    onUpdate(config.copy(soundFile = soundFile))
+                                    soundMenuExpanded = false
+                                    Log.d("ConfigRow", "Selected sound file: $fileName")
+                                    Log.d("ConfigRow", "Updated config with soundFile: $soundFile")
+                                    // Force recomposition
+                                    forceRecompose += 1
+                                }
+                            )
+                        }
+                    }
+                    is SoundFilesState.Empty -> {
+                        DropdownMenuItem(
+                            content = { Text("No sound files") },
+                            onClick = {
+                                soundMenuExpanded = false
+                                Log.d("ConfigRow", "No sound files selected")
+                            }
+                        )
+                    }
+                    is SoundFilesState.Error -> {
+                        DropdownMenuItem(
+                            content = { Text(state.message) },
+                            onClick = { soundMenuExpanded = false }
+                        )
+                    }
                 }
-            },
-            modifier = Modifier
-                .focusable() // Ensure touch events are receivable
-                .zIndex(1f) // Ensure button is not overlapped
-                .background(Color.Green) // Debug: Confirm Button is rendered
-        ) {
-            Text(if (soundFile.isEmpty()) "Select Sound" else soundFile)
+            }
         }
 
         Spacer(modifier = Modifier.width(8.dp))
