@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
@@ -32,6 +33,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xc.air3xctaddon.ui.theme.AIR3XCTAddonTheme
 import java.io.File
 import java.io.FileOutputStream
+
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -141,7 +143,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(16.dp),
+                .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             itemsIndexed(configs, key = { _, config -> config.id }) { index, config ->
@@ -271,9 +273,9 @@ fun ConfigRow(
 
     Row(
         modifier = Modifier
-            .fillMaxSize()
+            .fillMaxWidth()
             .background(Color.Cyan) // Debug: Confirm Row is rendered
-            .padding(8.dp),
+            .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Event Spinner
@@ -284,12 +286,13 @@ fun ConfigRow(
                 event = Event.valueOf(selected)
                 onUpdate(config.copy(event = event))
             },
-            label = "Event"
+            label = "Event",
+            modifier = Modifier.width(120.dp)
         )
 
-        Spacer(modifier = Modifier.width(8.dp))
+        Spacer(modifier = Modifier.width(4.dp))
 
-        // Sound File Button with Dropdown and Play Icon
+        // Sound File Button with Play Icon
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box {
                 Button(
@@ -298,11 +301,16 @@ fun ConfigRow(
                         soundMenuExpanded = true
                     },
                     modifier = Modifier
-                        .focusable() // Ensure touch events are receivable
-                        .zIndex(1f) // Ensure button is not overlapped
+                        .width(120.dp)
+                        .focusable()
+                        .zIndex(1f)
                         .background(Color.Green) // Debug: Confirm Button is rendered
                 ) {
-                    Text(if (soundFile.isEmpty()) "Select Sound" else soundFile)
+                    Text(
+                        text = if (soundFile.isEmpty()) "Select Sound" else soundFile,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.TextOverflow.Ellipsis
+                    )
                 }
                 DropdownMenu(
                     expanded = soundMenuExpanded,
@@ -321,7 +329,7 @@ fun ConfigRow(
                                     content = { Text(fileName) },
                                     onClick = {
                                         soundFile = fileName
-                                        onUpdate(config.copy(soundFile = soundFile))
+                                        onUpdate(config.copy(soundFile = fileName))
                                         soundMenuExpanded = false
                                         Log.d("ConfigRow", "Selected sound file: $fileName")
                                         Log.d("ConfigRow", "Updated config with soundFile: $soundFile")
@@ -343,84 +351,86 @@ fun ConfigRow(
                         is SoundFilesState.Error -> {
                             DropdownMenuItem(
                                 content = { Text(state.message) },
-                                onClick = { soundMenuExpanded = false })
+                                onClick = { soundMenuExpanded = false }
+                            )
                         }
                     }
                 }
             }
-        }
-        // Play Icon
-        IconButton(
-            onClick = {
-                Log.d("ConfigRow", "Play button clicked for file: $soundFile")
-                val count = playCount.toIntOrNull() ?: 1
-                playSound(soundFile, volumeType, volumePercentage, count)
-            },
-            enabled = soundFile.isNotEmpty(),
-            modifier = Modifier
-                .size(48.dp) // Match button height
-                .focusable()
-        ) {
-            Icon(
-                imageVector = Icons.Default.PlayArrow,
-                contentDescription = "Play Sound",
-                tint = if (soundFile.isNotEmpty()) MaterialTheme.colors.primary else Color.Gray
-            )
-        }
-    }
-
-    Spacer(modifier = Modifier.width(8.dp))
-
-    // Volume Spinner
-    DropdownMenuSpinner(
-        items = VolumeType.values().map { it.name } + (0..10).map { "${it * 10}%" },
-        selectedItem = when (volumeType) {
-            VolumeType.MAXIMUM -> "MAXIMUM"
-            VolumeType.SYSTEM -> "SYSTEM"
-            VolumeType.PERCENTAGE -> "$volumePercentage%"
-        },
-        onItemSelected = { selected ->
-            when (selected) {
-                "MAXIMUM" -> {
-                    volumeType = VolumeType.MAXIMUM
-                    volumePercentage = 100
-                }
-                "SYSTEM" -> {
-                    volumeType = VolumeType.SYSTEM
-                    volumePercentage = 100
-                }
-                else -> {
-                    volumeType = VolumeType.PERCENTAGE
-                    volumePercentage = selected.removeSuffix("%").toInt()
-                }
+            IconButton(
+                onClick = {
+                    Log.d("ConfigRow", "Play button clicked for file: $soundFile")
+                    val count = playCount.toIntOrNull() ?: 1
+                    playSound(soundFile, volumeType, volumePercentage, count)
+                },
+                enabled = soundFile.isNotEmpty(),
+                modifier = Modifier
+                    .size(36.dp)
+                    .focusable()
+            ) {
+                Icon(
+                    imageVector = Icons.Default.PlayArrow,
+                    contentDescription = "Play Sound",
+                    tint = if (soundFile.isNotEmpty()) MaterialTheme.colors.primary else Color.Gray
+                )
             }
-            onUpdate(config.copy(volumeType = volumeType, volumePercentage = volumePercentage))
-        },
-        label = "Volume"
-    )
+        }
 
-    Spacer(modifier = Modifier.width(8.dp))
+        Spacer(modifier = Modifier.width(4.dp))
 
-    // Play Count
-    TextField(
-        value = playCount,
-        onValueChange = { value ->
-            playCount = value
-            val count = value.toIntOrNull() ?: 1
-            onUpdate(config.copy(playCount = count))
-        },
-        label = { Text("Play Count") },
-        modifier = Modifier.width(80.dp)
-    )
+        // Volume Spinner
+        DropdownMenuSpinner(
+            items = VolumeType.values().map { it.name } + (0..10).map { "${it * 10}%" },
+            selectedItem = when (volumeType) {
+                VolumeType.MAXIMUM -> "MAXIMUM"
+                VolumeType.SYSTEM -> "SYSTEM"
+                VolumeType.PERCENTAGE -> "$volumePercentage%"
+            },
+            onItemSelected = { selected ->
+                when (selected) {
+                    "MAXIMUM" -> {
+                        volumeType = VolumeType.MAXIMUM
+                        volumePercentage = 100
+                    }
+                    "SYSTEM" -> {
+                        volumeType = VolumeType.SYSTEM
+                        volumePercentage = 100
+                    }
+                    else -> {
+                        volumeType = VolumeType.PERCENTAGE
+                        volumePercentage = selected.removeSuffix("%").toInt()
+                    }
+                }
+                onUpdate(config.copy(volumeType = volumeType, volumePercentage = volumePercentage))
+            },
+            label = "Volume",
+            modifier = Modifier.width(100.dp)
+        )
 
-    Spacer(modifier = Modifier.width(8.dp))
+        Spacer(modifier = Modifier.width(4.dp))
 
-    // Delete Button
-    IconButton(onClick = {
-        Log.d("ConfigRow", "Delete button clicked")
-        onDelete()
-    }) {
-        Icon(Icons.Default.Delete, contentDescription = "Delete")
+        // Play Count
+        TextField(
+            value = playCount,
+            onValueChange = { value ->
+                playCount = value
+                val count = value.toIntOrNull() ?: 1
+                onUpdate(config.copy(playCount = count))
+            },
+            label = { Text("Count") },
+            modifier = Modifier.width(70.dp)
+        )
+
+        // Flexible spacer to push Delete button to the end
+        Spacer(modifier = Modifier.weight(1f))
+
+        // Delete Button
+        IconButton(onClick = {
+            Log.d("ConfigRow", "Delete button clicked")
+            onDelete()
+        }) {
+            Icon(Icons.Default.Delete, contentDescription = "Delete")
+        }
     }
 }
 
@@ -429,7 +439,8 @@ fun DropdownMenuSpinner(
     items: List<String>,
     selectedItem: String,
     onItemSelected: (String) -> Unit,
-    label: String
+    label: String,
+    modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf(selectedItem) }
@@ -437,22 +448,24 @@ fun DropdownMenuSpinner(
     Log.d("DropdownMenuSpinner", "Rendering DropdownMenuSpinner with Items: $items, Selected: $selected, Expanded: $expanded")
 
     Box(
-        modifier = Modifier
+        modifier = modifier
             .background(Color.Yellow) // Debug: Highlight clickable area
-            .focusable() // Ensure touch events are receivable
+            .focusable()
     ) {
         Text(
             text = selected,
             modifier = Modifier
-                .width(150.dp)
+                .fillMaxWidth()
                 .background(Color.White) // Debug: Ensure text is visible
                 .padding(8.dp)
                 .clickable {
                     expanded = true
                     Log.d("DropdownMenuSpinner", "Text clicked, expanded set to true")
                 },
-            fontSize = 16.sp,
-            textAlign = TextAlign.Start
+            fontSize = 14.sp,
+            textAlign = TextAlign.Start,
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.TextOverflow.Ellipsis
         )
         DropdownMenu(
             expanded = expanded,
