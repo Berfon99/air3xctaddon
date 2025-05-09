@@ -25,7 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.TextOverflow
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
@@ -309,7 +309,7 @@ fun ConfigRow(
                     Text(
                         text = if (soundFile.isEmpty()) "Select Sound" else soundFile,
                         maxLines = 1,
-                        overflow = androidx.compose.ui.text.TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
                 DropdownMenu(
@@ -417,8 +417,12 @@ fun ConfigRow(
                 val count = value.toIntOrNull() ?: 1
                 onUpdate(config.copy(playCount = count))
             },
-            label = { Text("Count") },
-            modifier = Modifier.width(70.dp)
+            label = { Text("Count", fontSize = 12.sp) },
+            modifier = Modifier
+                .width(140.dp)
+                .height(52.dp),
+            singleLine = true,
+            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp)
         )
 
         // Flexible spacer to push Delete button to the end
@@ -465,7 +469,7 @@ fun DropdownMenuSpinner(
             fontSize = 14.sp,
             textAlign = TextAlign.Start,
             maxLines = 1,
-            overflow = androidx.compose.ui.text.TextOverflow.Ellipsis
+            overflow = TextOverflow.Ellipsis
         )
         DropdownMenu(
             expanded = expanded,
