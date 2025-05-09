@@ -287,7 +287,7 @@ fun ConfigRow(
                 onUpdate(config.copy(event = event))
             },
             label = "Event",
-            modifier = Modifier.width(120.dp)
+            modifier = Modifier.width(240.dp)
         )
 
         Spacer(modifier = Modifier.width(4.dp))
@@ -301,7 +301,7 @@ fun ConfigRow(
                         soundMenuExpanded = true
                     },
                     modifier = Modifier
-                        .width(120.dp)
+                        .width(360.dp)
                         .focusable()
                         .zIndex(1f)
                         .background(Color.Green) // Debug: Confirm Button is rendered
@@ -419,7 +419,7 @@ fun ConfigRow(
             },
             label = { Text("Count", fontSize = 12.sp) },
             modifier = Modifier
-                .width(140.dp)
+                .width(93.dp)
                 .height(52.dp),
             singleLine = true,
             textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp)
