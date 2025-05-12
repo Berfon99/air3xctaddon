@@ -174,7 +174,7 @@ fun ConfigRow(
     var soundFile by remember(config.soundFile) { mutableStateOf(config.soundFile) }
     var volumeType by remember { mutableStateOf(config.volumeType) }
     var volumePercentage by remember { mutableStateOf(config.volumePercentage) }
-    var playCount by remember { mutableStateOf(config.playCount.toString()) }
+    var playCount by remember { mutableStateOf(config.playCount) }
     var forceRecompose by remember { mutableStateOf(0) }
     var soundMenuExpanded by remember { mutableStateOf(false) }
     var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
@@ -359,8 +359,7 @@ fun ConfigRow(
             IconButton(
                 onClick = {
                     Log.d("ConfigRow", "Play button clicked for file: $soundFile")
-                    val count = playCount.toIntOrNull() ?: 1
-                    playSound(soundFile, volumeType, volumePercentage, count)
+                    playSound(soundFile, volumeType, volumePercentage, playCount)
                 },
                 enabled = soundFile.isNotEmpty(),
                 modifier = Modifier
@@ -423,20 +422,26 @@ fun ConfigRow(
 
         Spacer(modifier = Modifier.width(4.dp))
 
-        TextField(
-            value = playCount,
-            onValueChange = { value ->
-                playCount = value
-                val count = value.toIntOrNull() ?: 1
-                onUpdate(config.copy(playCount = count))
-            },
-            label = { Text("Count", fontSize = 12.sp) },
-            modifier = Modifier
-                .width(93.dp)
-                .height(52.dp),
-            singleLine = true,
-            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp)
-        )
+        Row(
+            modifier = Modifier.width(93.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Count",
+                fontSize = 12.sp,
+                modifier = Modifier.padding(end = 4.dp)
+            )
+            DropdownMenuSpinner(
+                items = listOf("1", "2", "3", "4", "5"),
+                selectedItem = playCount.toString(),
+                onItemSelected = { selected ->
+                    playCount = selected.toInt()
+                    onUpdate(config.copy(playCount = playCount))
+                },
+                label = "",
+                modifier = Modifier.width(73.dp)
+            )
+        }
 
         Spacer(modifier = Modifier.weight(1f))
 
@@ -491,10 +496,10 @@ fun DropdownMenuSpinner(
         ) {
             if (items.isEmpty()) {
                 DropdownMenuItem(
-                    content = { Text("No events available") },
+                    content = { Text("No items available") },
                     onClick = {
                         expanded = false
-                        Log.d("DropdownMenuSpinner", "No events available clicked")
+                        Log.d("DropdownMenuSpinner", "No items available clicked")
                     }
                 )
             } else {
