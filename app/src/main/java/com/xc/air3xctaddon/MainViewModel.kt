@@ -1,14 +1,23 @@
 package com.xc.air3xctaddon
 
 import android.app.Application
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.Environment
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import androidx.room.Room
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.*
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val db = Room.databaseBuilder(
@@ -21,6 +30,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _configs = MutableStateFlow<List<EventConfig>>(emptyList())
     val configs: StateFlow<List<EventConfig>> = _configs.asStateFlow()
 
+    // État du fichier de log
+    private val _logFileStatus = MutableStateFlow(LogFileStatus(getLogFileName(), false))
+    val logFileStatus: StateFlow<LogFileStatus> = _logFileStatus.asStateFlow()
+
+    data class LogFileStatus(val fileName: String, val isObserved: Boolean)
+
+    private val logFileStatusReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val fileName = intent?.getStringExtra(LogMonitorService.EXTRA_LOG_FILE_NAME) ?: return
+            val isObserved = intent.getBooleanExtra(LogMonitorService.EXTRA_IS_OBSERVED, false)
+            _logFileStatus.value = LogFileStatus(fileName, isObserved)
+            Log.d("MainViewModel", "Received log file status: $fileName, isObserved: $isObserved")
+        }
+    }
+
     init {
         viewModelScope.launch {
             try {
@@ -32,7 +56,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     val defaultEvent = Event.values().firstOrNull()
                     if (defaultEvent != null) {
                         val defaultConfig = EventConfig(
-                            id = 0, // Room générera automatiquement l'ID
+                            id = 0,
                             event = defaultEvent,
                             soundFile = "beep.mp3",
                             volumeType = VolumeType.SYSTEM,
@@ -56,6 +80,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 Log.e("MainViewModel", "Error initializing configs", e)
             }
         }
+
+        // Enregistrer le BroadcastReceiver
+        LocalBroadcastManager.getInstance(application).registerReceiver(
+            logFileStatusReceiver,
+            IntentFilter(LogMonitorService.ACTION_LOG_FILE_STATUS)
+        )
+
+        // Vérifier l'état initial
+        updateLogFileStatus()
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        LocalBroadcastManager.getInstance(getApplication()).unregisterReceiver(logFileStatusReceiver)
     }
 
     fun addConfig(event: Event, soundFile: String, volumeType: VolumeType, volumePercentage: Int, playCount: Int) {
@@ -63,7 +101,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val position = _configs.value.size
                 val config = EventConfig(
-                    id = 0, // Room générera automatiquement l'ID
+                    id = 0,
                     event = event,
                     soundFile = soundFile,
                     volumeType = volumeType,
@@ -94,7 +132,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 dao.delete(config)
-                // Update positions
                 _configs.value.forEachIndexed { index, cfg ->
                     if (cfg.position != index) {
                         dao.updatePosition(cfg.id, index)
@@ -130,5 +167,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val availableEvents = Event.values().filter { it !in usedEvents }
         Log.d("MainViewModel", "Available events: ${availableEvents.map { it.name }}")
         return availableEvents
+    }
+
+    private fun getLogFileName(): String {
+        val date = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+        return "$date.log"
+    }
+
+    fun updateLogFileStatus() {
+        viewModelScope.launch {
+            val logFile = File(
+                Environment.getExternalStorageDirectory(),
+                "Android/data/org.xcontest.XCTrack/files/Log/${getLogFileName()}"
+            )
+            val isObserved = logFile.exists()
+            _logFileStatus.value = LogFileStatus(getLogFileName(), isObserved)
+            Log.d("MainViewModel", "Log file status: ${logFile.absolutePath}, exists: $isObserved")
+        }
     }
 }

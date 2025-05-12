@@ -14,6 +14,7 @@ import android.os.FileObserver
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import androidx.room.Room
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.firstOrNull
@@ -28,7 +29,13 @@ class LogMonitorService : Service() {
     private var fileObserver: FileObserver? = null
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private lateinit var dao: EventConfigDao
-    private var lastFileSize: Long = 0 // Pour la lecture incrémentale
+    private var lastFileSize: Long = 0
+
+    companion object {
+        const val ACTION_LOG_FILE_STATUS = "com.xc.air3xctaddon.LOG_FILE_STATUS"
+        const val EXTRA_LOG_FILE_NAME = "log_file_name"
+        const val EXTRA_IS_OBSERVED = "is_observed"
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -78,6 +85,7 @@ class LogMonitorService : Service() {
     private fun monitorLogFile(logFile: File) {
         if (!logFile.exists()) {
             Log.w(TAG, "Log file does not exist: ${logFile.absolutePath}")
+            broadcastLogFileStatus(logFile.name, false)
             // Retry after a delay
             scope.launch {
                 delay(5000)
@@ -87,6 +95,7 @@ class LogMonitorService : Service() {
         }
 
         Log.d(TAG, "Starting to monitor log file: ${logFile.absolutePath}")
+        broadcastLogFileStatus(logFile.name, true)
         lastFileSize = logFile.length()
         fileObserver = object : FileObserver(logFile.path, MODIFY) {
             override fun onEvent(event: Int, path: String?) {
@@ -101,9 +110,18 @@ class LogMonitorService : Service() {
         fileObserver?.startWatching()
     }
 
+    private fun broadcastLogFileStatus(fileName: String, isObserved: Boolean) {
+        val intent = Intent(ACTION_LOG_FILE_STATUS)
+        intent.putExtra(EXTRA_LOG_FILE_NAME, fileName)
+        intent.putExtra(EXTRA_IS_OBSERVED, isObserved)
+        LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
+        Log.d(TAG, "Broadcasted log file status: $fileName, isObserved: $isObserved")
+    }
+
     private suspend fun readLogFile(logFile: File) {
         if (!logFile.exists()) {
             Log.w(TAG, "Log file does not exist during read: ${logFile.absolutePath}")
+            broadcastLogFileStatus(logFile.name, false)
             return
         }
 
@@ -115,10 +133,8 @@ class LogMonitorService : Service() {
             return
         }
 
-        // Lecture incrémentale
         RandomAccessFile(logFile, "r").use { raf ->
             if (lastFileSize > logFile.length()) {
-                // Fichier tronqué ou remplacé
                 Log.d(TAG, "File truncated or replaced, resetting position")
                 lastFileSize = 0
             }
@@ -164,7 +180,6 @@ class LogMonitorService : Service() {
                 prepare()
             }
 
-            // Set volume
             val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
             val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
             val currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
@@ -174,7 +189,6 @@ class LogMonitorService : Service() {
                 VolumeType.PERCENTAGE -> mediaPlayer.setVolume(config.volumePercentage / 100f, config.volumePercentage / 100f)
             }
 
-            // Play sound multiple times
             var playCount = 0
             mediaPlayer.setOnCompletionListener {
                 playCount++
