@@ -9,6 +9,7 @@ import android.content.Intent
 import android.media.AudioAttributes
 import android.media.AudioManager
 import android.media.MediaPlayer
+import android.os.Build
 import android.os.Environment
 import android.os.FileObserver
 import android.os.IBinder
@@ -20,8 +21,6 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.firstOrNull
 import java.io.File
 import java.io.RandomAccessFile
-import java.text.SimpleDateFormat
-import java.util.*
 
 class LogMonitorService : Service() {
     private val CHANNEL_ID = "LogMonitorServiceChannel"
@@ -58,16 +57,12 @@ class LogMonitorService : Service() {
             .build()
         startForeground(1, notification)
 
-        // Get today's log file
-        val date = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
-        val logDir = File(
+        // Essayer le dossier principal
+        val primaryLogDir = File(
             Environment.getExternalStorageDirectory().path,
             "Android/data/org.xcontest.XCTrack/files/Log"
         )
-        val logFile = File(logDir, "$date.log")
-
-        // Start monitoring
-        monitorLogFile(logFile)
+        monitorLogFile(primaryLogDir)
         return START_STICKY
     }
 
@@ -82,32 +77,107 @@ class LogMonitorService : Service() {
         Log.d(TAG, "Notification channel created")
     }
 
-    private fun monitorLogFile(logFile: File) {
-        if (!logFile.exists()) {
-            Log.w(TAG, "Log file does not exist: ${logFile.absolutePath}")
-            broadcastLogFileStatus(logFile.name, false)
-            // Retry after a delay
+    private fun monitorLogFile(logDir: File) {
+        Log.d(TAG, "Checking storage permission for directory: ${logDir.absolutePath}")
+        val hasPermission = hasStoragePermission()
+        Log.d(TAG, "Storage permission granted: $hasPermission")
+        if (!hasPermission) {
+            Log.w(TAG, "Storage permission not granted")
+            broadcastLogFileStatus("unknown.log", false)
             scope.launch {
                 delay(5000)
-                monitorLogFile(logFile)
+                monitorLogFile(logDir)
             }
             return
         }
 
-        Log.d(TAG, "Starting to monitor log file: ${logFile.absolutePath}")
-        broadcastLogFileStatus(logFile.name, true)
-        lastFileSize = logFile.length()
-        fileObserver = object : FileObserver(logFile.path, MODIFY) {
-            override fun onEvent(event: Int, path: String?) {
-                if (event == MODIFY) {
-                    Log.d(TAG, "Log file modified: $path")
-                    scope.launch {
-                        readLogFile(logFile)
+        try {
+            Log.d(TAG, "Attempting to access log directory: ${logDir.absolutePath}")
+            Log.d(TAG, "Directory exists: ${logDir.exists()}, readable: ${logDir.canRead()}, writable: ${logDir.canWrite()}")
+            if (!logDir.exists()) {
+                Log.w(TAG, "Log directory does not exist: ${logDir.absolutePath}")
+                broadcastLogFileStatus("unknown.log", false)
+                scope.launch {
+                    delay(5000)
+                    monitorLogFile(logDir)
+                }
+                return
+            }
+            if (!logDir.canRead()) {
+                Log.w(TAG, "Log directory not readable: ${logDir.absolutePath}")
+                broadcastLogFileStatus("unknown.log", false)
+                scope.launch {
+                    delay(5000)
+                    monitorLogFile(logDir)
+                }
+                return
+            }
+
+            val logFiles = logDir.listFiles { file ->
+                file.extension == "log" || file.extension == "txt"
+            }
+            Log.d(TAG, "Files in log directory (${logDir.absolutePath}): ${logFiles?.map { it.name }?.joinToString() ?: "none"}")
+            if (logFiles.isNullOrEmpty()) {
+                Log.w(TAG, "No .log or .txt files found in directory: ${logDir.absolutePath}")
+                broadcastLogFileStatus("unknown.log", false)
+                scope.launch {
+                    delay(5000)
+                    monitorLogFile(logDir)
+                }
+                return
+            }
+
+            val logFile = logFiles.maxByOrNull { it.lastModified() }
+            Log.d(TAG, "Selected log file: ${logFile?.absolutePath}, last modified: ${logFile?.lastModified()}, readable: ${logFile?.canRead()}")
+            if (logFile == null || !logFile.canRead()) {
+                Log.w(TAG, "Cannot read log file: ${logFile?.absolutePath}")
+                broadcastLogFileStatus(logFile?.name ?: "unknown.log", false)
+                scope.launch {
+                    delay(5000)
+                    monitorLogFile(logDir)
+                }
+                return
+            }
+
+            Log.d(TAG, "Starting to monitor log file: ${logFile.absolutePath}")
+            broadcastLogFileStatus(logFile.name, true)
+            lastFileSize = logFile.length()
+            fileObserver = object : FileObserver(logFile.path, FileObserver.MODIFY) {
+                override fun onEvent(event: Int, path: String?) {
+                    if (event == FileObserver.MODIFY) {
+                        Log.d(TAG, "Log file modified: $path")
+                        scope.launch {
+                            readLogFile(logFile)
+                        }
                     }
                 }
             }
+            fileObserver?.startWatching()
+        } catch (e: SecurityException) {
+            Log.e(TAG, "SecurityException accessing log directory: ${logDir.absolutePath}", e)
+            broadcastLogFileStatus("unknown.log", false)
+            scope.launch {
+                delay(5000)
+                monitorLogFile(logDir)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error accessing log directory: ${logDir.absolutePath}", e)
+            broadcastLogFileStatus("unknown.log", false)
+            scope.launch {
+                delay(5000)
+                monitorLogFile(logDir)
+            }
         }
-        fileObserver?.startWatching()
+    }
+
+    private fun hasStoragePermission(): Boolean {
+        val hasPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            Environment.isExternalStorageManager()
+        } else {
+            checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        }
+        Log.d(TAG, "Checked storage permission: $hasPermission")
+        return hasPermission
     }
 
     private fun broadcastLogFileStatus(fileName: String, isObserved: Boolean) {
@@ -119,43 +189,51 @@ class LogMonitorService : Service() {
     }
 
     private suspend fun readLogFile(logFile: File) {
-        if (!logFile.exists()) {
-            Log.w(TAG, "Log file does not exist during read: ${logFile.absolutePath}")
-            broadcastLogFileStatus(logFile.name, false)
-            return
-        }
-
-        val configs = dao.getAllConfigs().firstOrNull() ?: emptyList()
-        Log.d(TAG, "Reading log file with ${configs.size} configs: ${configs.map { it.event.name }}")
-
-        if (configs.isEmpty()) {
-            Log.w(TAG, "No configurations found, skipping log read")
-            return
-        }
-
-        RandomAccessFile(logFile, "r").use { raf ->
-            if (lastFileSize > logFile.length()) {
-                Log.d(TAG, "File truncated or replaced, resetting position")
-                lastFileSize = 0
+        try {
+            Log.d(TAG, "Attempting to read log file: ${logFile.absolutePath}, readable: ${logFile.canRead()}")
+            if (!logFile.exists() || !logFile.canRead()) {
+                Log.w(TAG, "Log file does not exist or is not readable: ${logFile.absolutePath}")
+                broadcastLogFileStatus(logFile.name, false)
+                return
             }
-            raf.seek(lastFileSize)
-            val newLines = mutableListOf<String>()
-            var line: String?
-            while (raf.readLine().also { line = it } != null) {
-                newLines.add(line!!)
-            }
-            lastFileSize = raf.filePointer
-            Log.d(TAG, "Read ${newLines.size} new lines")
 
-            newLines.forEach { line ->
-                configs.forEach { config ->
-                    val eventPattern = "[EventMapping] Event: ${config.event.name}"
-                    if (line.contains(eventPattern)) {
-                        Log.d(TAG, "Detected event: ${config.event.name} in line: $line")
-                        playSound(config)
+            val configs = dao.getAllConfigs().firstOrNull() ?: emptyList()
+            Log.d(TAG, "Reading log file with ${configs.size} configs: ${configs.map { it.event.name }}")
+            if (configs.isEmpty()) {
+                Log.w(TAG, "No configurations found, skipping log read")
+                return
+            }
+
+            RandomAccessFile(logFile, "r").use { raf ->
+                if (lastFileSize > logFile.length()) {
+                    Log.d(TAG, "File truncated or replaced, resetting position")
+                    lastFileSize = 0
+                }
+                raf.seek(lastFileSize)
+                val newLines = mutableListOf<String>()
+                var line: String?
+                while (raf.readLine().also { line = it } != null) {
+                    newLines.add(line!!)
+                }
+                lastFileSize = raf.filePointer
+                Log.d(TAG, "Read ${newLines.size} new lines")
+
+                newLines.forEach { line ->
+                    configs.forEach { config ->
+                        val eventPattern = "[EventMapping] Event: ${config.event.name}"
+                        if (line.contains(eventPattern)) {
+                            Log.d(TAG, "Detected event: ${config.event.name} in line: $line")
+                            playSound(config)
+                        }
                     }
                 }
             }
+        } catch (e: SecurityException) {
+            Log.e(TAG, "SecurityException reading log file: ${logFile.absolutePath}", e)
+            broadcastLogFileStatus(logFile.name, false)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error reading log file: ${logFile.absolutePath}", e)
+            broadcastLogFileStatus(logFile.name, false)
         }
     }
 

@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.os.Environment
 import android.provider.Settings
 import android.util.Log
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.core.app.ActivityCompat
@@ -44,6 +45,7 @@ class MainActivity : ComponentActivity() {
         }
 
         if (permissionsToRequest.isNotEmpty()) {
+            Log.d("MainActivity", "Requesting permissions: ${permissionsToRequest.joinToString()}")
             ActivityCompat.requestPermissions(this, permissionsToRequest.toTypedArray(), REQUEST_STORAGE_PERMISSION)
         } else {
             checkManageStoragePermission()
@@ -51,16 +53,68 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun checkManageStoragePermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !Environment.isExternalStorageManager()) {
-            try {
-                val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
-                intent.data = android.net.Uri.parse("package:$packageName")
-                startActivityForResult(intent, REQUEST_MANAGE_STORAGE)
-            } catch (e: Exception) {
-                Log.e("MainActivity", "Error requesting MANAGE_EXTERNAL_STORAGE", e)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val isGranted = Environment.isExternalStorageManager()
+            val appOpsGranted = checkAppOpsPermission()
+            Log.d("MainActivity", "MANAGE_EXTERNAL_STORAGE granted: $isGranted, AppOps granted: $appOpsGranted")
+            Toast.makeText(
+                this,
+                "Accès à tous les fichiers : ${if (isGranted && appOpsGranted) "accordé" else "refusé"}",
+                Toast.LENGTH_LONG
+            ).show()
+            if (!isGranted || !appOpsGranted) {
+                try {
+                    Log.d("MainActivity", "Requesting MANAGE_EXTERNAL_STORAGE")
+                    val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
+                    intent.data = android.net.Uri.parse("package:$packageName")
+                    startActivityForResult(intent, REQUEST_MANAGE_STORAGE)
+                } catch (e: Exception) {
+                    Log.e("MainActivity", "Error requesting MANAGE_EXTERNAL_STORAGE", e)
+                    Toast.makeText(this, "Erreur lors de la demande d'accès aux fichiers", Toast.LENGTH_LONG).show()
+                }
+            } else {
+                startLogMonitorService()
+                // Vérifier l'accès au dossier
+                checkDirectoryAccess()
             }
         } else {
             startLogMonitorService()
+        }
+    }
+
+    private fun checkAppOpsPermission(): Boolean {
+        val appOps = getSystemService(APP_OPS_SERVICE) as android.app.AppOpsManager
+        val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            appOps.unsafeCheckOpNoThrow(
+                "android:manage_external_storage",
+                applicationInfo.uid,
+                packageName
+            )
+        } else {
+            appOps.checkOpNoThrow(
+                "android:manage_external_storage",
+                applicationInfo.uid,
+                packageName
+            )
+        }
+        val isGranted = mode == android.app.AppOpsManager.MODE_ALLOWED
+        Log.d("MainActivity", "AppOps check for MANAGE_EXTERNAL_STORAGE: $isGranted")
+        return isGranted
+    }
+
+    private fun checkDirectoryAccess() {
+        val logDir = java.io.File(
+            Environment.getExternalStorageDirectory().path,
+            "Android/data/org.xcontest.XCTrack/files/Log"
+        )
+        val canAccess = logDir.exists() && logDir.canRead()
+        Log.d("MainActivity", "Log directory access: exists=${logDir.exists()}, readable=${logDir.canRead()}")
+        if (!canAccess) {
+            Toast.makeText(
+                this,
+                "Échec de l'accès au dossier de logs XCTrack. Vérifiez les permissions.",
+                Toast.LENGTH_LONG
+            ).show()
         }
     }
 
@@ -70,10 +124,14 @@ class MainActivity : ComponentActivity() {
         grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == REQUEST_STORAGE_PERMISSION && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
-            checkManageStoragePermission()
-        } else {
-            Log.w("MainActivity", "Permissions not granted: ${permissions.joinToString()}")
+        if (requestCode == REQUEST_STORAGE_PERMISSION) {
+            if (grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
+                Log.d("MainActivity", "All requested permissions granted")
+                checkManageStoragePermission()
+            } else {
+                Log.w("MainActivity", "Permissions not granted: ${permissions.joinToString()}")
+                Toast.makeText(this, "Certaines permissions sont nécessaires pour fonctionner", Toast.LENGTH_LONG).show()
+            }
         }
     }
 
@@ -81,10 +139,27 @@ class MainActivity : ComponentActivity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == REQUEST_MANAGE_STORAGE && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            if (Environment.isExternalStorageManager()) {
+            val isGranted = Environment.isExternalStorageManager()
+            val appOpsGranted = checkAppOpsPermission()
+            Log.d("MainActivity", "MANAGE_EXTERNAL_STORAGE result: $isGranted, AppOps result: $appOpsGranted")
+            Toast.makeText(
+                this,
+                "Accès à tous les fichiers : ${if (isGranted && appOpsGranted) "accordé" else "refusé"}",
+                Toast.LENGTH_LONG
+            ).show()
+            if (isGranted && appOpsGranted) {
+                Log.d("MainActivity", "Restarting LogMonitorService after permission granted")
+                stopLogMonitorService()
                 startLogMonitorService()
+                checkDirectoryAccess()
             } else {
                 Log.w("MainActivity", "MANAGE_EXTERNAL_STORAGE not granted")
+                Toast.makeText(
+                    this,
+                    "L'accès à tous les fichiers est requis pour surveiller les logs XCTrack",
+                    Toast.LENGTH_LONG
+                ).show()
+                checkManageStoragePermission()
             }
         }
     }
@@ -93,5 +168,11 @@ class MainActivity : ComponentActivity() {
         val intent = Intent(this, LogMonitorService::class.java)
         startService(intent)
         Log.d("MainActivity", "LogMonitorService started")
+    }
+
+    private fun stopLogMonitorService() {
+        val intent = Intent(this, LogMonitorService::class.java)
+        stopService(intent)
+        Log.d("MainActivity", "LogMonitorService stopped")
     }
 }
