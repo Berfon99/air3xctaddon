@@ -1,0 +1,322 @@
+package com.xc.air3xctaddon.ui
+
+import android.content.Context
+import android.media.AudioManager
+import android.media.MediaPlayer
+import android.util.Log
+import androidx.compose.foundation.background
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.layout.*
+import androidx.compose.material.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Stop
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
+import com.xc.air3xctaddon.Event
+import com.xc.air3xctaddon.EventConfig
+import com.xc.air3xctaddon.VolumeType
+import com.xc.air3xctaddon.model.SoundFilesState
+import com.xc.air3xctaddon.ui.components.DropdownMenuSpinner
+import java.io.File
+
+@Composable
+fun ConfigRow(
+    config: EventConfig,
+    availableEvents: List<Event>,
+    onUpdate: (EventConfig) -> Unit,
+    onDelete: () -> Unit,
+    onDrag: (Int, Int) -> Unit,
+    index: Int
+) {
+    var event by remember { mutableStateOf(config.event) }
+    var soundFile by remember(config.soundFile) { mutableStateOf(config.soundFile) }
+    var volumeType by remember { mutableStateOf(config.volumeType) }
+    var volumePercentage by remember { mutableStateOf(config.volumePercentage) }
+    var playCount by remember { mutableStateOf(config.playCount) }
+    var forceRecompose by remember { mutableStateOf(0) }
+    var soundMenuExpanded by remember { mutableStateOf(false) }
+    var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
+
+    val context = LocalContext.current
+
+    val soundFilesState by produceState<SoundFilesState>(initialValue = SoundFilesState.Loading, key1 = soundMenuExpanded) {
+        value = try {
+            val soundsDir = File(context.getExternalFilesDir(null), "Sounds")
+            val soundFiles = soundsDir.listFiles()?.map { it.name }?.filter { it.endsWith(".mp3") || it.endsWith(".wav") }?.sorted() ?: emptyList()
+            Log.d("ConfigRow", "Available sound files: $soundFiles")
+            if (soundFiles.isEmpty()) SoundFilesState.Empty else SoundFilesState.Success(soundFiles)
+        } catch (e: Exception) {
+            Log.e("ConfigRow", "Error accessing Sounds directory", e)
+            SoundFilesState.Error("Error accessing files")
+        }
+    }
+
+    fun playSound(fileName: String, volumeType: VolumeType, volumePercentage: Int, playCount: Int) {
+        if (fileName.isEmpty()) {
+            Log.d("ConfigRow", "Cannot play sound: No sound file selected")
+            return
+        }
+        try {
+            val soundsDir = File(context.getExternalFilesDir(null), "Sounds")
+            val soundFilePath = File(soundsDir, fileName).absolutePath
+            Log.d("ConfigRow", "Playing sound file: $soundFilePath, volumeType: $volumeType, volumePercentage: $volumePercentage%, playCount: $playCount")
+
+            val volume = when (volumeType) {
+                VolumeType.MAXIMUM -> 1.0f
+                VolumeType.SYSTEM -> {
+                    val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                    val currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat()
+                    val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC).toFloat()
+                    if (maxVolume > 0) currentVolume / maxVolume else 1.0f
+                }
+                VolumeType.PERCENTAGE -> volumePercentage / 100.0f
+            }
+            Log.d("ConfigRow", "Calculated volume: $volume")
+
+            var currentPlayCount by mutableIntStateOf(0)
+
+            mediaPlayer?.release()
+            val newMediaPlayer = MediaPlayer().apply {
+                setDataSource(soundFilePath)
+                prepare()
+                setVolume(volume, volume)
+                start()
+                currentPlayCount++
+                Log.d("ConfigRow", "Started playback $currentPlayCount/$playCount for: $fileName")
+            }
+            mediaPlayer = newMediaPlayer
+
+            newMediaPlayer.setOnCompletionListener {
+                if (currentPlayCount < playCount) {
+                    try {
+                        newMediaPlayer.reset()
+                        newMediaPlayer.setDataSource(soundFilePath)
+                        newMediaPlayer.prepare()
+                        newMediaPlayer.setVolume(volume, volume)
+                        newMediaPlayer.start()
+                        currentPlayCount++
+                        Log.d("ConfigRow", "Started playback $currentPlayCount/$playCount for: $fileName")
+                    } catch (e: Exception) {
+                        Log.e("ConfigRow", "Error restarting playback $currentPlayCount/$playCount for: $fileName", e)
+                        newMediaPlayer.release()
+                        mediaPlayer = null
+                    }
+                } else {
+                    Log.d("ConfigRow", "Playback completed $currentPlayCount/$playCount for: $fileName")
+                    newMediaPlayer.release()
+                    mediaPlayer = null
+                }
+            }
+
+            newMediaPlayer.setOnErrorListener { _, what, extra ->
+                Log.e("ConfigRow", "MediaPlayer error: what=$what, extra=$extra")
+                newMediaPlayer.release()
+                mediaPlayer = null
+                true
+            }
+        } catch (e: Exception) {
+            Log.e("ConfigRow", "Error playing sound file: $fileName", e)
+            mediaPlayer = null
+        }
+    }
+
+    fun stopSound() {
+        mediaPlayer?.let { player ->
+            if (player.isPlaying) {
+                player.stop()
+                Log.d("ConfigRow", "Stopped playback for: $soundFile")
+            }
+            player.release()
+            mediaPlayer = null
+        }
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.Cyan)
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        DropdownMenuSpinner(
+            items = availableEvents.map { it.name },
+            selectedItem = event.name,
+            onItemSelected = { selected ->
+                event = Event.valueOf(selected)
+                onUpdate(config.copy(event = event))
+            },
+            label = "Event",
+            modifier = Modifier.width(240.dp)
+        )
+
+        Spacer(modifier = Modifier.width(4.dp))
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box {
+                Button(
+                    onClick = {
+                        Log.d("ConfigRow", "Sound button clicked")
+                        soundMenuExpanded = true
+                    },
+                    modifier = Modifier
+                        .width(240.dp)
+                        .focusable()
+                        .zIndex(1f)
+                        .background(Color.Green)
+                ) {
+                    Text(
+                        text = if (soundFile.isEmpty()) "Select Sound" else soundFile,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                DropdownMenu(
+                    expanded = soundMenuExpanded,
+                    onDismissRequest = { soundMenuExpanded = false }
+                ) {
+                    when (val state = soundFilesState) {
+                        is SoundFilesState.Loading -> {
+                            DropdownMenuItem(
+                                content = { Text("Loading...") },
+                                onClick = { /* Do nothing */ }
+                            )
+                        }
+                        is SoundFilesState.Success -> {
+                            state.files.forEach { fileName ->
+                                DropdownMenuItem(
+                                    content = { Text(fileName) },
+                                    onClick = {
+                                        soundFile = fileName
+                                        onUpdate(config.copy(soundFile = fileName))
+                                        soundMenuExpanded = false
+                                        Log.d("ConfigRow", "Selected sound file: $fileName")
+                                        Log.d("ConfigRow", "Updated config with soundFile: $soundFile")
+                                        forceRecompose += 1
+                                    }
+                                )
+                            }
+                        }
+                        is SoundFilesState.Empty -> {
+                            DropdownMenuItem(
+                                content = { Text("No sound files") },
+                                onClick = {
+                                    soundMenuExpanded = false
+                                    Log.d("ConfigRow", "No sound files selected")
+                                }
+                            )
+                        }
+                        is SoundFilesState.Error -> {
+                            DropdownMenuItem(
+                                content = { Text(state.message) },
+                                onClick = { soundMenuExpanded = false }
+                            )
+                        }
+                    }
+                }
+            }
+            IconButton(
+                onClick = {
+                    Log.d("ConfigRow", "Play button clicked for file: $soundFile")
+                    playSound(soundFile, volumeType, volumePercentage, playCount)
+                },
+                enabled = soundFile.isNotEmpty(),
+                modifier = Modifier
+                    .size(36.dp)
+                    .focusable()
+            ) {
+                Icon(
+                    imageVector = Icons.Default.PlayArrow,
+                    contentDescription = "Play Sound",
+                    tint = if (soundFile.isNotEmpty()) MaterialTheme.colors.primary else Color.Gray
+                )
+            }
+            IconButton(
+                onClick = {
+                    Log.d("ConfigRow", "Stop button clicked for file: $soundFile")
+                    stopSound()
+                },
+                enabled = mediaPlayer != null && mediaPlayer?.isPlaying == true,
+                modifier = Modifier
+                    .size(36.dp)
+                    .focusable()
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Stop,
+                    contentDescription = "Stop Sound",
+                    tint = if (mediaPlayer != null && mediaPlayer?.isPlaying == true) MaterialTheme.colors.primary else Color.Gray
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.width(4.dp))
+
+        DropdownMenuSpinner(
+            items = VolumeType.values().map { it.name } + (0..10).map { "${it * 10}%" },
+            selectedItem = when (volumeType) {
+                VolumeType.MAXIMUM -> "MAXIMUM"
+                VolumeType.SYSTEM -> "SYSTEM"
+                VolumeType.PERCENTAGE -> "$volumePercentage%"
+            },
+            onItemSelected = { selected ->
+                when (selected) {
+                    "MAXIMUM" -> {
+                        volumeType = VolumeType.MAXIMUM
+                        volumePercentage = 100
+                    }
+                    "SYSTEM" -> {
+                        volumeType = VolumeType.SYSTEM
+                        volumePercentage = 100
+                    }
+                    else -> {
+                        volumeType = VolumeType.PERCENTAGE
+                        volumePercentage = selected.removeSuffix("%").toInt()
+                    }
+                }
+                onUpdate(config.copy(volumeType = volumeType, volumePercentage = volumePercentage))
+            },
+            label = "Volume",
+            modifier = Modifier.width(100.dp)
+        )
+
+        Spacer(modifier = Modifier.width(4.dp))
+
+        Row(
+            modifier = Modifier.width(93.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Count",
+                fontSize = 12.sp,
+                modifier = Modifier.padding(end = 4.dp)
+            )
+            DropdownMenuSpinner(
+                items = listOf("1", "2", "3", "4", "5"),
+                selectedItem = playCount.toString(),
+                onItemSelected = { selected ->
+                    playCount = selected.toInt()
+                    onUpdate(config.copy(playCount = playCount))
+                },
+                label = "",
+                modifier = Modifier.width(73.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.weight(1f))
+
+        IconButton(onClick = {
+            Log.d("ConfigRow", "Delete button clicked")
+            onDelete()
+        }) {
+            Icon(Icons.Default.Delete, contentDescription = "Delete")
+        }
+    }
+}

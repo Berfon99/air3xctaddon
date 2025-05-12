@@ -12,6 +12,9 @@ interface EventConfigDao {
     @Query("SELECT * FROM event_configs ORDER BY position")
     fun getAllConfigs(): Flow<List<EventConfig>>
 
+    @Query("SELECT * FROM event_configs ORDER BY position")
+    suspend fun getAllConfigsSync(): List<EventConfig>
+
     @Insert
     suspend fun insert(config: EventConfig)
 
