@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,18 +35,15 @@ import com.xc.air3xctaddon.ui.theme.AIR3XCTAddonTheme
 import java.io.File
 import java.io.FileOutputStream
 
-
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Copy sound files from assets to external storage at startup
         copySoundFilesFromAssets()
         setContent {
             AIR3XCTAddonTheme {
                 MainScreen()
             }
         }
-        // Start the foreground service
         startService(android.content.Intent(this, LogMonitorService::class.java))
     }
 
@@ -54,21 +52,18 @@ class MainActivity : ComponentActivity() {
         try {
             soundsDir.mkdirs()
             Log.d("MainActivity", "Sounds directory for assets: ${soundsDir.absolutePath}, exists: ${soundsDir.exists()}")
-            // Check existing sound files
             val existingFiles = soundsDir.listFiles()?.map { it.name }?.filter { it.endsWith(".mp3") || it.endsWith(".wav") }?.sorted() ?: emptyList()
             Log.d("MainActivity", "Existing sound files: $existingFiles")
             if (existingFiles.isNotEmpty()) {
                 Log.d("MainActivity", "Skipping copy, sound files already exist")
                 return
             }
-            // List files in assets/sounds
             val assetFiles = assets.list("sounds")?.filter { it.endsWith(".mp3") || it.endsWith(".wav") }?.sorted() ?: emptyList()
             Log.d("MainActivity", "Sound files in assets/sounds: $assetFiles")
             if (assetFiles.isEmpty()) {
                 Log.w("MainActivity", "No .mp3 or .wav files found in assets/sounds")
                 return
             }
-            // Copy each file
             assetFiles.forEach { fileName ->
                 val inputStream = assets.open("sounds/$fileName")
                 val outputFile = File(soundsDir, fileName)
@@ -124,7 +119,6 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
         floatingActionButton = {
             if (availableEvents.isNotEmpty()) {
                 FloatingActionButton(onClick = {
-                    // Add default config with first available event
                     viewModel.addConfig(
                         event = availableEvents.first(),
                         soundFile = "",
@@ -160,7 +154,6 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
     }
 }
 
-// Sealed class to represent the state of sound files
 sealed class SoundFilesState {
     object Loading : SoundFilesState()
     data class Success(val files: List<String>) : SoundFilesState()
@@ -178,18 +171,16 @@ fun ConfigRow(
     index: Int
 ) {
     var event by remember { mutableStateOf(config.event) }
-    var soundFile by remember(config.soundFile) { mutableStateOf(config.soundFile) } // Sync with config
+    var soundFile by remember(config.soundFile) { mutableStateOf(config.soundFile) }
     var volumeType by remember { mutableStateOf(config.volumeType) }
     var volumePercentage by remember { mutableStateOf(config.volumePercentage) }
     var playCount by remember { mutableStateOf(config.playCount.toString()) }
-    // Workaround to force recomposition
     var forceRecompose by remember { mutableStateOf(0) }
-    // State for dropdown menu
     var soundMenuExpanded by remember { mutableStateOf(false) }
+    var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
 
     val context = LocalContext.current
 
-    // Load sound files state
     val soundFilesState by produceState<SoundFilesState>(initialValue = SoundFilesState.Loading, key1 = soundMenuExpanded) {
         value = try {
             val soundsDir = File(context.getExternalFilesDir(null), "Sounds")
@@ -202,7 +193,6 @@ fun ConfigRow(
         }
     }
 
-    // Function to play sound with specified volume and play count
     fun playSound(fileName: String, volumeType: VolumeType, volumePercentage: Int, playCount: Int) {
         if (fileName.isEmpty()) {
             Log.d("ConfigRow", "Cannot play sound: No sound file selected")
@@ -213,7 +203,6 @@ fun ConfigRow(
             val soundFilePath = File(soundsDir, fileName).absolutePath
             Log.d("ConfigRow", "Playing sound file: $soundFilePath, volumeType: $volumeType, volumePercentage: $volumePercentage%, playCount: $playCount")
 
-            // Calculate volume
             val volume = when (volumeType) {
                 VolumeType.MAXIMUM -> 1.0f
                 VolumeType.SYSTEM -> {
@@ -226,11 +215,10 @@ fun ConfigRow(
             }
             Log.d("ConfigRow", "Calculated volume: $volume")
 
-            // Track play count
             var currentPlayCount by mutableIntStateOf(0)
 
-            // Create MediaPlayer
-            val mediaPlayer = MediaPlayer().apply {
+            mediaPlayer?.release()
+            val newMediaPlayer = MediaPlayer().apply {
                 setDataSource(soundFilePath)
                 prepare()
                 setVolume(volume, volume)
@@ -238,47 +226,60 @@ fun ConfigRow(
                 currentPlayCount++
                 Log.d("ConfigRow", "Started playback $currentPlayCount/$playCount for: $fileName")
             }
+            mediaPlayer = newMediaPlayer
 
-            // Handle completion for multiple plays
-            mediaPlayer.setOnCompletionListener {
+            newMediaPlayer.setOnCompletionListener {
                 if (currentPlayCount < playCount) {
                     try {
-                        mediaPlayer.reset()
-                        mediaPlayer.setDataSource(soundFilePath)
-                        mediaPlayer.prepare()
-                        mediaPlayer.setVolume(volume, volume)
-                        mediaPlayer.start()
+                        newMediaPlayer.reset()
+                        newMediaPlayer.setDataSource(soundFilePath)
+                        newMediaPlayer.prepare()
+                        newMediaPlayer.setVolume(volume, volume)
+                        newMediaPlayer.start()
                         currentPlayCount++
                         Log.d("ConfigRow", "Started playback $currentPlayCount/$playCount for: $fileName")
                     } catch (e: Exception) {
                         Log.e("ConfigRow", "Error restarting playback $currentPlayCount/$playCount for: $fileName", e)
-                        mediaPlayer.release()
+                        newMediaPlayer.release()
+                        mediaPlayer = null
                     }
                 } else {
                     Log.d("ConfigRow", "Playback completed $currentPlayCount/$playCount for: $fileName")
-                    mediaPlayer.release()
+                    newMediaPlayer.release()
+                    mediaPlayer = null
                 }
             }
 
-            // Handle errors
-            mediaPlayer.setOnErrorListener { _, what, extra ->
+            newMediaPlayer.setOnErrorListener { _, what, extra ->
                 Log.e("ConfigRow", "MediaPlayer error: what=$what, extra=$extra")
-                mediaPlayer.release()
+                newMediaPlayer.release()
+                mediaPlayer = null
                 true
             }
         } catch (e: Exception) {
             Log.e("ConfigRow", "Error playing sound file: $fileName", e)
+            mediaPlayer = null
+        }
+    }
+
+    fun stopSound() {
+        mediaPlayer?.let { player ->
+            if (player.isPlaying) {
+                player.stop()
+                Log.d("ConfigRow", "Stopped playback for: $soundFile")
+            }
+            player.release()
+            mediaPlayer = null
         }
     }
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.Cyan) // Debug: Confirm Row is rendered
+            .background(Color.Cyan)
             .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Event Spinner
         DropdownMenuSpinner(
             items = availableEvents.map { it.name },
             selectedItem = event.name,
@@ -292,7 +293,6 @@ fun ConfigRow(
 
         Spacer(modifier = Modifier.width(4.dp))
 
-        // Sound File Button with Play Icon
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box {
                 Button(
@@ -301,10 +301,10 @@ fun ConfigRow(
                         soundMenuExpanded = true
                     },
                     modifier = Modifier
-                        .width(360.dp)
+                        .width(240.dp)
                         .focusable()
                         .zIndex(1f)
-                        .background(Color.Green) // Debug: Confirm Button is rendered
+                        .background(Color.Green)
                 ) {
                     Text(
                         text = if (soundFile.isEmpty()) "Select Sound" else soundFile,
@@ -333,7 +333,6 @@ fun ConfigRow(
                                         soundMenuExpanded = false
                                         Log.d("ConfigRow", "Selected sound file: $fileName")
                                         Log.d("ConfigRow", "Updated config with soundFile: $soundFile")
-                                        // Force recomposition
                                         forceRecompose += 1
                                     }
                                 )
@@ -374,11 +373,26 @@ fun ConfigRow(
                     tint = if (soundFile.isNotEmpty()) MaterialTheme.colors.primary else Color.Gray
                 )
             }
+            IconButton(
+                onClick = {
+                    Log.d("ConfigRow", "Stop button clicked for file: $soundFile")
+                    stopSound()
+                },
+                enabled = mediaPlayer != null && mediaPlayer?.isPlaying == true,
+                modifier = Modifier
+                    .size(36.dp)
+                    .focusable()
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Stop,
+                    contentDescription = "Stop Sound",
+                    tint = if (mediaPlayer != null && mediaPlayer?.isPlaying == true) MaterialTheme.colors.primary else Color.Gray
+                )
+            }
         }
 
         Spacer(modifier = Modifier.width(4.dp))
 
-        // Volume Spinner
         DropdownMenuSpinner(
             items = VolumeType.values().map { it.name } + (0..10).map { "${it * 10}%" },
             selectedItem = when (volumeType) {
@@ -409,7 +423,6 @@ fun ConfigRow(
 
         Spacer(modifier = Modifier.width(4.dp))
 
-        // Play Count
         TextField(
             value = playCount,
             onValueChange = { value ->
@@ -425,10 +438,8 @@ fun ConfigRow(
             textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp)
         )
 
-        // Flexible spacer to push Delete button to the end
         Spacer(modifier = Modifier.weight(1f))
 
-        // Delete Button
         IconButton(onClick = {
             Log.d("ConfigRow", "Delete button clicked")
             onDelete()
@@ -453,14 +464,14 @@ fun DropdownMenuSpinner(
 
     Box(
         modifier = modifier
-            .background(Color.Yellow) // Debug: Highlight clickable area
+            .background(Color.Yellow)
             .focusable()
     ) {
         Text(
             text = selected,
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color.White) // Debug: Ensure text is visible
+                .background(Color.White)
                 .padding(8.dp)
                 .clickable {
                     expanded = true
