@@ -12,22 +12,27 @@ import android.media.MediaPlayer
 import android.os.Environment
 import android.os.FileObserver
 import android.os.IBinder
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.room.Room
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.firstOrNull
 import java.io.File
+import java.io.RandomAccessFile
 import java.text.SimpleDateFormat
 import java.util.*
 
 class LogMonitorService : Service() {
     private val CHANNEL_ID = "LogMonitorServiceChannel"
-    private lateinit var fileObserver: FileObserver
-    private val scope = CoroutineScope(Dispatchers.IO)
+    private val TAG = "LogMonitorService"
+    private var fileObserver: FileObserver? = null
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private lateinit var dao: EventConfigDao
+    private var lastFileSize: Long = 0 // Pour la lecture incrémentale
 
     override fun onCreate() {
         super.onCreate()
+        Log.d(TAG, "Service created")
         createNotificationChannel()
         val db = Room.databaseBuilder(
             applicationContext,
@@ -38,6 +43,7 @@ class LogMonitorService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        Log.d(TAG, "Service started")
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("AIR3 XCT Addon")
             .setContentText("Monitoring XCTrack log")
@@ -66,28 +72,70 @@ class LogMonitorService : Service() {
         )
         val manager = getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(channel)
+        Log.d(TAG, "Notification channel created")
     }
 
     private fun monitorLogFile(logFile: File) {
+        if (!logFile.exists()) {
+            Log.w(TAG, "Log file does not exist: ${logFile.absolutePath}")
+            // Retry after a delay
+            scope.launch {
+                delay(5000)
+                monitorLogFile(logFile)
+            }
+            return
+        }
+
+        Log.d(TAG, "Starting to monitor log file: ${logFile.absolutePath}")
+        lastFileSize = logFile.length()
         fileObserver = object : FileObserver(logFile.path, MODIFY) {
             override fun onEvent(event: Int, path: String?) {
                 if (event == MODIFY) {
+                    Log.d(TAG, "Log file modified: $path")
                     scope.launch {
                         readLogFile(logFile)
                     }
                 }
             }
         }
-        fileObserver.startWatching()
+        fileObserver?.startWatching()
     }
 
     private suspend fun readLogFile(logFile: File) {
-        if (!logFile.exists()) return
+        if (!logFile.exists()) {
+            Log.w(TAG, "Log file does not exist during read: ${logFile.absolutePath}")
+            return
+        }
+
         val configs = dao.getAllConfigs().firstOrNull() ?: emptyList()
-        logFile.bufferedReader().useLines { lines ->
-            lines.forEach { line: String ->
+        Log.d(TAG, "Reading log file with ${configs.size} configs: ${configs.map { it.event.name }}")
+
+        if (configs.isEmpty()) {
+            Log.w(TAG, "No configurations found, skipping log read")
+            return
+        }
+
+        // Lecture incrémentale
+        RandomAccessFile(logFile, "r").use { raf ->
+            if (lastFileSize > logFile.length()) {
+                // Fichier tronqué ou remplacé
+                Log.d(TAG, "File truncated or replaced, resetting position")
+                lastFileSize = 0
+            }
+            raf.seek(lastFileSize)
+            val newLines = mutableListOf<String>()
+            var line: String?
+            while (raf.readLine().also { line = it } != null) {
+                newLines.add(line!!)
+            }
+            lastFileSize = raf.filePointer
+            Log.d(TAG, "Read ${newLines.size} new lines")
+
+            newLines.forEach { line ->
                 configs.forEach { config ->
-                    if (line.contains("[EventMapping] Event: ${config.event.name}")) {
+                    val eventPattern = "[EventMapping] Event: ${config.event.name}"
+                    if (line.contains(eventPattern)) {
+                        Log.d(TAG, "Detected event: ${config.event.name} in line: $line")
                         playSound(config)
                     }
                 }
@@ -97,42 +145,57 @@ class LogMonitorService : Service() {
 
     private fun playSound(config: EventConfig) {
         val soundFile = File(filesDir, "Sounds/${config.soundFile}")
-        if (!soundFile.exists()) return
-
-        val mediaPlayer = MediaPlayer().apply {
-            setDataSource(soundFile.path)
-            setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_MEDIA)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                    .build()
-            )
-            prepare()
+        if (!soundFile.exists()) {
+            Log.e(TAG, "Sound file does not exist: ${soundFile.absolutePath}")
+            return
         }
 
-        // Set volume
-        val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
-        val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-        val currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
-        when (config.volumeType) {
-            VolumeType.MAXIMUM -> mediaPlayer.setVolume(1f, 1f)
-            VolumeType.SYSTEM -> mediaPlayer.setVolume(currentVolume.toFloat() / maxVolume, currentVolume.toFloat() / maxVolume)
-            VolumeType.PERCENTAGE -> mediaPlayer.setVolume(config.volumePercentage / 100f, config.volumePercentage / 100f)
-        }
+        Log.d(TAG, "Playing sound: ${soundFile.name}, event: ${config.event.name}, volumeType: ${config.volumeType}, volumePercentage: ${config.volumePercentage}, playCount: ${config.playCount}")
 
-        // Play sound multiple times
-        repeat(config.playCount) {
+        try {
+            val mediaPlayer = MediaPlayer().apply {
+                setDataSource(soundFile.path)
+                setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                        .build()
+                )
+                prepare()
+            }
+
+            // Set volume
+            val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+            val currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+            when (config.volumeType) {
+                VolumeType.MAXIMUM -> mediaPlayer.setVolume(1f, 1f)
+                VolumeType.SYSTEM -> mediaPlayer.setVolume(currentVolume.toFloat() / maxVolume, currentVolume.toFloat() / maxVolume)
+                VolumeType.PERCENTAGE -> mediaPlayer.setVolume(config.volumePercentage / 100f, config.volumePercentage / 100f)
+            }
+
+            // Play sound multiple times
+            var playCount = 0
+            mediaPlayer.setOnCompletionListener {
+                playCount++
+                if (playCount < config.playCount) {
+                    mediaPlayer.seekTo(0)
+                    mediaPlayer.start()
+                } else {
+                    mediaPlayer.release()
+                    Log.d(TAG, "Finished playing sound: ${soundFile.name}")
+                }
+            }
             mediaPlayer.start()
-            // Wait for sound to finish
-            Thread.sleep(mediaPlayer.duration.toLong())
-            mediaPlayer.seekTo(0)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error playing sound: ${soundFile.name}", e)
         }
-        mediaPlayer.release()
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        fileObserver.stopWatching()
+        Log.d(TAG, "Service destroyed")
+        fileObserver?.stopWatching()
         scope.cancel()
     }
 
