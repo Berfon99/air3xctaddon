@@ -15,6 +15,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _configs = MutableStateFlow<List<EventConfig>>(emptyList())
     val configs: StateFlow<List<EventConfig>> = _configs.asStateFlow()
 
+    private val _events = MutableStateFlow(CATEGORIZED_EVENTS.toMutableList())
+    val events: StateFlow<List<EventItem>> = _events.asStateFlow()
+
     sealed class EventItem {
         data class Category(val name: String) : EventItem()
         data class Event(val name: String) : EventItem()
@@ -142,7 +145,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 Log.d("MainViewModel", "Deleted config: ${config.event}")
             } catch (e: Exception) {
-                Log.e("MainViewModel", "Expecting binder but got null!")
+                Log.e("MainViewModel", "Error deleting config", e)
             }
         }
     }
@@ -167,7 +170,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun getAvailableEvents(): List<EventItem> {
         val usedEvents = _configs.value.map { it.event }.toSet()
-        val availableEvents = CATEGORIZED_EVENTS.filter { item ->
+        val availableEvents = _events.value.filter { item ->
             when (item) {
                 is EventItem.Category -> true
                 is EventItem.Event -> item.name !in usedEvents
@@ -175,5 +178,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         Log.d("MainViewModel", "Available events: ${availableEvents.filterIsInstance<EventItem.Event>().map { it.name }}")
         return availableEvents
+    }
+
+    fun addEvent(category: String, eventName: String) {
+        viewModelScope.launch {
+            // Check if event name already exists to prevent duplicates
+            if (_events.value.any { it is EventItem.Event && it.name == eventName }) {
+                Log.w("MainViewModel", "Event '$eventName' already exists")
+                return@launch
+            }
+            // Find the category in the current events
+            val categoryIndex = _events.value.indexOfFirst { it is EventItem.Category && it.name == category }
+            if (categoryIndex >= 0) {
+                val newEvent = EventItem.Event(eventName)
+                val currentEvents = _events.value.toMutableList()
+                currentEvents.add(categoryIndex + 1, newEvent)
+                _events.value = currentEvents
+                Log.d("MainViewModel", "Added event '$eventName' to category '$category'. New events: ${currentEvents.map { when (it) { is EventItem.Category -> it.name; is EventItem.Event -> it.name } }}")
+            } else {
+                Log.w("MainViewModel", "Category '$category' not found")
+            }
+        }
     }
 }
