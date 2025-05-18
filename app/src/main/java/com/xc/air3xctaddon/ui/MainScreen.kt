@@ -31,6 +31,12 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
     var showMenu by remember { mutableStateOf(false) }
     val availableEvents by remember { derivedStateOf { viewModel.getAvailableEvents() } }
 
+    // Drag state
+    var draggedIndex by remember { mutableStateOf<Int?>(null) }
+    var dragOffset by remember { mutableStateOf(0f) }
+    val rowHeight = 48.dp // Approximate height of a ConfigRow
+    val rowHeightPx = with(LocalDensity.current) { rowHeight.toPx() }
+
     Log.d("MainScreen", "Configs: $configs, AvailableEvents: $availableEvents")
 
     Scaffold(
@@ -75,7 +81,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
             LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f) // Take available space
+                    .weight(1f)
                     .heightIn(max = 1000.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
@@ -85,8 +91,25 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
                         availableEvents = availableEvents,
                         onUpdate = { updatedConfig -> viewModel.updateConfig(updatedConfig) },
                         onDelete = { viewModel.deleteConfig(config) },
-                        onDrag = { from, to -> viewModel.reorderConfigs(from, to) },
-                        index = index
+                        onDrag = { _, dragAmount ->
+                            dragOffset += dragAmount
+                            // Check if the dragged row should swap with another
+                            val offsetRows = (dragOffset / rowHeightPx).toInt()
+                            val targetIndex = (index + offsetRows).coerceIn(0, configs.size - 1)
+                            if (targetIndex != index && draggedIndex == index) {
+                                viewModel.reorderConfigs(index, targetIndex)
+                                draggedIndex = targetIndex
+                                dragOffset = 0f // Reset offset after swap
+                            }
+                        },
+                        index = index,
+                        isDragging = draggedIndex == index,
+                        onDragStart = { draggedIndex = index },
+                        onDragEnd = {
+                            draggedIndex = null
+                            dragOffset = 0f
+                        },
+                        dragOffset = dragOffset
                     )
                 }
             }
@@ -109,7 +132,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
                         Log.d("MainScreen", "Close app clicked")
                     },
                     modifier = Modifier
-                        .weight(0.25f) // 1/4th of screen width
+                        .weight(0.25f)
                         .padding(end = 8.dp),
                     shape = CircleShape,
                     colors = ButtonDefaults.buttonColors(
@@ -124,7 +147,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
                     Button(
                         onClick = {
                             val selectedEvent = availableEvents.firstOrNull { it is MainViewModel.EventItem.Event } as? MainViewModel.EventItem.Event
-                            val defaultSoundFile = "beep.mp3" // Ensure this file exists
+                            val defaultSoundFile = "Airspace.wav"
                             if (selectedEvent != null) {
                                 Log.d("MainScreen", "Add button clicked, adding config: event=${selectedEvent.name}, soundFile=$defaultSoundFile")
                                 viewModel.addConfig(
