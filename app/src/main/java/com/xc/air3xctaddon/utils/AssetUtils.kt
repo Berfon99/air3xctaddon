@@ -7,7 +7,7 @@ import java.io.FileOutputStream
 import java.io.IOException
 
 private const val TAG = "SoundFilesUtils"
-private const val ASSET_SOUNDS_PATH = "sounds" // Match lowercase folder name
+private const val ASSET_SOUNDS_PATH = "sounds"
 
 fun AssetManager.copySoundFilesFromAssets(externalFilesDir: File?): Boolean {
     if (externalFilesDir == null) {
@@ -15,7 +15,7 @@ fun AssetManager.copySoundFilesFromAssets(externalFilesDir: File?): Boolean {
         return false
     }
 
-    val soundsDir = File(externalFilesDir, "Sounds")
+    val soundsDir = externalFilesDir
     try {
         if (!soundsDir.exists() && !soundsDir.mkdirs()) {
             Log.e(TAG, "Failed to create sounds directory: ${soundsDir.absolutePath}")
