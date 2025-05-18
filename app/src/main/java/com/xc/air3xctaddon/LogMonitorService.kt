@@ -1,250 +1,117 @@
 package com.xc.air3xctaddon
 
+import android.app.Service
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.IBinder
+import android.util.Log
+import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import kotlinx.coroutines.*
+import java.util.concurrent.atomic.AtomicBoolean
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.app.Service
-import android.content.Context
-import android.content.Intent
 import android.media.AudioAttributes
 import android.media.AudioManager
 import android.media.MediaPlayer
-import android.os.Build
-import android.os.Environment
-import android.os.FileObserver
-import android.os.IBinder
-import android.util.Log
-import androidx.core.app.NotificationCompat
-import androidx.localbroadcastmanager.content.LocalBroadcastManager
-import androidx.room.Room
-import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.firstOrNull
 import java.io.File
-import java.io.RandomAccessFile
 
 class LogMonitorService : Service() {
-    private val CHANNEL_ID = "LogMonitorServiceChannel"
-    private val TAG = "LogMonitorService"
-    private var fileObserver: FileObserver? = null
-    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-    private lateinit var dao: EventConfigDao
-    private var lastFileSize: Long = 0
-
     companion object {
-        const val ACTION_LOG_FILE_STATUS = "com.xc.air3xctaddon.LOG_FILE_STATUS"
-        const val EXTRA_LOG_FILE_NAME = "log_file_name"
-        const val EXTRA_IS_OBSERVED = "is_observed"
+        private const val TAG = "LogMonitorService"
     }
 
-    override fun onCreate() {
-        super.onCreate()
-        Log.d(TAG, "Service created")
-        createNotificationChannel()
-        val db = Room.databaseBuilder(
-            applicationContext,
-            AppDatabase::class.java,
-            "air3xctaddon-db"
-        ).build()
-        dao = db.eventConfigDao()
-    }
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val isRunning = AtomicBoolean(false)
+    private lateinit var eventReceiver: BroadcastReceiver
+
+    override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d(TAG, "Service started")
-        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("AIR3 XCT Addon")
-            .setContentText("Monitoring XCTrack log")
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .build()
-        startForeground(1, notification)
-
-        // Essayer le dossier principal
-        val primaryLogDir = File(
-            Environment.getExternalStorageDirectory().path,
-            "Android/data/org.xcontest.XCTrack/files/Log"
-        )
-        monitorLogFile(primaryLogDir)
+        if (isRunning.getAndSet(true)) {
+            Log.d(TAG, "Service already running, skipping")
+            return START_STICKY
+        }
+        startEventMonitoring()
         return START_STICKY
     }
 
-    private fun createNotificationChannel() {
-        val channel = NotificationChannel(
-            CHANNEL_ID,
-            "Log Monitor Service",
-            NotificationManager.IMPORTANCE_LOW
-        )
-        val manager = getSystemService(NotificationManager::class.java)
-        manager.createNotificationChannel(channel)
-        Log.d(TAG, "Notification channel created")
-    }
-
-    private fun monitorLogFile(logDir: File) {
-        Log.d(TAG, "Checking storage permission for directory: ${logDir.absolutePath}")
-        val hasPermission = hasStoragePermission()
-        Log.d(TAG, "Storage permission granted: $hasPermission")
-        if (!hasPermission) {
-            Log.w(TAG, "Storage permission not granted")
-            broadcastLogFileStatus("unknown.log", false)
-            scope.launch {
-                delay(5000)
-                monitorLogFile(logDir)
-            }
-            return
-        }
-
-        try {
-            Log.d(TAG, "Attempting to access log directory: ${logDir.absolutePath}")
-            Log.d(TAG, "Directory exists: ${logDir.exists()}, readable: ${logDir.canRead()}, writable: ${logDir.canWrite()}")
-            if (!logDir.exists()) {
-                Log.w(TAG, "Log directory does not exist: ${logDir.absolutePath}")
-                broadcastLogFileStatus("unknown.log", false)
-                scope.launch {
-                    delay(5000)
-                    monitorLogFile(logDir)
+    private fun startEventMonitoring() {
+        Log.d(TAG, "Starting event monitoring")
+        eventReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                val action = intent?.action ?: return
+                if (action.startsWith("org.xcontest.XCTrack.Event.")) {
+                    val event = action.removePrefix("org.xcontest.XCTrack.Event.")
+                    val formatArgs = intent.getSerializableExtra("formatArgs")
+                    handleEvent(event, formatArgs)
                 }
-                return
-            }
-            if (!logDir.canRead()) {
-                Log.w(TAG, "Log directory not readable: ${logDir.absolutePath}")
-                broadcastLogFileStatus("unknown.log", false)
-                scope.launch {
-                    delay(5000)
-                    monitorLogFile(logDir)
-                }
-                return
-            }
-
-            val logFiles = logDir.listFiles { file ->
-                file.extension == "log" || file.extension == "txt"
-            }
-            Log.d(TAG, "Files in log directory (${logDir.absolutePath}): ${logFiles?.map { it.name }?.joinToString() ?: "none"}")
-            if (logFiles.isNullOrEmpty()) {
-                Log.w(TAG, "No .log or .txt files found in directory: ${logDir.absolutePath}")
-                broadcastLogFileStatus("unknown.log", false)
-                scope.launch {
-                    delay(5000)
-                    monitorLogFile(logDir)
-                }
-                return
-            }
-
-            val logFile = logFiles.maxByOrNull { it.lastModified() }
-            Log.d(TAG, "Selected log file: ${logFile?.absolutePath}, last modified: ${logFile?.lastModified()}, readable: ${logFile?.canRead()}")
-            if (logFile == null || !logFile.canRead()) {
-                Log.w(TAG, "Cannot read log file: ${logFile?.absolutePath}")
-                broadcastLogFileStatus(logFile?.name ?: "unknown.log", false)
-                scope.launch {
-                    delay(5000)
-                    monitorLogFile(logDir)
-                }
-                return
-            }
-
-            Log.d(TAG, "Starting to monitor log file: ${logFile.absolutePath}")
-            broadcastLogFileStatus(logFile.name, true)
-            lastFileSize = logFile.length()
-            fileObserver = object : FileObserver(logFile.path, FileObserver.MODIFY) {
-                override fun onEvent(event: Int, path: String?) {
-                    if (event == FileObserver.MODIFY) {
-                        Log.d(TAG, "Log file modified: $path")
-                        scope.launch {
-                            readLogFile(logFile)
-                        }
-                    }
-                }
-            }
-            fileObserver?.startWatching()
-        } catch (e: SecurityException) {
-            Log.e(TAG, "SecurityException accessing log directory: ${logDir.absolutePath}", e)
-            broadcastLogFileStatus("unknown.log", false)
-            scope.launch {
-                delay(5000)
-                monitorLogFile(logDir)
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error accessing log directory: ${logDir.absolutePath}", e)
-            broadcastLogFileStatus("unknown.log", false)
-            scope.launch {
-                delay(5000)
-                monitorLogFile(logDir)
             }
         }
-    }
-
-    private fun hasStoragePermission(): Boolean {
-        val hasPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            Environment.isExternalStorageManager()
-        } else {
-            checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        val filter = IntentFilter().apply {
+            // Register all 32 XCTrack event actions
+            addAction("org.xcontest.XCTrack.Event.TAKEOFF")
+            addAction("org.xcontest.XCTrack.Event.LANDING")
+            addAction("org.xcontest.XCTrack.Event.THERMAL_ENTER")
+            addAction("org.xcontest.XCTrack.Event.THERMAL_EXIT")
+            addAction("org.xcontest.XCTrack.Event.GLIDE_START")
+            addAction("org.xcontest.XCTrack.Event.GLIDE_END")
+            addAction("org.xcontest.XCTrack.Event.ALTITUDE_RECORD")
+            addAction("org.xcontest.XCTrack.Event.SPEED_RECORD")
+            addAction("org.xcontest.XCTrack.Event.TASK_START")
+            addAction("org.xcontest.XCTrack.Event.TASK_FINISH")
+            addAction("org.xcontest.XCTrack.Event.WAYPOINT_REACHED")
+            addAction("org.xcontest.XCTrack.Event.TURNPOINT_REACHED")
+            addAction("org.xcontest.XCTrack.Event.BATTERY75")
+            addAction("org.xcontest.XCTrack.Event.BATTERY50")
+            addAction("org.xcontest.XCTrack.Event.BATTERY25")
+            addAction("org.xcontest.XCTrack.Event.BATTERY10")
+            addAction("org.xcontest.XCTrack.Event.GPS_FIX")
+            addAction("org.xcontest.XCTrack.Event.GPS_LOST")
+            addAction("org.xcontest.XCTrack.Event.STARTUP")
+            addAction("org.xcontest.XCTrack.Event.SHUTDOWN")
+            addAction("org.xcontest.XCTrack.Event.BLUETOOTH_ON")
+            addAction("org.xcontest.XCTrack.Event.BLUETOOTH_OFF")
+            addAction("org.xcontest.XCTrack.Event.NETWORK_ON")
+            addAction("org.xcontest.XCTrack.Event.NETWORK_OFF")
+            addAction("org.xcontest.XCTrack.Event.FLIGHT_MODE_ON")
+            addAction("org.xcontest.XCTrack.Event.FLIGHT_MODE_OFF")
+            addAction("org.xcontest.XCTrack.Event.SENSOR_CONNECTED")
+            addAction("org.xcontest.XCTrack.Event.SENSOR_DISCONNECTED")
+            addAction("org.xcontest.XCTrack.Event.WARNING")
+            addAction("org.xcontest.XCTrack.Event.ERROR")
+            addAction("org.xcontest.XCTrack.Event.INFO")
+            addAction("org.xcontest.XCTrack.Event.BUTTON_CLICK")
+            addAction("org.xcontest.XCTrack.Event.TEST")
         }
-        Log.d(TAG, "Checked storage permission: $hasPermission")
-        return hasPermission
+        registerReceiver(eventReceiver, filter, RECEIVER_EXPORTED)
     }
 
-    private fun broadcastLogFileStatus(fileName: String, isObserved: Boolean) {
-        val intent = Intent(ACTION_LOG_FILE_STATUS)
-        intent.putExtra(EXTRA_LOG_FILE_NAME, fileName)
-        intent.putExtra(EXTRA_IS_OBSERVED, isObserved)
-        LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
-        Log.d(TAG, "Broadcasted log file status: $fileName, isObserved: $isObserved")
-    }
-
-    private suspend fun readLogFile(logFile: File) {
-        try {
-            Log.d(TAG, "Attempting to read log file: ${logFile.absolutePath}, readable: ${logFile.canRead()}")
-            if (!logFile.exists() || !logFile.canRead()) {
-                Log.w(TAG, "Log file does not exist or is not readable: ${logFile.absolutePath}")
-                broadcastLogFileStatus(logFile.name, false)
-                return
+    private fun handleEvent(event: String, formatArgs: Any?) {
+        scope.launch {
+            val configs = AppDatabase.getDatabase(applicationContext).eventConfigDao().getAllConfigsSync()
+            val config = configs.find { it.event == event }
+            if (config != null) {
+                Log.d(TAG, "Playing sound for event: $event")
+                playSound(config)
+            } else {
+                Log.d(TAG, "No sound configured for event: $event")
             }
-
-            val configs = dao.getAllConfigs().firstOrNull() ?: emptyList()
-            Log.d(TAG, "Reading log file with ${configs.size} configs: ${configs.map { it.event.name }}")
-            if (configs.isEmpty()) {
-                Log.w(TAG, "No configurations found, skipping log read")
-                return
-            }
-
-            RandomAccessFile(logFile, "r").use { raf ->
-                if (lastFileSize > logFile.length()) {
-                    Log.d(TAG, "File truncated or replaced, resetting position")
-                    lastFileSize = 0
-                }
-                raf.seek(lastFileSize)
-                val newLines = mutableListOf<String>()
-                var line: String?
-                while (raf.readLine().also { line = it } != null) {
-                    newLines.add(line!!)
-                }
-                lastFileSize = raf.filePointer
-                Log.d(TAG, "Read ${newLines.size} new lines")
-
-                newLines.forEach { line ->
-                    configs.forEach { config ->
-                        val eventPattern = "[EventMapping] Event: ${config.event.name}"
-                        if (line.contains(eventPattern)) {
-                            Log.d(TAG, "Detected event: ${config.event.name} in line: $line")
-                            playSound(config)
-                        }
-                    }
-                }
-            }
-        } catch (e: SecurityException) {
-            Log.e(TAG, "SecurityException reading log file: ${logFile.absolutePath}", e)
-            broadcastLogFileStatus(logFile.name, false)
-        } catch (e: Exception) {
-            Log.e(TAG, "Error reading log file: ${logFile.absolutePath}", e)
-            broadcastLogFileStatus(logFile.name, false)
         }
     }
 
     private fun playSound(config: EventConfig) {
-        val soundFile = File(filesDir, "Sounds/${config.soundFile}")
+        val soundFile = File(applicationContext.filesDir, "Sounds")
         if (!soundFile.exists()) {
-            Log.e(TAG, "Sound file does not exist: ${soundFile.absolutePath}")
+            Log.e("LogMonitorService", "Sound file does not exist: ${soundFile.absolutePath}")
+            Log.d("LogMonitorService", "Exists: ${soundFile.exists()}, Readable: ${soundFile.canRead()}, Size: ${soundFile.length()}")
             return
         }
 
-        Log.d(TAG, "Playing sound: ${soundFile.name}, event: ${config.event.name}, volumeType: ${config.volumeType}, volumePercentage: ${config.volumePercentage}, playCount: ${config.playCount}")
+        Log.d(TAG, "Playing sound: ${soundFile.name}, event: ${config.event}, volumeType: ${config.volumeType}, volumePercentage: ${config.volumePercentage}, playCount: ${config.playCount}")
 
         try {
             val mediaPlayer = MediaPlayer().apply {
@@ -283,13 +150,11 @@ class LogMonitorService : Service() {
             Log.e(TAG, "Error playing sound: ${soundFile.name}", e)
         }
     }
-
     override fun onDestroy() {
-        super.onDestroy()
         Log.d(TAG, "Service destroyed")
-        fileObserver?.stopWatching()
+        isRunning.set(false)
+        unregisterReceiver(eventReceiver) // Use global Context
         scope.cancel()
+        super.onDestroy()
     }
-
-    override fun onBind(intent: Intent?): IBinder? = null
 }

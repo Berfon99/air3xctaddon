@@ -2,117 +2,177 @@ package com.xc.air3xctaddon
 
 import android.Manifest
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.os.Environment
-import android.provider.Settings
+import android.provider.DocumentsContract
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.core.app.ActivityCompat
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import com.xc.air3xctaddon.ui.MainScreen
 import com.xc.air3xctaddon.ui.theme.AIR3XCTAddonTheme
 import com.xc.air3xctaddon.utils.copySoundFilesFromAssets
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import android.content.SharedPreferences
+import androidx.documentfile.provider.DocumentFile
 
 class MainActivity : ComponentActivity() {
     companion object {
-        private const val REQUEST_STORAGE_PERMISSION = 100
-        private const val REQUEST_MANAGE_STORAGE = 101
+        private const val TAG = "MainActivity"
+        private const val REQUEST_NOTIFICATION_PERMISSION = 100
+        private const val XCTRACK_PROVIDER_URI = "content://org.xcontest.XCTrack.allfiles"
+        private const val PREFS_NAME = "XCTrackPrefs"
+        private const val PREF_LOG_FILE_URI = "log_file_uri"
+    }
+
+    private lateinit var sharedPreferences: SharedPreferences
+    private lateinit var eventReceiver: XCTrackEventReceiver // Added for BroadcastReceiver
+    private val selectLogFileLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        uri?.let {
+            Log.d(TAG, "Selected log file URI: $uri")
+            try {
+                contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+                sharedPreferences.edit()
+                    .putString(PREF_LOG_FILE_URI, uri.toString())
+                    .apply()
+                Toast.makeText(this, "Emplacement des logs XCTrack sélectionné avec succès", Toast.LENGTH_SHORT).show()
+                val currentLogFileUri = getCurrentLogFileUri() ?: uri
+                startLogMonitorService(currentLogFileUri)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error taking persistable URI permission", e)
+                Toast.makeText(
+                    this,
+                    "Erreur lors de l'accès au fichier. Sélectionnez un fichier .log dans XCTrack > files > Log.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        } ?: run {
+            Log.w(TAG, "No file selected")
+            Toast.makeText(
+                this,
+                "Aucun fichier sélectionné. Sélectionnez un fichier .log dans XCTrack > files > Log.",
+                Toast.LENGTH_LONG
+            ).show()
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        sharedPreferences = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
         assets.copySoundFilesFromAssets(getExternalFilesDir(null))
         setContent {
             AIR3XCTAddonTheme {
                 MainScreen()
             }
         }
+        // Initialize and register BroadcastReceiver
+        eventReceiver = XCTrackEventReceiver()
+        val filter = IntentFilter().apply {
+            // List all known events
+            val knownEvents = arrayOf(
+                "BATTERY50", "BATTERY40", "BATTERY30", "BATTERY20", "BATTERY10",
+                "BATTERY5", "BATTERY_CHARGING", "BATTERY_DISCHARGING",
+                "TAKEOFF", "LANDING", "START_THERMALING", "STOP_THERMALING",
+                "COMP_SSS_CROSSED", "COMP_TURNPOINT_CROSSED", "COMP_ESS_CROSSED",
+                "COMP_GOAL_CROSSED", "SYSTEM_GPS_OK", "AIRSPACE_CROSSED",
+                "AIRSPACE_RED_WARN", "AIRSPACE_ORANGE_WARN", "BT_OK", "BT_KO",
+                "LIVETRACK_MESSAGE", "AIRSPACE_CROSSED_SOON", "AIRSPACE_OBSTACLE",
+                "CALL_REJECTED", "COMP_TURNPOINT_PREV", "LIVETRACK_ENABLED",
+                "TEST", "_LANDING_CONFIRMATION_NEEDED", "BUTTON_CLICK"
+            )
+            knownEvents.forEach { addAction("${EventConstants.ACTION_PREFIX}$it") }
+        }
+        registerReceiver(eventReceiver, filter, "org.xcontest.XCTrack.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION", null)
+        Log.d(TAG, "Registered XCTrackEventReceiver")
         requestPermissions()
     }
 
-    private fun requestPermissions() {
-        val permissionsToRequest = mutableListOf<String>()
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-            permissionsToRequest.add(Manifest.permission.READ_EXTERNAL_STORAGE)
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-            permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
-        }
+    override fun onDestroy() {
+        super.onDestroy()
+        // Unregister BroadcastReceiver
+        unregisterReceiver(eventReceiver)
+        Log.d(TAG, "Unregistered XCTrackEventReceiver")
+    }
 
-        if (permissionsToRequest.isNotEmpty()) {
-            Log.d("MainActivity", "Requesting permissions: ${permissionsToRequest.joinToString()}")
-            ActivityCompat.requestPermissions(this, permissionsToRequest.toTypedArray(), REQUEST_STORAGE_PERMISSION)
+    private fun requestPermissions() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            Log.d(TAG, "Requesting POST_NOTIFICATIONS permission")
+            requestPermissions(
+                arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                REQUEST_NOTIFICATION_PERMISSION
+            )
         } else {
-            checkManageStoragePermission()
+            checkAndSelectLogFile()
         }
     }
 
-    private fun checkManageStoragePermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val isGranted = Environment.isExternalStorageManager()
-            val appOpsGranted = checkAppOpsPermission()
-            Log.d("MainActivity", "MANAGE_EXTERNAL_STORAGE granted: $isGranted, AppOps granted: $appOpsGranted")
-            Toast.makeText(
-                this,
-                "Accès à tous les fichiers : ${if (isGranted && appOpsGranted) "accordé" else "refusé"}",
-                Toast.LENGTH_LONG
-            ).show()
-            if (!isGranted || !appOpsGranted) {
-                try {
-                    Log.d("MainActivity", "Requesting MANAGE_EXTERNAL_STORAGE")
-                    val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
-                    intent.data = android.net.Uri.parse("package:$packageName")
-                    startActivityForResult(intent, REQUEST_MANAGE_STORAGE)
-                } catch (e: Exception) {
-                    Log.e("MainActivity", "Error requesting MANAGE_EXTERNAL_STORAGE", e)
-                    Toast.makeText(this, "Erreur lors de la demande d'accès aux fichiers", Toast.LENGTH_LONG).show()
-                }
+    private fun checkAndSelectLogFile() {
+        val currentLogFileUri = getCurrentLogFileUri()
+        if (currentLogFileUri != null) {
+            val documentFile = DocumentFile.fromSingleUri(this, currentLogFileUri)
+            if (documentFile != null && documentFile.canRead()) {
+                Log.d(TAG, "Using log file URI for date ${getCurrentDate()}: $currentLogFileUri")
+                startLogMonitorService(currentLogFileUri)
             } else {
-                startLogMonitorService()
-                // Vérifier l'accès au dossier
-                checkDirectoryAccess()
+                Log.w(TAG, "Current log file URI inaccessible: $currentLogFileUri")
+                selectLogFile()
             }
         } else {
-            startLogMonitorService()
+            selectLogFile()
         }
     }
 
-    private fun checkAppOpsPermission(): Boolean {
-        val appOps = getSystemService(APP_OPS_SERVICE) as android.app.AppOpsManager
-        val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            appOps.unsafeCheckOpNoThrow(
-                "android:manage_external_storage",
-                applicationInfo.uid,
-                packageName
-            )
-        } else {
-            appOps.checkOpNoThrow(
-                "android:manage_external_storage",
-                applicationInfo.uid,
-                packageName
-            )
-        }
-        val isGranted = mode == android.app.AppOpsManager.MODE_ALLOWED
-        Log.d("MainActivity", "AppOps check for MANAGE_EXTERNAL_STORAGE: $isGranted")
-        return isGranted
+    private fun getCurrentDate(): String {
+        val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        return dateFormat.format(Date())
     }
 
-    private fun checkDirectoryAccess() {
-        val logDir = java.io.File(
-            Environment.getExternalStorageDirectory().path,
-            "Android/data/org.xcontest.XCTrack/files/Log"
-        )
-        val canAccess = logDir.exists() && logDir.canRead()
-        Log.d("MainActivity", "Log directory access: exists=${logDir.exists()}, readable=${logDir.canRead()}")
-        if (!canAccess) {
+    private fun getCurrentLogFileUri(): Uri? {
+        val storedUriString = sharedPreferences.getString(PREF_LOG_FILE_URI, null) ?: return null
+        val storedUri = Uri.parse(storedUriString)
+        val storedDocumentId = try {
+            DocumentsContract.getDocumentId(storedUri)
+        } catch (e: IllegalArgumentException) {
+            Log.e(TAG, "Invalid stored URI: $storedUri", e)
+            return null
+        }
+        val folderDocumentId = storedDocumentId.substringBeforeLast('/')
+        val currentLogFileName = "${getCurrentDate()}.log"
+        val currentDocumentId = "$folderDocumentId/$currentLogFileName"
+        return try {
+            DocumentsContract.buildDocumentUri(storedUri.authority, currentDocumentId)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error constructing current log file URI", e)
+            null
+        }
+    }
+
+    private fun selectLogFile() {
+        Log.d(TAG, "Launching log file selection")
+        Toast.makeText(
+            this,
+            "Sélectionnez le fichier de log du jour (${getCurrentDate()}.log) dans XCTrack > files > Log si disponible, sinon un autre fichier .log (utilisez 'File Manager +' si possible).",
+            Toast.LENGTH_LONG
+        ).show()
+        try {
+            selectLogFileLauncher.launch(arrayOf("text/plain", "text/*", "application/octet-stream"))
+        } catch (e: Exception) {
+            Log.e(TAG, "Error launching file selection", e)
             Toast.makeText(
                 this,
-                "Échec de l'accès au dossier de logs XCTrack. Vérifiez les permissions.",
+                "Erreur lors du lancement de la sélection. Assurez-vous que 'File Manager +' est installé.",
                 Toast.LENGTH_LONG
             ).show()
         }
@@ -124,55 +184,21 @@ class MainActivity : ComponentActivity() {
         grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == REQUEST_STORAGE_PERMISSION) {
+        if (requestCode == REQUEST_NOTIFICATION_PERMISSION) {
             if (grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
-                Log.d("MainActivity", "All requested permissions granted")
-                checkManageStoragePermission()
+                Log.d(TAG, "POST_NOTIFICATIONS permission granted")
+                checkAndSelectLogFile()
             } else {
-                Log.w("MainActivity", "Permissions not granted: ${permissions.joinToString()}")
-                Toast.makeText(this, "Certaines permissions sont nécessaires pour fonctionner", Toast.LENGTH_LONG).show()
+                Log.w(TAG, "POST_NOTIFICATIONS permission not granted")
+                Toast.makeText(this, "La permission de notification est nécessaire.", Toast.LENGTH_LONG).show()
             }
         }
     }
 
-    @Deprecated("Deprecated in Java")
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == REQUEST_MANAGE_STORAGE && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val isGranted = Environment.isExternalStorageManager()
-            val appOpsGranted = checkAppOpsPermission()
-            Log.d("MainActivity", "MANAGE_EXTERNAL_STORAGE result: $isGranted, AppOps result: $appOpsGranted")
-            Toast.makeText(
-                this,
-                "Accès à tous les fichiers : ${if (isGranted && appOpsGranted) "accordé" else "refusé"}",
-                Toast.LENGTH_LONG
-            ).show()
-            if (isGranted && appOpsGranted) {
-                Log.d("MainActivity", "Restarting LogMonitorService after permission granted")
-                stopLogMonitorService()
-                startLogMonitorService()
-                checkDirectoryAccess()
-            } else {
-                Log.w("MainActivity", "MANAGE_EXTERNAL_STORAGE not granted")
-                Toast.makeText(
-                    this,
-                    "L'accès à tous les fichiers est requis pour surveiller les logs XCTrack",
-                    Toast.LENGTH_LONG
-                ).show()
-                checkManageStoragePermission()
-            }
-        }
-    }
-
-    private fun startLogMonitorService() {
+    private fun startLogMonitorService(logFileUri: Uri) {
         val intent = Intent(this, LogMonitorService::class.java)
+        intent.putExtra("LOG_FILE_URI", logFileUri.toString())
         startService(intent)
-        Log.d("MainActivity", "LogMonitorService started")
-    }
-
-    private fun stopLogMonitorService() {
-        val intent = Intent(this, LogMonitorService::class.java)
-        stopService(intent)
-        Log.d("MainActivity", "LogMonitorService stopped")
+        Log.d(TAG, "LogMonitorService started with URI: $logFileUri")
     }
 }

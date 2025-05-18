@@ -21,17 +21,16 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
-import com.xc.air3xctaddon.Event
 import com.xc.air3xctaddon.EventConfig
 import com.xc.air3xctaddon.VolumeType
-import com.xc.air3xctaddon.model.SoundFilesState
+import com.xc.air3xctaddon.model.SoundFilesState // Added import
 import com.xc.air3xctaddon.ui.components.DropdownMenuSpinner
 import java.io.File
 
 @Composable
 fun ConfigRow(
     config: EventConfig,
-    availableEvents: List<Event>,
+    availableEvents: List<String>, // Changed from List<Event> to List<String>
     onUpdate: (EventConfig) -> Unit,
     onDelete: () -> Unit,
     onDrag: (Int, Int) -> Unit,
@@ -148,10 +147,10 @@ fun ConfigRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         DropdownMenuSpinner(
-            items = availableEvents.map { it.name },
-            selectedItem = event.name,
+            items = availableEvents,
+            selectedItem = event,
             onItemSelected = { selected ->
-                event = Event.valueOf(selected)
+                event = selected
                 onUpdate(config.copy(event = event))
             },
             label = "Event",

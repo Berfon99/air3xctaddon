@@ -6,7 +6,7 @@ import androidx.room.PrimaryKey
 @Entity(tableName = "event_configs")
 data class EventConfig(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
-    val event: Event,
+    val event: String, // Changed from Event to String to support all XCTrack events
     val soundFile: String,
     val volumeType: VolumeType,
     val volumePercentage: Int, // Used if volumeType is PERCENTAGE

@@ -42,7 +42,7 @@ android {
         compose = true
     }
     composeOptions {
-        kotlinCompilerExtensionVersion = "2.0.0" // Mise à jour pour Kotlin 2.0.0
+        kotlinCompilerExtensionVersion = "2.0.0"
     }
     packaging {
         resources {
@@ -71,6 +71,8 @@ dependencies {
     implementation("com.google.android.material:material:1.12.0")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("androidx.localbroadcastmanager:localbroadcastmanager:1.1.0")
+    implementation("androidx.documentfile:documentfile:1.0.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
