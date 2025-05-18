@@ -19,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -29,7 +30,7 @@ import com.xc.air3xctaddon.VolumeType
 import com.xc.air3xctaddon.model.SoundFilesState
 import com.xc.air3xctaddon.ui.components.DropdownMenuSpinner
 import com.xc.air3xctaddon.ui.theme.RowBackground
-import com.xc.air3xctaddon.ui.theme.SoundFieldBackground // Import the new color
+import com.xc.air3xctaddon.ui.theme.SoundFieldBackground
 import java.io.File
 
 @Composable
@@ -193,7 +194,9 @@ fun ConfigRow(
                             is EventItem.Category -> {
                                 Text(
                                     text = item.name,
-                                    style = MaterialTheme.typography.subtitle1,
+                                    style = MaterialTheme.typography.subtitle1.copy(
+                                        fontWeight = FontWeight.Bold
+                                    ),
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .padding(horizontal = 8.dp, vertical = 4.dp),
@@ -230,7 +233,7 @@ fun ConfigRow(
                         .width(240.dp)
                         .focusable()
                         .zIndex(1f)
-                        .background(SoundFieldBackground) // Changed from Color.Green
+                        .background(SoundFieldBackground)
                 ) {
                     Text(
                         text = if (soundFile.isEmpty()) "Select Sound" else soundFile,
