@@ -32,6 +32,7 @@ import com.xc.air3xctaddon.VolumeType
 import com.xc.air3xctaddon.model.SoundFilesState
 import com.xc.air3xctaddon.ui.components.DragHandle
 import com.xc.air3xctaddon.ui.components.DropdownMenuSpinner
+import com.xc.air3xctaddon.ui.components.SpinnerItem
 import com.xc.air3xctaddon.ui.theme.RowBackground
 import com.xc.air3xctaddon.ui.theme.SoundFieldBackground
 import java.io.File
@@ -180,7 +181,6 @@ fun ConfigRow(
                             onDragEnd = { onDragEnd() },
                             onDrag = { change, dragAmount ->
                                 change.consume()
-                                // Notify MainScreen of drag offset
                                 onDrag(index, dragAmount.y.toInt())
                             }
                         )
@@ -366,7 +366,12 @@ fun ConfigRow(
                 Spacer(modifier = Modifier.width(4.dp))
 
                 DropdownMenuSpinner(
-                    items = VolumeType.values().map { it.name } + (0..10).map { "${it * 10}%" },
+                    items = listOf(
+                        SpinnerItem.Item("MAXIMUM"),
+                        SpinnerItem.Item("SYSTEM"),
+                        SpinnerItem.Header("Percentage"),
+                        *(0..10).map { SpinnerItem.Item("${it * 10}%") }.toTypedArray()
+                    ),
                     selectedItem = when (volumeType) {
                         VolumeType.MAXIMUM -> "MAXIMUM"
                         VolumeType.SYSTEM -> "SYSTEM"
@@ -388,6 +393,7 @@ fun ConfigRow(
                             }
                         }
                         onUpdate(config.copy(volumeType = volumeType, volumePercentage = volumePercentage))
+                        Log.d("ConfigRow", "Volume selected: $selected, volumeType: $volumeType, volumePercentage: $volumePercentage")
                     },
                     label = "Volume",
                     modifier = Modifier.width(100.dp)
@@ -405,11 +411,18 @@ fun ConfigRow(
                         modifier = Modifier.padding(end = 4.dp)
                     )
                     DropdownMenuSpinner(
-                        items = listOf("1", "2", "3", "4", "5"),
+                        items = listOf(
+                            SpinnerItem.Item("1"),
+                            SpinnerItem.Item("2"),
+                            SpinnerItem.Item("3"),
+                            SpinnerItem.Item("4"),
+                            SpinnerItem.Item("5")
+                        ),
                         selectedItem = playCount.toString(),
                         onItemSelected = { selected ->
                             playCount = selected.toInt()
                             onUpdate(config.copy(playCount = playCount))
+                            Log.d("ConfigRow", "Play count selected: $selected")
                         },
                         label = "",
                         modifier = Modifier.width(73.dp)

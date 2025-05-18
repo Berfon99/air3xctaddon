@@ -5,22 +5,39 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.DropdownMenu
+import androidx.compose.material.DropdownMenuItem
+import androidx.compose.material.MaterialTheme
+import androidx.compose.material.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+// Define sealed class for spinner items
+sealed class SpinnerItem {
+    data class Header(val name: String) : SpinnerItem()
+    data class Item(val name: String) : SpinnerItem()
+}
+
 @Composable
 fun DropdownMenuSpinner(
-    items: List<String>,
+    items: List<SpinnerItem>,
     selectedItem: String,
     onItemSelected: (String) -> Unit,
     label: String,
@@ -58,7 +75,7 @@ fun DropdownMenuSpinner(
                 Log.d("DropdownMenuSpinner", "Dropdown dismissed, expanded set to false")
             },
             modifier = Modifier
-                .width(100.dp)
+                .width(200.dp)
                 .heightIn(max = 300.dp)
         ) {
             if (items.isEmpty()) {
@@ -70,16 +87,39 @@ fun DropdownMenuSpinner(
                     }
                 )
             } else {
-                items.forEach { item ->
-                    DropdownMenuItem(
-                        content = { Text(item) },
-                        onClick = {
-                            selected = item
-                            onItemSelected(item)
-                            expanded = false
-                            Log.d("DropdownMenuSpinner", "Item selected: $item")
+                Column(
+                    modifier = Modifier
+                        .heightIn(max = 300.dp)
+                        .verticalScroll(rememberScrollState())
+                        .fillMaxWidth()
+                ) {
+                    items.forEach { item ->
+                        when (item) {
+                            is SpinnerItem.Header -> {
+                                Text(
+                                    text = item.name,
+                                    style = MaterialTheme.typography.subtitle1.copy(
+                                        fontWeight = FontWeight.Bold
+                                    ),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                                    color = MaterialTheme.colors.primary
+                                )
+                            }
+                            is SpinnerItem.Item -> {
+                                DropdownMenuItem(
+                                    content = { Text(item.name) },
+                                    onClick = {
+                                        selected = item.name
+                                        onItemSelected(item.name)
+                                        expanded = false
+                                        Log.d("DropdownMenuSpinner", "Item selected: ${item.name}")
+                                    }
+                                )
+                            }
                         }
-                    )
+                    }
                 }
             }
         }
