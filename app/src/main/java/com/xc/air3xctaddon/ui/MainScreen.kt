@@ -152,7 +152,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
                     Button(
                         onClick = {
                             val selectedEvent = availableEvents.firstOrNull { it is MainViewModel.EventItem.Event } as? MainViewModel.EventItem.Event
-                            val defaultSoundFile = "beep.mp3"
+                            val defaultSoundFile = "Airspace.wav"
                             if (selectedEvent != null) {
                                 Log.d("MainScreen", "Add button clicked, adding config: event=${selectedEvent.name}, soundFile=$defaultSoundFile")
                                 viewModel.addConfig(

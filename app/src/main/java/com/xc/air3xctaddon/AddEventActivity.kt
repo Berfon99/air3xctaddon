@@ -18,6 +18,7 @@ import com.xc.air3xctaddon.ui.theme.AIR3XCTAddonTheme
 import com.xc.air3xctaddon.MainViewModel
 import com.xc.air3xctaddon.MainViewModel.EventItem
 import com.xc.air3xctaddon.MainViewModelFactory
+import kotlinx.coroutines.launch
 
 class AddEventActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -31,8 +32,14 @@ class AddEventActivity : ComponentActivity() {
 }
 
 @Composable
-fun AddEventScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFactory(LocalContext.current.applicationContext as android.app.Application))) {
+fun AddEventScreen() {
     val context = LocalContext.current
+    val viewModel: MainViewModel = viewModel(
+        factory = MainViewModelFactory(context.applicationContext as android.app.Application)
+    )
+
+    // To ensure we have the latest events data
+    val events by viewModel.events.collectAsState()
     val availableEvents by remember { derivedStateOf { viewModel.getAvailableEvents() } }
     val categories = availableEvents.filterIsInstance<EventItem.Category>().map { it.name }
 
@@ -40,8 +47,10 @@ fun AddEventScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelF
     var eventName by remember { mutableStateOf("") }
     var categoryMenuExpanded by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
 
     Log.d("AddEventScreen", "Categories: $categories, Selected: $selectedCategory, EventName: $eventName")
+    Log.d("AddEventScreen", "Total events: ${events.size}, Available events: ${availableEvents.size}")
 
     Scaffold(
         topBar = {
@@ -110,9 +119,13 @@ fun AddEventScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelF
             Button(
                 onClick = {
                     if (selectedCategory.isNotEmpty() && eventName.isNotEmpty()) {
-                        viewModel.addEvent(selectedCategory, eventName)
-                        Log.d("AddEventScreen", "Confirm clicked: Adding event '$eventName' to category '$selectedCategory'")
-                        (LocalContext.current as ComponentActivity).finish()
+                        scope.launch {
+                            viewModel.addEvent(selectedCategory, eventName)
+                            Log.d("AddEventScreen", "Confirm clicked: Adding event '$eventName' to category '$selectedCategory'")
+                            // Add a small delay to ensure the event is processed
+                            kotlinx.coroutines.delay(100)
+                            (context as ComponentActivity).finish()
+                        }
                     } else {
                         Log.w("AddEventScreen", "Cannot add event: Category or event name empty")
                         message = "Please select a category and enter an event name."
@@ -128,6 +141,12 @@ fun AddEventScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelF
             message?.let {
                 Text(it, modifier = Modifier.padding(8.dp))
             }
+
+            // Display current events for debugging
+            Text(
+                "Debug - Current Events: ${events.filterIsInstance<EventItem.Event>().size}",
+                modifier = Modifier.padding(top = 16.dp)
+            )
         }
     }
 }
