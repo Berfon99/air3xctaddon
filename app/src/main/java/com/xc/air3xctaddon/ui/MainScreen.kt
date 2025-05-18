@@ -2,21 +2,19 @@ package com.xc.air3xctaddon.ui
 
 import android.content.Intent
 import android.util.Log
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xc.air3xctaddon.AboutActivity
@@ -64,30 +62,6 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
                     }
                 }
             )
-        },
-        floatingActionButton = {
-            if (availableEvents.isNotEmpty()) {
-                FloatingActionButton(onClick = {
-                    val selectedEvent = availableEvents.firstOrNull { it is MainViewModel.EventItem.Event } as? MainViewModel.EventItem.Event
-                    val defaultSoundFile = "goodresult.mp3"
-                    if (selectedEvent != null) {
-                        Log.d("MainScreen", "FAB clicked, adding config: event=${selectedEvent.name}, soundFile=$defaultSoundFile")
-                        viewModel.addConfig(
-                            event = selectedEvent.name,
-                            soundFile = defaultSoundFile,
-                            volumeType = VolumeType.SYSTEM,
-                            volumePercentage = 100,
-                            playCount = 1
-                        )
-                    } else {
-                        Log.w("MainScreen", "FAB clicked, but no EventItem.Event found in availableEvents")
-                    }
-                }) {
-                    Icon(Icons.Default.Add, contentDescription = "Add Configuration")
-                }
-            } else {
-                Log.d("MainScreen", "FAB not shown: availableEvents is empty")
-            }
         }
     ) { padding ->
         Column(
@@ -97,24 +71,11 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // Close App Button
-            Button(
-                onClick = {
-                    context.startActivity(Intent(Intent.ACTION_MAIN).apply {
-                        addCategory(Intent.CATEGORY_HOME)
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                    })
-                    Log.d("MainScreen", "Close app clicked")
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Close app")
-            }
-
             // Liste des configurations
             LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .weight(1f) // Take available space
                     .heightIn(max = 1000.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
@@ -127,6 +88,64 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
                         onDrag = { from, to -> viewModel.reorderConfigs(from, to) },
                         index = index
                     )
+                }
+            }
+
+            // Bottom Row for Close and Add buttons
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Close App Button
+                Button(
+                    onClick = {
+                        context.startActivity(Intent(Intent.ACTION_MAIN).apply {
+                            addCategory(Intent.CATEGORY_HOME)
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        })
+                        Log.d("MainScreen", "Close app clicked")
+                    },
+                    modifier = Modifier
+                        .weight(0.25f) // 1/4th of screen width
+                        .padding(end = 8.dp),
+                    shape = CircleShape,
+                    colors = ButtonDefaults.buttonColors(
+                        backgroundColor = MaterialTheme.colors.secondary
+                    )
+                ) {
+                    Text("Close")
+                }
+
+                // Add Configuration Button
+                if (availableEvents.isNotEmpty()) {
+                    Button(
+                        onClick = {
+                            val selectedEvent = availableEvents.firstOrNull { it is MainViewModel.EventItem.Event } as? MainViewModel.EventItem.Event
+                            val defaultSoundFile = "beep.mp3" // Ensure this file exists
+                            if (selectedEvent != null) {
+                                Log.d("MainScreen", "Add button clicked, adding config: event=${selectedEvent.name}, soundFile=$defaultSoundFile")
+                                viewModel.addConfig(
+                                    event = selectedEvent.name,
+                                    soundFile = defaultSoundFile,
+                                    volumeType = VolumeType.SYSTEM,
+                                    volumePercentage = 100,
+                                    playCount = 1
+                                )
+                            } else {
+                                Log.w("MainScreen", "Add button clicked, but no EventItem.Event found in availableEvents")
+                            }
+                        },
+                        modifier = Modifier.size(56.dp),
+                        shape = CircleShape,
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = MaterialTheme.colors.secondary
+                        )
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = "Add Configuration")
+                    }
                 }
             }
         }

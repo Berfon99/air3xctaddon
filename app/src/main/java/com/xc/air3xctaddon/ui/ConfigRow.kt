@@ -28,6 +28,8 @@ import com.xc.air3xctaddon.MainViewModel.EventItem
 import com.xc.air3xctaddon.VolumeType
 import com.xc.air3xctaddon.model.SoundFilesState
 import com.xc.air3xctaddon.ui.components.DropdownMenuSpinner
+import com.xc.air3xctaddon.ui.theme.RowBackground
+import com.xc.air3xctaddon.ui.theme.SoundFieldBackground // Import the new color
 import java.io.File
 
 @Composable
@@ -152,7 +154,7 @@ fun ConfigRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.Cyan)
+            .background(RowBackground)
             .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -228,7 +230,7 @@ fun ConfigRow(
                         .width(240.dp)
                         .focusable()
                         .zIndex(1f)
-                        .background(Color.Green)
+                        .background(SoundFieldBackground) // Changed from Color.Green
                 ) {
                     Text(
                         text = if (soundFile.isEmpty()) "Select Sound" else soundFile,
