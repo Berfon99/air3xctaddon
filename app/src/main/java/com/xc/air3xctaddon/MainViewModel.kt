@@ -76,7 +76,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         val defaultConfig = EventConfig(
                             id = 0,
                             event = defaultEvent,
-                            soundFile = "beep.mp3",
+                            soundFile = "goodresult.mp3",
                             volumeType = VolumeType.SYSTEM,
                             volumePercentage = 100,
                             playCount = 1,

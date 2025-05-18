@@ -9,9 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.Text
+import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -60,12 +58,12 @@ fun DropdownMenuSpinner(
                 Log.d("DropdownMenuSpinner", "Dropdown dismissed, expanded set to false")
             },
             modifier = Modifier
-                .width(100.dp) // Match parent width (volume: 100.dp, count: 73.dp)
-                .heightIn(max = 300.dp) // Added to constrain height
+                .width(100.dp)
+                .heightIn(max = 300.dp)
         ) {
             if (items.isEmpty()) {
                 DropdownMenuItem(
-                    text = { Text("No items available") },
+                    content = { Text("No items available") },
                     onClick = {
                         expanded = false
                         Log.d("DropdownMenuSpinner", "No items available clicked")
@@ -74,7 +72,7 @@ fun DropdownMenuSpinner(
             } else {
                 items.forEach { item ->
                     DropdownMenuItem(
-                        text = { Text(item) },
+                        content = { Text(item) },
                         onClick = {
                             selected = item
                             onItemSelected(item)

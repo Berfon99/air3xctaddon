@@ -9,7 +9,7 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.*
+import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PlayArrow
@@ -182,7 +182,7 @@ fun ConfigRow(
             ) {
                 Column(
                     modifier = Modifier
-                        .heightIn(max = 300.dp) // Added to constrain height
+                        .heightIn(max = 300.dp)
                         .verticalScroll(rememberScrollState())
                         .fillMaxWidth()
                 ) {
@@ -191,16 +191,16 @@ fun ConfigRow(
                             is EventItem.Category -> {
                                 Text(
                                     text = item.name,
-                                    style = MaterialTheme.typography.labelLarge,
+                                    style = MaterialTheme.typography.subtitle1,
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .padding(horizontal = 8.dp, vertical = 4.dp),
-                                    color = MaterialTheme.colorScheme.primary
+                                    color = MaterialTheme.colors.primary
                                 )
                             }
                             is EventItem.Event -> {
                                 DropdownMenuItem(
-                                    text = { Text(item.name) },
+                                    content = { Text(item.name) },
                                     onClick = {
                                         event = item.name
                                         onUpdate(config.copy(event = item.name))
@@ -238,43 +238,53 @@ fun ConfigRow(
                 }
                 DropdownMenu(
                     expanded = soundMenuExpanded,
-                    onDismissRequest = { soundMenuExpanded = false }
+                    onDismissRequest = { soundMenuExpanded = false },
+                    modifier = Modifier
+                        .width(240.dp)
+                        .heightIn(max = 300.dp)
                 ) {
-                    when (val state = soundFilesState) {
-                        is SoundFilesState.Loading -> {
-                            DropdownMenuItem(
-                                text = { Text("Loading...") },
-                                onClick = { /* Do nothing */ }
-                            )
-                        }
-                        is SoundFilesState.Success -> {
-                            state.files.forEach { fileName ->
+                    Column(
+                        modifier = Modifier
+                            .heightIn(max = 300.dp)
+                            .verticalScroll(rememberScrollState())
+                            .fillMaxWidth()
+                    ) {
+                        when (val state = soundFilesState) {
+                            is SoundFilesState.Loading -> {
                                 DropdownMenuItem(
-                                    text = { Text(fileName) },
+                                    content = { Text("Loading...") },
+                                    onClick = { /* Do nothing */ }
+                                )
+                            }
+                            is SoundFilesState.Success -> {
+                                state.files.forEach { fileName ->
+                                    DropdownMenuItem(
+                                        content = { Text(fileName) },
+                                        onClick = {
+                                            soundFile = fileName
+                                            onUpdate(config.copy(soundFile = fileName))
+                                            soundMenuExpanded = false
+                                            Log.d("ConfigRow", "Selected sound file: $fileName")
+                                            forceRecompose += 1
+                                        }
+                                    )
+                                }
+                            }
+                            is SoundFilesState.Empty -> {
+                                DropdownMenuItem(
+                                    content = { Text("No sound files") },
                                     onClick = {
-                                        soundFile = fileName
-                                        onUpdate(config.copy(soundFile = fileName))
                                         soundMenuExpanded = false
-                                        Log.d("ConfigRow", "Selected sound file: $fileName")
-                                        forceRecompose += 1
+                                        Log.d("ConfigRow", "No sound files selected")
                                     }
                                 )
                             }
-                        }
-                        is SoundFilesState.Empty -> {
-                            DropdownMenuItem(
-                                text = { Text("No sound files") },
-                                onClick = {
-                                    soundMenuExpanded = false
-                                    Log.d("ConfigRow", "No sound files selected")
-                                }
-                            )
-                        }
-                        is SoundFilesState.Error -> {
-                            DropdownMenuItem(
-                                text = { Text(state.message) },
-                                onClick = { soundMenuExpanded = false }
-                            )
+                            is SoundFilesState.Error -> {
+                                DropdownMenuItem(
+                                    content = { Text(state.message) },
+                                    onClick = { soundMenuExpanded = false }
+                                )
+                            }
                         }
                     }
                 }
@@ -292,7 +302,7 @@ fun ConfigRow(
                 Icon(
                     imageVector = Icons.Default.PlayArrow,
                     contentDescription = "Play Sound",
-                    tint = if (soundFile.isNotEmpty()) MaterialTheme.colorScheme.primary else Color.Gray
+                    tint = if (soundFile.isNotEmpty()) MaterialTheme.colors.primary else Color.Gray
                 )
             }
             IconButton(
@@ -308,7 +318,7 @@ fun ConfigRow(
                 Icon(
                     imageVector = Icons.Default.Stop,
                     contentDescription = "Stop Sound",
-                    tint = if (mediaPlayer != null && mediaPlayer?.isPlaying == true) MaterialTheme.colorScheme.primary else Color.Gray
+                    tint = if (mediaPlayer != null && mediaPlayer?.isPlaying == true) MaterialTheme.colors.primary else Color.Gray
                 )
             }
         }
