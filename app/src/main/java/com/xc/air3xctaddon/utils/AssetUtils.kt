@@ -4,74 +4,59 @@ import android.content.res.AssetManager
 import android.util.Log
 import java.io.File
 import java.io.FileOutputStream
-import android.content.Context
 import java.io.IOException
 
 private const val TAG = "SoundFilesUtils"
+private const val ASSET_SOUNDS_PATH = "sounds" // Adjust to "sounds" if the folder name is lowercase
 
-fun AssetManager.copySoundFilesFromAssets(externalDir: File?) {
+fun AssetManager.copySoundFilesFromAssets(destDir: File): Boolean {
     try {
-        val soundsDir = File(externalDir, "Sounds").apply {
-            if (!exists()) {
-                mkdirs()
-                Log.d(TAG, "Created sounds directory: $absolutePath")
+        // Create destination directory if it doesn't exist
+        if (!destDir.exists()) {
+            if (!destDir.mkdirs()) {
+                Log.e(TAG, "Failed to create directory: ${destDir.absolutePath}")
+                return false
             }
+            Log.d(TAG, "Created directory: ${destDir.absolutePath}")
         }
 
-        val internalSoundsDir = File(File(externalDir?.parent, "files"), "Sounds").apply {
-            if (!exists()) {
-                mkdirs()
-                Log.d(TAG, "Created internal sounds directory: $absolutePath")
-            }
+        // List sound files in assets
+        val soundFiles = list(ASSET_SOUNDS_PATH) ?: emptyArray()
+        if (soundFiles.isEmpty()) {
+            Log.w(TAG, "No sound files found in assets/$ASSET_SOUNDS_PATH")
+            return false
         }
+        Log.d(TAG, "Found ${soundFiles.size} sound files in assets/$ASSET_SOUNDS_PATH")
 
-        val soundFiles = list("Sounds") ?: emptyArray()
-        Log.d(TAG, "Found ${soundFiles.size} sound files in assets")
-
+        // Copy each file
         for (fileName in soundFiles) {
-            val externalFile = File(soundsDir, fileName)
-            val internalFile = File(internalSoundsDir, fileName)
-
-            // Copy to external storage
-            if (!externalFile.exists()) {
+            val destFile = File(destDir, fileName)
+            if (!destFile.exists()) {
                 try {
-                    open("Sounds/$fileName").use { input ->
-                        FileOutputStream(externalFile).use { output ->
+                    open("$ASSET_SOUNDS_PATH/$fileName").use { input ->
+                        FileOutputStream(destFile).use { output ->
                             input.copyTo(output)
                         }
                     }
-                    Log.d(TAG, "Copied $fileName to external: ${externalFile.absolutePath}")
+                    Log.d(TAG, "Copied $fileName to ${destFile.absolutePath}")
                 } catch (e: IOException) {
-                    Log.e(TAG, "Failed to copy $fileName to external location", e)
+                    Log.e(TAG, "Failed to copy $fileName", e)
+                    return false
                 }
-            }
-
-            // Copy to internal storage
-            if (!internalFile.exists()) {
-                try {
-                    open("Sounds/$fileName").use { input ->
-                        FileOutputStream(internalFile).use { output ->
-                            input.copyTo(output)
-                        }
-                    }
-                    Log.d(TAG, "Copied $fileName to internal: ${internalFile.absolutePath}")
-                } catch (e: IOException) {
-                    Log.e(TAG, "Failed to copy $fileName to internal location", e)
-                }
+            } else {
+                Log.d(TAG, "File $fileName already exists at ${destFile.absolutePath}")
             }
         }
 
-        // Log the contents of the directories for debugging
-        logDirectoryContents(soundsDir)
-        logDirectoryContents(internalSoundsDir)
+        // Log directory contents
+        logDirectoryContents(destDir)
+        return true
     } catch (e: Exception) {
         Log.e(TAG, "Error copying sound files from assets", e)
+        return false
     }
 }
 
-/**
- * Logs the contents of a directory for debugging
- */
 fun logDirectoryContents(directory: File) {
     if (!directory.exists()) {
         Log.d(TAG, "Directory does not exist: ${directory.absolutePath}")

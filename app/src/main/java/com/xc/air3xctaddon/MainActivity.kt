@@ -25,7 +25,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         // Create the necessary sound file directories and copy assets
-        copyAndVerifySoundFiles()
+        if (!copyAndVerifySoundFiles()) {
+            Toast.makeText(this, "Failed to copy sound files. Some features may not work.", Toast.LENGTH_LONG).show()
+        }
 
         setContent {
             AIR3XCTAddonTheme {
@@ -36,46 +38,28 @@ class MainActivity : ComponentActivity() {
         requestPermissions()
     }
 
-    private fun copyAndVerifySoundFiles() {
+    private fun copyAndVerifySoundFiles(): Boolean {
         try {
-            // Copy sound files from assets to app storage
-            assets.copySoundFilesFromAssets(getExternalFilesDir(null))
+            // Copy sound files from assets to internal storage
+            val internalSoundsDir = File(filesDir, "Sounds")
+            val success = assets.copySoundFilesFromAssets(internalSoundsDir)
 
-            // Create the Sounds directory in internal storage if needed
-            val internalSoundsDir = File(applicationContext.filesDir, "Sounds")
-            if (!internalSoundsDir.exists()) {
-                val created = internalSoundsDir.mkdirs()
-                Log.d(TAG, "Created internal sounds directory: $created")
+            if (!success) {
+                Log.e(TAG, "Failed to copy sound files")
+                return false
             }
 
-            // Copy sound files from assets to internal storage if not already done
-            val assetManager = assets
-            val assetFileList = assetManager.list("Sounds") ?: emptyArray()
-
-            for (fileName in assetFileList) {
-                val destFile = File(internalSoundsDir, fileName)
-                if (!destFile.exists()) {
-                    try {
-                        assetManager.open("Sounds/$fileName").use { input ->
-                            destFile.outputStream().use { output ->
-                                input.copyTo(output)
-                            }
-                        }
-                        Log.d(TAG, "Copied $fileName to internal storage: ${destFile.absolutePath}")
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Failed to copy $fileName to internal storage", e)
-                    }
-                }
-            }
-
-            // Log the contents for debugging
+            // Verify copied files
             val files = internalSoundsDir.listFiles()
             Log.d(TAG, "Internal sound directory (${internalSoundsDir.absolutePath}) contains: ${files?.size ?: 0} files")
             files?.forEach {
                 Log.d(TAG, "  - ${it.name} (${it.length()} bytes, readable: ${it.canRead()})")
             }
+
+            return files?.isNotEmpty() == true
         } catch (e: Exception) {
             Log.e(TAG, "Error setting up sound files", e)
+            return false
         }
     }
 
