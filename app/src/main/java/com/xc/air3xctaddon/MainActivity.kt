@@ -19,14 +19,23 @@ class MainActivity : ComponentActivity() {
     companion object {
         private const val TAG = "MainActivity"
         private const val REQUEST_NOTIFICATION_PERMISSION = 100
+        private const val REQUEST_STORAGE_PERMISSION = 101
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Create the necessary sound file directories and copy assets
-        if (!copyAndVerifySoundFiles()) {
-            Toast.makeText(this, "Failed to copy sound files. Some features may not work.", Toast.LENGTH_LONG).show()
+        // Check storage permissions and copy files
+        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED
+        ) {
+            Log.d(TAG, "Requesting WRITE_EXTERNAL_STORAGE permission")
+            requestPermissions(
+                arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE),
+                REQUEST_STORAGE_PERMISSION
+            )
+        } else {
+            copyAndVerifySoundFiles()
         }
 
         setContent {
@@ -35,36 +44,40 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        requestPermissions()
+        requestNotificationPermissions()
     }
 
-    private fun copyAndVerifySoundFiles(): Boolean {
+    private fun copyAndVerifySoundFiles() {
         try {
-            // Copy sound files from assets to internal storage
-            val internalSoundsDir = File(filesDir, "Sounds")
-            val success = assets.copySoundFilesFromAssets(internalSoundsDir)
+            // Copy sound files to external storage
+            val externalSoundsDir = File(getExternalFilesDir(null), "Sounds")
+            val success = assets.copySoundFilesFromAssets(externalSoundsDir)
 
             if (!success) {
                 Log.e(TAG, "Failed to copy sound files")
-                return false
+                Toast.makeText(this, "Failed to copy sound files. Some features may not work.", Toast.LENGTH_LONG).show()
+                return
             }
 
             // Verify copied files
-            val files = internalSoundsDir.listFiles()
-            Log.d(TAG, "Internal sound directory (${internalSoundsDir.absolutePath}) contains: ${files?.size ?: 0} files")
-            files?.forEach {
-                Log.d(TAG, "  - ${it.name} (${it.length()} bytes, readable: ${it.canRead()})")
+            val files = externalSoundsDir.listFiles()?.filter { it.isFile && it.canRead() }
+            if (files == null || files.isEmpty()) {
+                Log.e(TAG, "No files found in ${externalSoundsDir.absolutePath}")
+                Toast.makeText(this, "No sound files found. Some features may not work.", Toast.LENGTH_LONG).show()
+                return
             }
 
-            return files?.isNotEmpty() == true
+            Log.d(TAG, "External sound directory (${externalSoundsDir.absolutePath}) contains: ${files.size} files")
+            files.forEach {
+                Log.d(TAG, "  - ${it.name} (${it.length()} bytes, readable: ${it.canRead()}, exists: ${it.exists()})")
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Error setting up sound files", e)
-            return false
+            Toast.makeText(this, "Error copying sound files.", Toast.LENGTH_LONG).show()
         }
     }
 
-    private fun requestPermissions() {
-        // Check for notification permissions on Android 13+
+    private fun requestNotificationPermissions() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) {
@@ -84,29 +97,35 @@ class MainActivity : ComponentActivity() {
         grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == REQUEST_NOTIFICATION_PERMISSION) {
-            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                Log.d(TAG, "POST_NOTIFICATIONS permission granted")
+        when (requestCode) {
+            REQUEST_NOTIFICATION_PERMISSION -> {
+                if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    Log.d(TAG, "POST_NOTIFICATIONS permission granted")
+                } else {
+                    Log.w(TAG, "POST_NOTIFICATIONS permission denied")
+                    Toast.makeText(this, "Notification permission is required for full functionality.", Toast.LENGTH_LONG).show()
+                }
                 startLogMonitorService()
-            } else {
-                Log.w(TAG, "POST_NOTIFICATIONS permission denied")
-                Toast.makeText(this, "La permission de notification est nécessaire pour le bon fonctionnement de l'application.", Toast.LENGTH_LONG).show()
-                // Start service anyway but it may not show notifications properly
-                startLogMonitorService()
+            }
+            REQUEST_STORAGE_PERMISSION -> {
+                if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    Log.d(TAG, "WRITE_EXTERNAL_STORAGE permission granted")
+                    copyAndVerifySoundFiles()
+                } else {
+                    Log.w(TAG, "WRITE_EXTERNAL_STORAGE permission denied")
+                    Toast.makeText(this, "Storage permission is required to copy sound files.", Toast.LENGTH_LONG).show()
+                }
             }
         }
     }
 
     private fun startLogMonitorService() {
         val intent = Intent(this, LogMonitorService::class.java)
-
-        // Start as foreground service
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(intent)
         } else {
             startService(intent)
         }
-
         Log.d(TAG, "LogMonitorService started")
     }
 }
