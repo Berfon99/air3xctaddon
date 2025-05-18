@@ -13,9 +13,11 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xc.air3xctaddon.AboutActivity
 import com.xc.air3xctaddon.EventConfig
@@ -34,8 +36,8 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
     // Drag state
     var draggedIndex by remember { mutableStateOf<Int?>(null) }
     var dragOffset by remember { mutableStateOf(0f) }
-    val rowHeight = 48.dp // Approximate height of a ConfigRow
-    val rowHeightPx = with(LocalDensity.current) { rowHeight.toPx() }
+    val rowHeight: Dp = 48.dp // Approximate height of a ConfigRow
+    val rowHeightPx: Float = LocalDensity.current.run { rowHeight.toPx() }
 
     Log.d("MainScreen", "Configs: $configs, AvailableEvents: $availableEvents")
 
@@ -139,7 +141,10 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
                         backgroundColor = MaterialTheme.colors.secondary
                     )
                 ) {
-                    Text("Close")
+                    Text(
+                        text = "Close",
+                        color = Color.White // Changed to white
+                    )
                 }
 
                 // Add Configuration Button
@@ -147,7 +152,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
                     Button(
                         onClick = {
                             val selectedEvent = availableEvents.firstOrNull { it is MainViewModel.EventItem.Event } as? MainViewModel.EventItem.Event
-                            val defaultSoundFile = "Airspace.wav"
+                            val defaultSoundFile = "beep.mp3"
                             if (selectedEvent != null) {
                                 Log.d("MainScreen", "Add button clicked, adding config: event=${selectedEvent.name}, soundFile=$defaultSoundFile")
                                 viewModel.addConfig(
@@ -167,7 +172,11 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
                             backgroundColor = MaterialTheme.colors.secondary
                         )
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = "Add Configuration")
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Add Configuration",
+                            tint = Color.White // Changed to white
+                        )
                     }
                 }
             }

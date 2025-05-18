@@ -31,8 +31,8 @@ import com.xc.air3xctaddon.MainViewModel.EventItem
 import com.xc.air3xctaddon.VolumeType
 import com.xc.air3xctaddon.model.SoundFilesState
 import com.xc.air3xctaddon.ui.components.DragHandle
-import com.xc.air3xctaddon.ui.components.DropdownMenuSpinner
 import com.xc.air3xctaddon.ui.components.SpinnerItem
+import com.xc.air3xctaddon.ui.components.DropdownMenuSpinner
 import com.xc.air3xctaddon.ui.theme.RowBackground
 import com.xc.air3xctaddon.ui.theme.SoundFieldBackground
 import java.io.File
@@ -407,7 +407,8 @@ fun ConfigRow(
                 ) {
                     Text(
                         text = "Count",
-                        fontSize = 12.sp,
+                        fontSize = 14.sp,
+                        color = Color.White, // Changed to white
                         modifier = Modifier.padding(end = 4.dp)
                     )
                     DropdownMenuSpinner(
@@ -435,7 +436,11 @@ fun ConfigRow(
                     Log.d("ConfigRow", "Delete button clicked")
                     onDelete()
                 }) {
-                    Icon(Icons.Default.Delete, contentDescription = "Delete")
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Delete",
+                        tint = Color.White // Changed to white
+                    )
                 }
             }
         }
