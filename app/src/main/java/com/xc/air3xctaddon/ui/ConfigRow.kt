@@ -7,7 +7,9 @@ import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PlayArrow
@@ -22,15 +24,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.xc.air3xctaddon.EventConfig
+import com.xc.air3xctaddon.MainViewModel.EventItem
 import com.xc.air3xctaddon.VolumeType
-import com.xc.air3xctaddon.model.SoundFilesState // Added import
+import com.xc.air3xctaddon.model.SoundFilesState
 import com.xc.air3xctaddon.ui.components.DropdownMenuSpinner
 import java.io.File
 
 @Composable
 fun ConfigRow(
     config: EventConfig,
-    availableEvents: List<String>, // Changed from List<Event> to List<String>
+    availableEvents: List<EventItem>,
     onUpdate: (EventConfig) -> Unit,
     onDelete: () -> Unit,
     onDrag: (Int, Int) -> Unit,
@@ -42,15 +45,22 @@ fun ConfigRow(
     var volumePercentage by remember { mutableStateOf(config.volumePercentage) }
     var playCount by remember { mutableStateOf(config.playCount) }
     var forceRecompose by remember { mutableStateOf(0) }
+    var eventMenuExpanded by remember { mutableStateOf(false) }
     var soundMenuExpanded by remember { mutableStateOf(false) }
     var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
 
     val context = LocalContext.current
 
-    val soundFilesState by produceState<SoundFilesState>(initialValue = SoundFilesState.Loading, key1 = soundMenuExpanded) {
+    val soundFilesState by produceState<SoundFilesState>(
+        initialValue = SoundFilesState.Loading,
+        key1 = soundMenuExpanded
+    ) {
         value = try {
             val soundsDir = File(context.getExternalFilesDir(null), "Sounds")
-            val soundFiles = soundsDir.listFiles()?.map { it.name }?.filter { it.endsWith(".mp3") || it.endsWith(".wav") }?.sorted() ?: emptyList()
+            val soundFiles = soundsDir.listFiles()
+                ?.map { it.name }
+                ?.filter { it.endsWith(".mp3") || it.endsWith(".wav") }
+                ?.sorted() ?: emptyList()
             Log.d("ConfigRow", "Available sound files: $soundFiles")
             if (soundFiles.isEmpty()) SoundFilesState.Empty else SoundFilesState.Success(soundFiles)
         } catch (e: Exception) {
@@ -146,16 +156,64 @@ fun ConfigRow(
             .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        DropdownMenuSpinner(
-            items = availableEvents,
-            selectedItem = event,
-            onItemSelected = { selected ->
-                event = selected
-                onUpdate(config.copy(event = event))
-            },
-            label = "Event",
-            modifier = Modifier.width(240.dp)
-        )
+        // Event dropdown with categories
+        Box {
+            Button(
+                onClick = {
+                    Log.d("ConfigRow", "Event button clicked")
+                    eventMenuExpanded = true
+                },
+                modifier = Modifier
+                    .width(240.dp)
+                    .focusable()
+            ) {
+                Text(
+                    text = event,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            DropdownMenu(
+                expanded = eventMenuExpanded,
+                onDismissRequest = { eventMenuExpanded = false },
+                modifier = Modifier
+                    .width(240.dp)
+                    .heightIn(max = 300.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .heightIn(max = 300.dp) // Added to constrain height
+                        .verticalScroll(rememberScrollState())
+                        .fillMaxWidth()
+                ) {
+                    availableEvents.forEach { item ->
+                        when (item) {
+                            is EventItem.Category -> {
+                                Text(
+                                    text = item.name,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                            is EventItem.Event -> {
+                                DropdownMenuItem(
+                                    text = { Text(item.name) },
+                                    onClick = {
+                                        event = item.name
+                                        onUpdate(config.copy(event = item.name))
+                                        eventMenuExpanded = false
+                                        Log.d("ConfigRow", "Selected event: ${item.name}")
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         Spacer(modifier = Modifier.width(4.dp))
 
@@ -185,20 +243,19 @@ fun ConfigRow(
                     when (val state = soundFilesState) {
                         is SoundFilesState.Loading -> {
                             DropdownMenuItem(
-                                content = { Text("Loading...") },
+                                text = { Text("Loading...") },
                                 onClick = { /* Do nothing */ }
                             )
                         }
                         is SoundFilesState.Success -> {
                             state.files.forEach { fileName ->
                                 DropdownMenuItem(
-                                    content = { Text(fileName) },
+                                    text = { Text(fileName) },
                                     onClick = {
                                         soundFile = fileName
                                         onUpdate(config.copy(soundFile = fileName))
                                         soundMenuExpanded = false
                                         Log.d("ConfigRow", "Selected sound file: $fileName")
-                                        Log.d("ConfigRow", "Updated config with soundFile: $soundFile")
                                         forceRecompose += 1
                                     }
                                 )
@@ -206,7 +263,7 @@ fun ConfigRow(
                         }
                         is SoundFilesState.Empty -> {
                             DropdownMenuItem(
-                                content = { Text("No sound files") },
+                                text = { Text("No sound files") },
                                 onClick = {
                                     soundMenuExpanded = false
                                     Log.d("ConfigRow", "No sound files selected")
@@ -215,7 +272,7 @@ fun ConfigRow(
                         }
                         is SoundFilesState.Error -> {
                             DropdownMenuItem(
-                                content = { Text(state.message) },
+                                text = { Text(state.message) },
                                 onClick = { soundMenuExpanded = false }
                             )
                         }
@@ -235,7 +292,7 @@ fun ConfigRow(
                 Icon(
                     imageVector = Icons.Default.PlayArrow,
                     contentDescription = "Play Sound",
-                    tint = if (soundFile.isNotEmpty()) MaterialTheme.colors.primary else Color.Gray
+                    tint = if (soundFile.isNotEmpty()) MaterialTheme.colorScheme.primary else Color.Gray
                 )
             }
             IconButton(
@@ -251,7 +308,7 @@ fun ConfigRow(
                 Icon(
                     imageVector = Icons.Default.Stop,
                     contentDescription = "Stop Sound",
-                    tint = if (mediaPlayer != null && mediaPlayer?.isPlaying == true) MaterialTheme.colors.primary else Color.Gray
+                    tint = if (mediaPlayer != null && mediaPlayer?.isPlaying == true) MaterialTheme.colorScheme.primary else Color.Gray
                 )
             }
         }

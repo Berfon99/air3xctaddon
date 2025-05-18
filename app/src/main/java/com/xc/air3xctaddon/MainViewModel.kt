@@ -15,29 +15,62 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _configs = MutableStateFlow<List<EventConfig>>(emptyList())
     val configs: StateFlow<List<EventConfig>> = _configs.asStateFlow()
 
+    sealed class EventItem {
+        data class Category(val name: String) : EventItem()
+        data class Event(val name: String) : EventItem()
+    }
+
     companion object {
-        // List of all XCTrack events for sound mapping
-        private val ALL_EVENTS = listOf(
-            "BATTERY50", "BATTERY40", "BATTERY30", "BATTERY20", "BATTERY10",
-            "BATTERY5", "BATTERY_CHARGING", "BATTERY_DISCHARGING",
-            "TAKEOFF", "LANDING", "START_THERMALING", "STOP_THERMALING",
-            "COMP_SSS_CROSSED", "COMP_TURNPOINT_CROSSED", "COMP_ESS_CROSSED",
-            "COMP_GOAL_CROSSED", "SYSTEM_GPS_OK", "AIRSPACE_CROSSED",
-            "AIRSPACE_RED_WARN", "AIRSPACE_ORANGE_WARN", "BT_OK", "BT_KO",
-            "LIVETRACK_MESSAGE", "AIRSPACE_CROSSED_SOON", "AIRSPACE_OBSTACLE",
-            "CALL_REJECTED", "COMP_TURNPOINT_PREV", "LIVETRACK_ENABLED",
-            "TEST", "_LANDING_CONFIRMATION_NEEDED", "BUTTON_CLICK"
+        private val CATEGORIZED_EVENTS = listOf(
+            EventItem.Category("Battery"),
+            EventItem.Event("BATTERY50"),
+            EventItem.Event("BATTERY40"),
+            EventItem.Event("BATTERY30"),
+            EventItem.Event("BATTERY20"),
+            EventItem.Event("BATTERY10"),
+            EventItem.Event("BATTERY5"),
+            EventItem.Event("BATTERY_CHARGING"),
+            EventItem.Event("BATTERY_DISCHARGING"),
+            EventItem.Category("Flight"),
+            EventItem.Event("TAKEOFF"),
+            EventItem.Event("LANDING"),
+            EventItem.Event("_LANDING_CONFIRMATION_NEEDED"),
+            EventItem.Event("START_THERMALING"),
+            EventItem.Event("STOP_THERMALING"),
+            EventItem.Category("Competition"),
+            EventItem.Event("COMP_SSS_CROSSED"),
+            EventItem.Event("COMP_TURNPOINT_CROSSED"),
+            EventItem.Event("COMP_ESS_CROSSED"),
+            EventItem.Event("COMP_GOAL_CROSSED"),
+            EventItem.Event("COMP_TURNPOINT_PREV"),
+            EventItem.Category("Airspace"),
+            EventItem.Event("AIRSPACE_CROSSED"),
+            EventItem.Event("AIRSPACE_RED_WARN"),
+            EventItem.Event("AIRSPACE_ORANGE_WARN"),
+            EventItem.Event("AIRSPACE_CROSSED_SOON"),
+            EventItem.Event("AIRSPACE_OBSTACLE"),
+            EventItem.Category("Others"),
+            EventItem.Event("LIVETRACK_MESSAGE"),
+            EventItem.Event("LIVETRACK_ENABLED"),
+            EventItem.Event("BUTTON_CLICK"),
+            EventItem.Event("CALL_REJECTED"),
+            EventItem.Event("SYSTEM_GPS_OK"),
+            EventItem.Event("BT_OK"),
+            EventItem.Event("BT_KO"),
+            EventItem.Event("TEST")
         )
+
+        private val ALL_EVENTS = CATEGORIZED_EVENTS
+            .filterIsInstance<EventItem.Event>()
+            .map { it.name }
     }
 
     init {
         viewModelScope.launch {
             try {
-                // Check if database is empty
                 val currentConfigs = dao.getAllConfigsSync()
                 Log.d("MainViewModel", "Initial configs: $currentConfigs")
                 if (currentConfigs.isEmpty()) {
-                    // Add a default configuration
                     val defaultEvent = ALL_EVENTS.firstOrNull()
                     if (defaultEvent != null) {
                         val defaultConfig = EventConfig(
@@ -56,7 +89,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
 
-                // Collect configurations
                 dao.getAllConfigs().collect { configs ->
                     _configs.value = configs
                     Log.d("MainViewModel", "Configs updated: ${configs.map { it.event }}")
@@ -110,7 +142,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 Log.d("MainViewModel", "Deleted config: ${config.event}")
             } catch (e: Exception) {
-                Log.e("MainViewModel", "Error deleting config", e)
+                Log.e("MainViewModel", "Expecting binder but got null!")
             }
         }
     }
@@ -133,10 +165,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun getAvailableEvents(): List<String> {
-        val usedEvents = _configs.value.map { it.event }
-        val availableEvents = ALL_EVENTS.filter { it !in usedEvents }
-        Log.d("MainViewModel", "Available events: $availableEvents")
+    fun getAvailableEvents(): List<EventItem> {
+        val usedEvents = _configs.value.map { it.event }.toSet()
+        val availableEvents = CATEGORIZED_EVENTS.filter { item ->
+            when (item) {
+                is EventItem.Category -> true
+                is EventItem.Event -> item.name !in usedEvents
+            }
+        }
+        Log.d("MainViewModel", "Available events: ${availableEvents.filterIsInstance<EventItem.Event>().map { it.name }}")
         return availableEvents
     }
 }

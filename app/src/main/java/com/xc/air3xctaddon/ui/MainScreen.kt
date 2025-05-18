@@ -1,123 +1,47 @@
 package com.xc.air3xctaddon.ui
 
-import android.content.Intent
-import android.util.Log
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.material.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.runtime.*
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.layout.*
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.xc.air3xctaddon.AboutActivity
-import com.xc.air3xctaddon.EventConfig
 import com.xc.air3xctaddon.MainViewModel
-import com.xc.air3xctaddon.SettingsActivity
-import com.xc.air3xctaddon.VolumeType
-import com.xc.air3xctaddon.MainViewModelFactory
+import com.xc.air3xctaddon.ui.theme.AIR3XCTAddonTheme
 
 @Composable
-fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFactory(LocalContext.current.applicationContext as android.app.Application))) {
-    val configs by viewModel.configs.collectAsState()
-    val context = LocalContext.current
-    var showMenu by remember { mutableStateOf(false) }
-    val availableEvents by remember { derivedStateOf { viewModel.getAvailableEvents() } }
-
-    Log.d("MainScreen", "Configs: $configs, AvailableEvents: $availableEvents")
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("AIR3 XCT Addon") },
-                actions = {
-                    IconButton(onClick = { showMenu = true }) {
-                        Icon(Icons.Default.MoreVert, contentDescription = "Menu")
-                    }
-                    DropdownMenu(
-                        expanded = showMenu,
-                        onDismissRequest = { showMenu = false }
-                    ) {
-                        DropdownMenuItem(
-                            content = { Text("Settings") },
-                            onClick = {
-                                showMenu = false
-                                context.startActivity(Intent(context, SettingsActivity::class.java))
-                            }
-                        )
-                        DropdownMenuItem(
-                            content = { Text("About") },
-                            onClick = {
-                                showMenu = false
-                                context.startActivity(Intent(context, AboutActivity::class.java))
-                            }
-                        )
-                    }
-                }
-            )
-        },
-        floatingActionButton = {
-            if (availableEvents.isNotEmpty()) {
-                FloatingActionButton(onClick = {
-                    val selectedEvent = availableEvents.first()
-                    val defaultSoundFile = "beep.mp3" // Replace with a valid sound file, e.g., takeoff_sound.mp3
-                    Log.d("MainScreen", "FAB clicked, adding config: event=$selectedEvent, soundFile=$defaultSoundFile")
-                    viewModel.addConfig(
-                        event = selectedEvent,
-                        soundFile = defaultSoundFile,
-                        volumeType = VolumeType.SYSTEM,
-                        volumePercentage = 100,
-                        playCount = 1
-                    )
-                }) {
-                    Icon(Icons.Default.Add, contentDescription = "Add Configuration")
-                }
-            } else {
-                Log.d("MainScreen", "FAB not shown: availableEvents is empty")
-            }
-        }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+fun MainScreen(viewModel: MainViewModel = viewModel()) {
+    AIR3XCTAddonTheme {
+        Surface(
+            modifier = Modifier.fillMaxSize()
         ) {
-            // Bouton Close App
-            Button(
-                onClick = {
-                    context.startActivity(Intent(Intent.ACTION_MAIN).apply {
-                        addCategory(Intent.CATEGORY_HOME)
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                    })
-                    Log.d("MainScreen", "Close app clicked")
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Close app")
-            }
+            val configs by viewModel.configs.collectAsState()
+            val availableEvents by remember { derivedStateOf { viewModel.getAvailableEvents() } }
 
-            // Liste des configurations
             LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 1000.dp)
             ) {
-                itemsIndexed(configs, key = { _, config -> config.id }) { index, config ->
+                itemsIndexed(configs) { index, config ->
                     ConfigRow(
                         config = config,
-                        availableEvents = viewModel.getAvailableEvents() + config.event,
-                        onUpdate = { updatedConfig -> viewModel.updateConfig(updatedConfig) },
-                        onDelete = { viewModel.deleteConfig(config) },
-                        onDrag = { from, to -> viewModel.reorderConfigs(from, to) },
+                        availableEvents = availableEvents,
+                        onUpdate = { updatedConfig ->
+                            viewModel.updateConfig(updatedConfig)
+                        },
+                        onDelete = {
+                            viewModel.deleteConfig(config)
+                        },
+                        onDrag = { from, to ->
+                            viewModel.reorderConfigs(from, to)
+                        },
                         index = index
                     )
                 }
