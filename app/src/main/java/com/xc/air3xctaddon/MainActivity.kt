@@ -126,6 +126,6 @@ class MainActivity : ComponentActivity() {
         } else {
             startService(intent)
         }
-        Log.d(TAG, "LogMonitorService started")
+        Log.d("MainActivity", "Started LogMonitorService")
     }
 }

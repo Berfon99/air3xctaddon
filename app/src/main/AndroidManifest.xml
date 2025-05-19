@@ -27,7 +27,7 @@
         <activity android:name=".AboutActivity" />
         <service
             android:name=".LogMonitorService"
-            android:foregroundServiceType="dataSync"
+            android:enabled="true"
             android:exported="false" />
     </application>
 </manifest>
