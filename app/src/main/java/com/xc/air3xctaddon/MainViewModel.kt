@@ -4,19 +4,28 @@ import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val db = AppDatabase.getDatabase(application)
-    private val dao = db.eventConfigDao()
-    private val _configs = MutableStateFlow<List<EventConfig>>(emptyList())
-    val configs: StateFlow<List<EventConfig>> = _configs.asStateFlow()
+    private val configDao = db.eventConfigDao()
+    private val eventDao = db.eventDao()
 
-    private val _events = MutableStateFlow(CATEGORIZED_EVENTS.toMutableList())
-    val events: StateFlow<List<EventItem>> = _events.asStateFlow()
+    val configs: StateFlow<List<EventConfig>> = configDao.getAllConfigs()
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    val events: StateFlow<List<EventItem>> = eventDao.getAllEvents()
+        .map { entities ->
+            entities.map { entity ->
+                when (entity.type) {
+                    "category" -> EventItem.Category(entity.name)
+                    "event" -> EventItem.Event(entity.name)
+                    else -> throw IllegalArgumentException("Unknown event type: ${entity.type}")
+                }
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     sealed class EventItem {
         data class Category(val name: String) : EventItem()
@@ -70,34 +79,38 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         viewModelScope.launch {
-            try {
-                val currentConfigs = dao.getAllConfigsSync()
-                Log.d("MainViewModel", "Initial configs: $currentConfigs")
-                if (currentConfigs.isEmpty()) {
-                    val defaultEvent = ALL_EVENTS.firstOrNull()
-                    if (defaultEvent != null) {
-                        val defaultConfig = EventConfig(
-                            id = 0,
-                            event = defaultEvent,
-                            soundFile = "Goodresult.mp3",
-                            volumeType = VolumeType.SYSTEM,
-                            volumePercentage = 100,
-                            playCount = 1,
-                            position = 0
-                        )
-                        dao.insert(defaultConfig)
-                        Log.d("MainViewModel", "Added default config: $defaultEvent")
-                    } else {
-                        Log.w("MainViewModel", "No events available for default config")
-                    }
+            // Initialize configs
+            val currentConfigs = configDao.getAllConfigsSync()
+            if (currentConfigs.isEmpty()) {
+                val defaultEvent = ALL_EVENTS.firstOrNull()
+                if (defaultEvent != null) {
+                    val defaultConfig = EventConfig(
+                        id = 0,
+                        event = defaultEvent,
+                        soundFile = "Goodresult.mp3",
+                        volumeType = VolumeType.SYSTEM,
+                        volumePercentage = 100,
+                        playCount = 1,
+                        position = 0
+                    )
+                    configDao.insert(defaultConfig)
+                    Log.d("MainViewModel", "Added default config: $defaultEvent")
+                } else {
+                    Log.w("MainViewModel", "No events available for default config")
                 }
+            }
 
-                dao.getAllConfigs().collect { configs ->
-                    _configs.value = configs
-                    Log.d("MainViewModel", "Configs updated: ${configs.map { it.event }}")
+            // Initialize events if empty
+            val currentEvents = eventDao.getAllEvents().first()
+            if (currentEvents.isEmpty()) {
+                CATEGORIZED_EVENTS.forEach { item ->
+                    val entity = when (item) {
+                        is EventItem.Category -> EventEntity(type = "category", name = item.name)
+                        is EventItem.Event -> EventEntity(type = "event", name = item.name)
+                    }
+                    eventDao.insert(entity)
                 }
-            } catch (e: Exception) {
-                Log.e("MainViewModel", "Error initializing configs", e)
+                Log.d("MainViewModel", "Initialized events with CATEGORIZED_EVENTS")
             }
         }
     }
@@ -105,7 +118,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun addConfig(event: String, soundFile: String, volumeType: VolumeType, volumePercentage: Int, playCount: Int) {
         viewModelScope.launch {
             try {
-                val position = _configs.value.size
+                val position = configs.value.size
                 val config = EventConfig(
                     id = 0,
                     event = event,
@@ -115,7 +128,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     playCount = playCount,
                     position = position
                 )
-                dao.insert(config)
+                configDao.insert(config)
                 Log.d("MainViewModel", "Added config for event: $event")
             } catch (e: Exception) {
                 Log.e("MainViewModel", "Error adding config", e)
@@ -126,7 +139,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun updateConfig(config: EventConfig) {
         viewModelScope.launch {
             try {
-                dao.update(config)
+                configDao.update(config)
                 Log.d("MainViewModel", "Updated config: ${config.event}")
             } catch (e: Exception) {
                 Log.e("MainViewModel", "Error updating config", e)
@@ -137,10 +150,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteConfig(config: EventConfig) {
         viewModelScope.launch {
             try {
-                dao.delete(config)
-                _configs.value.forEachIndexed { index, cfg ->
+                configDao.delete(config)
+                configs.value.forEachIndexed { index, cfg ->
                     if (cfg.position != index) {
-                        dao.updatePosition(cfg.id, index)
+                        configDao.updatePosition(cfg.id, index)
                     }
                 }
                 Log.d("MainViewModel", "Deleted config: ${config.event}")
@@ -153,12 +166,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun reorderConfigs(from: Int, to: Int) {
         viewModelScope.launch {
             try {
-                val list = _configs.value.toMutableList()
+                val list = configs.value.toMutableList()
                 val item = list.removeAt(from)
                 list.add(to, item)
                 list.forEachIndexed { index, config ->
                     if (config.position != index) {
-                        dao.updatePosition(config.id, index)
+                        configDao.updatePosition(config.id, index)
                     }
                 }
                 Log.d("MainViewModel", "Reordered configs from $from to $to")
@@ -169,8 +182,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun getAvailableEvents(): List<EventItem> {
-        val usedEvents = _configs.value.map { it.event }.toSet()
-        val availableEvents = _events.value.filter { item ->
+        val usedEvents = configs.value.map { it.event }.toSet()
+        val availableEvents = events.value.filter { item ->
             when (item) {
                 is EventItem.Category -> true
                 is EventItem.Event -> item.name !in usedEvents
@@ -182,19 +195,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun addEvent(category: String, eventName: String) {
         viewModelScope.launch {
-            // Check if event name already exists to prevent duplicates
-            if (_events.value.any { it is EventItem.Event && it.name == eventName }) {
+            // Check if event name already exists
+            val existingEvent = events.value.any { it is EventItem.Event && it.name == eventName }
+            if (existingEvent) {
                 Log.w("MainViewModel", "Event '$eventName' already exists")
                 return@launch
             }
-            // Find the category in the current events
-            val categoryIndex = _events.value.indexOfFirst { it is EventItem.Category && it.name == category }
-            if (categoryIndex >= 0) {
-                val newEvent = EventItem.Event(eventName)
-                val currentEvents = _events.value.toMutableList()
-                currentEvents.add(categoryIndex + 1, newEvent)
-                _events.value = currentEvents
-                Log.d("MainViewModel", "Added event '$eventName' to category '$category'. New events: ${currentEvents.map { when (it) { is EventItem.Category -> it.name; is EventItem.Event -> it.name } }}")
+            // Find category
+            val categoryExists = events.value.any { it is EventItem.Category && it.name == category }
+            if (categoryExists) {
+                val newEvent = EventEntity(type = "event", name = eventName)
+                eventDao.insert(newEvent)
+                Log.d("MainViewModel", "Added event '$eventName' to category '$category'")
             } else {
                 Log.w("MainViewModel", "Category '$category' not found")
             }

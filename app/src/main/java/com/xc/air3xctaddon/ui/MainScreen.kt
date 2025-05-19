@@ -29,9 +29,20 @@ import com.xc.air3xctaddon.MainViewModelFactory
 @Composable
 fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFactory(LocalContext.current.applicationContext as android.app.Application))) {
     val configs by viewModel.configs.collectAsState()
+    val events by viewModel.events.collectAsState()
+    val availableEvents by remember(configs, events) {
+        derivedStateOf {
+            val usedEvents = configs.map { it.event }.toSet()
+            events.filter { item ->
+                when (item) {
+                    is MainViewModel.EventItem.Category -> true
+                    is MainViewModel.EventItem.Event -> item.name !in usedEvents
+                }
+            }
+        }
+    }
     val context = LocalContext.current
     var showMenu by remember { mutableStateOf(false) }
-    val availableEvents by remember { derivedStateOf { viewModel.getAvailableEvents() } }
 
     // Drag state
     var draggedIndex by remember { mutableStateOf<Int?>(null) }
@@ -90,7 +101,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
                 itemsIndexed(configs, key = { _, config -> config.id }) { index, config ->
                     ConfigRow(
                         config = config,
-                        availableEvents = availableEvents,
+                        availableEvents = availableEvents, // Fixed: Removed .value
                         onUpdate = { updatedConfig -> viewModel.updateConfig(updatedConfig) },
                         onDelete = { viewModel.deleteConfig(config) },
                         onDrag = { _, dragAmount ->
@@ -143,15 +154,15 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
                 ) {
                     Text(
                         text = "Close",
-                        color = Color.White // Changed to white
+                        color = Color.White
                     )
                 }
 
                 // Add Configuration Button
-                if (availableEvents.isNotEmpty()) {
+                if (availableEvents.isNotEmpty()) { // Fixed: Removed .value
                     Button(
                         onClick = {
-                            val selectedEvent = availableEvents.firstOrNull { it is MainViewModel.EventItem.Event } as? MainViewModel.EventItem.Event
+                            val selectedEvent = availableEvents.firstOrNull { item -> item is MainViewModel.EventItem.Event } as? MainViewModel.EventItem.Event // Fixed: Explicit parameter
                             val defaultSoundFile = "Airspace.wav"
                             if (selectedEvent != null) {
                                 Log.d("MainScreen", "Add button clicked, adding config: event=${selectedEvent.name}, soundFile=$defaultSoundFile")
@@ -175,7 +186,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
                         Icon(
                             imageVector = Icons.Default.Add,
                             contentDescription = "Add Configuration",
-                            tint = Color.White // Changed to white
+                            tint = Color.White
                         )
                     }
                 }
