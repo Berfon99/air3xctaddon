@@ -21,7 +21,6 @@ abstract class AppDatabase : RoomDatabase() {
 
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(database: SupportSQLiteDatabase) {
-                // Create a new table with event as TEXT
                 database.execSQL("""
                     CREATE TABLE event_configs_new (
                         id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
@@ -33,13 +32,11 @@ abstract class AppDatabase : RoomDatabase() {
                         position INTEGER NOT NULL
                     )
                 """.trimIndent())
-                // Copy data from old table, keeping event values as-is
                 database.execSQL("""
                     INSERT INTO event_configs_new (id, event, soundFile, volumeType, volumePercentage, playCount, position)
                     SELECT id, event, soundFile, volumeType, volumePercentage, playCount, position
                     FROM event_configs
                 """.trimIndent())
-                // Drop old table and rename new one
                 database.execSQL("DROP TABLE event_configs")
                 database.execSQL("ALTER TABLE event_configs_new RENAME TO event_configs")
             }
@@ -47,7 +44,6 @@ abstract class AppDatabase : RoomDatabase() {
 
         val MIGRATION_2_3 = object : Migration(2, 3) {
             override fun migrate(database: SupportSQLiteDatabase) {
-                // Create the new events table
                 database.execSQL("""
                     CREATE TABLE events (
                         id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
@@ -55,6 +51,10 @@ abstract class AppDatabase : RoomDatabase() {
                         name TEXT NOT NULL
                     )
                 """.trimIndent())
+                // Pre-populate categories
+                listOf("Battery", "Flight", "Competition", "System", "Airspace", "Others").forEach {
+                    database.execSQL("INSERT INTO events (type, name) VALUES ('category', ?)", arrayOf(it))
+                }
             }
         }
 

@@ -15,7 +15,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xc.air3xctaddon.ui.theme.AIR3XCTAddonTheme
-import com.xc.air3xctaddon.MainViewModel
 import com.xc.air3xctaddon.MainViewModel.EventItem
 import com.xc.air3xctaddon.MainViewModelFactory
 import kotlinx.coroutines.launch
@@ -38,8 +37,7 @@ fun AddEventScreen() {
         factory = MainViewModelFactory(context.applicationContext as android.app.Application)
     )
 
-    // To ensure we have the latest events data
-    val events by viewModel.events.collectAsState()
+    val events by viewModel.events.collectAsState(initial = emptyList())
     val availableEvents by remember { derivedStateOf { viewModel.getAvailableEvents() } }
     val categories = availableEvents.filterIsInstance<EventItem.Category>().map { it.name }
 
@@ -49,8 +47,10 @@ fun AddEventScreen() {
     var message by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
-    Log.d("AddEventScreen", "Categories: $categories, Selected: $selectedCategory, EventName: $eventName")
-    Log.d("AddEventScreen", "Total events: ${events.size}, Available events: ${availableEvents.size}")
+    Log.d("AddEventScreen", "Events: ${events.size}, AvailableEvents: ${availableEvents.size}, Categories: $categories")
+    if (categories.isEmpty()) {
+        Log.w("AddEventScreen", "No categories available; check MainViewModel initialization or database")
+    }
 
     Scaffold(
         topBar = {
@@ -68,11 +68,19 @@ fun AddEventScreen() {
             verticalArrangement = Arrangement.spacedBy(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Category Dropdown
+            if (categories.isEmpty()) {
+                Text(
+                    "No categories available. Please try again later.",
+                    modifier = Modifier.padding(16.dp),
+                    color = MaterialTheme.colors.error
+                )
+            }
+
             Box {
                 Button(
                     onClick = { categoryMenuExpanded = true },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = categories.isNotEmpty()
                 ) {
                     Text(
                         text = if (selectedCategory.isEmpty()) "Select Category" else selectedCategory,
@@ -106,7 +114,6 @@ fun AddEventScreen() {
                 }
             }
 
-            // Event Name Input
             OutlinedTextField(
                 value = eventName,
                 onValueChange = { eventName = it },
@@ -115,14 +122,12 @@ fun AddEventScreen() {
                 singleLine = true
             )
 
-            // Confirm Button
             Button(
                 onClick = {
                     if (selectedCategory.isNotEmpty() && eventName.isNotEmpty()) {
                         scope.launch {
                             viewModel.addEvent(selectedCategory, eventName)
                             Log.d("AddEventScreen", "Confirm clicked: Adding event '$eventName' to category '$selectedCategory'")
-                            // Add a small delay to ensure the event is processed
                             kotlinx.coroutines.delay(100)
                             (context as ComponentActivity).finish()
                         }
@@ -137,14 +142,12 @@ fun AddEventScreen() {
                 Text("Confirm")
             }
 
-            // Display message if not null
             message?.let {
                 Text(it, modifier = Modifier.padding(8.dp))
             }
 
-            // Display current events for debugging
             Text(
-                "Debug - Current Events: ${events.filterIsInstance<EventItem.Event>().size}",
+                "Debug - Current Events: ${events.filterIsInstance<EventItem.Event>().size}, Categories: ${categories.size}",
                 modifier = Modifier.padding(top = 16.dp)
             )
         }

@@ -4,28 +4,21 @@ import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
-    private val db = AppDatabase.getDatabase(application)
-    private val configDao = db.eventConfigDao()
-    private val eventDao = db.eventDao()
+    private val configDao = AppDatabase.getDatabase(application).eventConfigDao()
+    private val eventDao = AppDatabase.getDatabase(application).eventDao()
 
-    val configs: StateFlow<List<EventConfig>> = configDao.getAllConfigs()
-        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+    private val _configs = MutableStateFlow<List<EventConfig>>(emptyList())
+    val configs: StateFlow<List<EventConfig>> = _configs.asStateFlow()
 
-    val events: StateFlow<List<EventItem>> = eventDao.getAllEvents()
-        .map { entities ->
-            entities.map { entity ->
-                when (entity.type) {
-                    "category" -> EventItem.Category(entity.name)
-                    "event" -> EventItem.Event(entity.name)
-                    else -> throw IllegalArgumentException("Unknown event type: ${entity.type}")
-                }
-            }
-        }
-        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+    private val _events = MutableStateFlow<List<EventItem>>(emptyList())
+    val events: StateFlow<List<EventItem>> = _events.asStateFlow()
 
     sealed class EventItem {
         data class Category(val name: String) : EventItem()
@@ -46,7 +39,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             EventItem.Category("Flight"),
             EventItem.Event("TAKEOFF"),
             EventItem.Event("LANDING"),
-            EventItem.Event("_LANDING_CONFIRMATION_NEEDED"),
             EventItem.Event("START_THERMALING"),
             EventItem.Event("STOP_THERMALING"),
             EventItem.Category("Competition"),
@@ -54,161 +46,120 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             EventItem.Event("COMP_TURNPOINT_CROSSED"),
             EventItem.Event("COMP_ESS_CROSSED"),
             EventItem.Event("COMP_GOAL_CROSSED"),
-            EventItem.Event("COMP_TURNPOINT_PREV"),
+            EventItem.Category("System"),
+            EventItem.Event("SYSTEM_GPS_OK"),
             EventItem.Category("Airspace"),
             EventItem.Event("AIRSPACE_CROSSED"),
             EventItem.Event("AIRSPACE_RED_WARN"),
             EventItem.Event("AIRSPACE_ORANGE_WARN"),
-            EventItem.Event("AIRSPACE_CROSSED_SOON"),
-            EventItem.Event("AIRSPACE_OBSTACLE"),
-            EventItem.Category("Others"),
-            EventItem.Event("LIVETRACK_MESSAGE"),
-            EventItem.Event("LIVETRACK_ENABLED"),
-            EventItem.Event("BUTTON_CLICK"),
-            EventItem.Event("CALL_REJECTED"),
-            EventItem.Event("SYSTEM_GPS_OK"),
-            EventItem.Event("BT_OK"),
-            EventItem.Event("BT_KO"),
-            EventItem.Event("TEST")
+            EventItem.Category("Others")
         )
-
-        private val ALL_EVENTS = CATEGORIZED_EVENTS
-            .filterIsInstance<EventItem.Event>()
-            .map { it.name }
     }
 
     init {
         viewModelScope.launch {
-            // Initialize configs
-            val currentConfigs = configDao.getAllConfigsSync()
-            if (currentConfigs.isEmpty()) {
-                val defaultEvent = ALL_EVENTS.firstOrNull()
-                if (defaultEvent != null) {
-                    val defaultConfig = EventConfig(
-                        id = 0,
-                        event = defaultEvent,
-                        soundFile = "Goodresult.mp3",
-                        volumeType = VolumeType.SYSTEM,
-                        volumePercentage = 100,
-                        playCount = 1,
-                        position = 0
-                    )
-                    configDao.insert(defaultConfig)
-                    Log.d("MainViewModel", "Added default config: $defaultEvent")
-                } else {
-                    Log.w("MainViewModel", "No events available for default config")
-                }
+            // Load configs
+            configDao.getAllConfigs().collect { configs ->
+                _configs.value = configs
+                Log.d("MainViewModel", "Loaded configs: ${configs.size}")
             }
+        }
+        viewModelScope.launch {
+            // Initialize events with CATEGORIZED_EVENTS
+            val eventItems = CATEGORIZED_EVENTS.toMutableList()
+            _events.value = eventItems
+            Log.d("MainViewModel", "Initialized with CATEGORIZED_EVENTS: ${eventItems.size}, Categories: ${eventItems.filterIsInstance<EventItem.Category>().size}")
 
-            // Initialize events if empty
-            val currentEvents = eventDao.getAllEvents().first()
-            if (currentEvents.isEmpty()) {
+            // Merge with database events
+            eventDao.getAllEvents().collect { dbEvents ->
+                val updatedItems = mutableListOf<EventItem>()
+                // Add predefined categories and events, excluding duplicates
                 CATEGORIZED_EVENTS.forEach { item ->
-                    val entity = when (item) {
-                        is EventItem.Category -> EventEntity(type = "category", name = item.name)
-                        is EventItem.Event -> EventEntity(type = "event", name = item.name)
-                    }
-                    eventDao.insert(entity)
-                }
-                Log.d("MainViewModel", "Initialized events with CATEGORIZED_EVENTS")
-            }
-        }
-    }
-
-    fun addConfig(event: String, soundFile: String, volumeType: VolumeType, volumePercentage: Int, playCount: Int) {
-        viewModelScope.launch {
-            try {
-                val position = configs.value.size
-                val config = EventConfig(
-                    id = 0,
-                    event = event,
-                    soundFile = soundFile,
-                    volumeType = volumeType,
-                    volumePercentage = volumePercentage,
-                    playCount = playCount,
-                    position = position
-                )
-                configDao.insert(config)
-                Log.d("MainViewModel", "Added config for event: $event")
-            } catch (e: Exception) {
-                Log.e("MainViewModel", "Error adding config", e)
-            }
-        }
-    }
-
-    fun updateConfig(config: EventConfig) {
-        viewModelScope.launch {
-            try {
-                configDao.update(config)
-                Log.d("MainViewModel", "Updated config: ${config.event}")
-            } catch (e: Exception) {
-                Log.e("MainViewModel", "Error updating config", e)
-            }
-        }
-    }
-
-    fun deleteConfig(config: EventConfig) {
-        viewModelScope.launch {
-            try {
-                configDao.delete(config)
-                configs.value.forEachIndexed { index, cfg ->
-                    if (cfg.position != index) {
-                        configDao.updatePosition(cfg.id, index)
+                    if (item is EventItem.Category || dbEvents.none { it.type == "event" && it.name == (item as? EventItem.Event)?.name }) {
+                        updatedItems.add(item)
                     }
                 }
-                Log.d("MainViewModel", "Deleted config: ${config.event}")
-            } catch (e: Exception) {
-                Log.e("MainViewModel", "Error deleting config", e)
-            }
-        }
-    }
-
-    fun reorderConfigs(from: Int, to: Int) {
-        viewModelScope.launch {
-            try {
-                val list = configs.value.toMutableList()
-                val item = list.removeAt(from)
-                list.add(to, item)
-                list.forEachIndexed { index, config ->
-                    if (config.position != index) {
-                        configDao.updatePosition(config.id, index)
-                    }
-                }
-                Log.d("MainViewModel", "Reordered configs from $from to $to")
-            } catch (e: Exception) {
-                Log.e("MainViewModel", "Error reordering configs", e)
+                // Add custom events from database
+                dbEvents.filter { it.type == "event" && it.name !in CATEGORIZED_EVENTS.filterIsInstance<EventItem.Event>().map { it.name } }
+                    .forEach { updatedItems.add(EventItem.Event(it.name)) }
+                _events.value = updatedItems
+                Log.d("MainViewModel", "Updated events: ${updatedItems.size}, Categories: ${updatedItems.filterIsInstance<EventItem.Category>().size}, DB events: ${dbEvents.size}")
             }
         }
     }
 
     fun getAvailableEvents(): List<EventItem> {
-        val usedEvents = configs.value.map { it.event }.toSet()
-        val availableEvents = events.value.filter { item ->
+        val usedEvents = _configs.value.map { it.event }.toSet()
+        val available = _events.value.filter { item ->
             when (item) {
                 is EventItem.Category -> true
                 is EventItem.Event -> item.name !in usedEvents
             }
         }
-        Log.d("MainViewModel", "Available events: ${availableEvents.filterIsInstance<EventItem.Event>().map { it.name }}")
-        return availableEvents
+        Log.d("MainViewModel", "Available events: ${available.size}, Categories: ${available.filterIsInstance<EventItem.Category>().size}")
+        return available
     }
 
     fun addEvent(category: String, eventName: String) {
         viewModelScope.launch {
-            // Check if event name already exists
-            val existingEvent = events.value.any { it is EventItem.Event && it.name == eventName }
-            if (existingEvent) {
-                Log.w("MainViewModel", "Event '$eventName' already exists")
+            if (_events.value.any { it is EventItem.Event && it.name == eventName }) {
+                Log.w("MainViewModel", "Event '$eventName' already exists, skipping")
                 return@launch
             }
-            // Find category
-            val categoryExists = events.value.any { it is EventItem.Category && it.name == category }
-            if (categoryExists) {
-                val newEvent = EventEntity(type = "event", name = eventName)
-                eventDao.insert(newEvent)
-                Log.d("MainViewModel", "Added event '$eventName' to category '$category'")
-            } else {
-                Log.w("MainViewModel", "Category '$category' not found")
+            val newEvent = EventEntity(type = "event", name = eventName)
+            eventDao.insert(newEvent)
+            Log.d("MainViewModel", "Added event '$eventName' to category '$category'")
+        }
+    }
+
+    fun addConfig(event: String, soundFile: String, volumeType: VolumeType, volumePercentage: Int, playCount: Int) {
+        viewModelScope.launch {
+            val maxPosition = _configs.value.maxOfOrNull { it.position } ?: -1
+            val newConfig = EventConfig(
+                id = UUID.randomUUID().hashCode(),
+                event = event,
+                soundFile = soundFile,
+                volumeType = volumeType,
+                volumePercentage = volumePercentage,
+                playCount = playCount,
+                position = maxPosition + 1
+            )
+            configDao.insert(newConfig)
+            Log.d("MainViewModel", "Added config: event=$event, soundFile=$soundFile")
+        }
+    }
+
+    fun updateConfig(config: EventConfig) {
+        viewModelScope.launch {
+            configDao.update(config)
+            Log.d("MainViewModel", "Updated config: id=${config.id}")
+        }
+    }
+
+    fun deleteConfig(config: EventConfig) {
+        viewModelScope.launch {
+            configDao.delete(config)
+            // Reorder positions
+            _configs.value.filter { it.id != config.id }
+                .sortedBy { it.position }
+                .forEachIndexed { index, eventConfig ->
+                    configDao.updatePosition(eventConfig.id, index)
+                }
+            Log.d("MainViewModel", "Deleted config: id=${config.id}")
+        }
+    }
+
+    fun reorderConfigs(fromIndex: Int, toIndex: Int) {
+        viewModelScope.launch {
+            val configs = _configs.value.toMutableList()
+            if (fromIndex in configs.indices && toIndex in configs.indices) {
+                val item = configs.removeAt(fromIndex)
+                configs.add(toIndex, item)
+                configs.forEachIndexed { index, config ->
+                    configDao.updatePosition(config.id, index)
+                }
+                _configs.value = configs
+                Log.d("MainViewModel", "Reordered configs: from=$fromIndex, to=$toIndex")
             }
         }
     }
