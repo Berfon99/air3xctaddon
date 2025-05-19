@@ -34,29 +34,29 @@ class LogMonitorService : Service() {
 
         // Start foreground service
         val notification = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
-            .setContentTitle("AIR3 XCT Addon")
-            .setContentText("Monitoring XCTrack events")
+            .setContentTitle(getString(R.string.notification_title))
+            .setContentText(getString(R.string.notification_text))
             .setSmallIcon(R.drawable.ic_launcher)
             .build()
         startForeground(NOTIFICATION_ID, notification)
-        Log.d("LogMonitorService", "Started foreground service")
+        Log.d("LogMonitorService", getString(R.string.log_started_foreground))
 
         // Initialize eventReceiver
         eventReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
                 intent?.let {
                     val event = it.action?.substringAfterLast(".")
-                    Log.d("LogMonitorService", "Received event: $event")
+                    Log.d("LogMonitorService", getString(R.string.log_received_event, event))
                     // Process event in coroutine scope
                     scope.launch {
                         val db = AppDatabase.getDatabase(applicationContext)
                         val configDao = db.eventConfigDao()
                         val config = configDao.getAllConfigsSync().find { it.event == event }
                         if (config != null) {
-                            Log.d("LogMonitorService", "Found config for $event: ${config.soundFile}")
+                            Log.d("LogMonitorService", getString(R.string.log_found_config, event, config.soundFile))
                             // TODO: Implement sound playback (e.g., MediaPlayer)
                         } else {
-                            Log.w("LogMonitorService", "No config for $event")
+                            Log.w("LogMonitorService", getString(R.string.log_no_config, event))
                         }
                     }
                 }
@@ -96,17 +96,17 @@ class LogMonitorService : Service() {
             null,
             Context.RECEIVER_NOT_EXPORTED
         )
-        Log.d("LogMonitorService", "Registered event receiver")
+        Log.d("LogMonitorService", getString(R.string.log_registered_receiver))
     }
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 NOTIFICATION_CHANNEL_ID,
-                "Log Monitor Service",
+                getString(R.string.notification_channel_name),
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Channel for LogMonitorService notifications"
+                description = getString(R.string.notification_channel_description)
             }
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(channel)
@@ -114,7 +114,7 @@ class LogMonitorService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Log.d("LogMonitorService", "Service started")
+        Log.d("LogMonitorService", getString(R.string.log_service_started))
         return START_STICKY
     }
 
@@ -122,9 +122,9 @@ class LogMonitorService : Service() {
         super.onDestroy()
         try {
             unregisterReceiver(eventReceiver)
-            Log.d("LogMonitorService", "Unregistered event receiver")
+            Log.d("LogMonitorService", getString(R.string.log_unregistered_receiver))
         } catch (e: Exception) {
-            Log.e("LogMonitorService", "Error unregistering receiver", e)
+            Log.e("LogMonitorService", getString(R.string.log_error_unregistering), e)
         }
     }
 

@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- App information -->
     <string name="app_name">AIR3 XCT Addon</string>
@@ -51,4 +52,64 @@
     <string name="sound_files_copy_failed">Failed to copy sound files. Some features may not work.</string>
     <string name="sound_files_not_found">No sound files found. Some features may not work.</string>
     <string name="sound_files_error">Error copying sound files.</string>
+
+    <!-- Notification strings -->
+    <string name="notification_channel_name">Log Monitor Service</string>
+    <string name="notification_channel_description">Channel for LogMonitorService notifications</string>
+    <string name="notification_title">AIR3 XCT Addon</string>
+    <string name="notification_text">Monitoring XCTrack events</string>
+
+    <!-- Log message strings -->
+    <string name="log_service_started">Service started</string>
+    <string name="log_started_foreground">Started foreground service</string>
+    <string name="log_registered_receiver">Registered event receiver</string>
+    <string name="log_unregistered_receiver">Unregistered event receiver</string>
+    <string name="log_error_unregistering">Error unregistering receiver</string>
+    <string name="log_received_event">Received event: %1$s</string>
+    <string name="log_found_config">Found config for %1$s: %2$s</string>
+    <string name="log_no_config">No config for %1$s</string>
+    <string name="log_loaded_configs">Loaded configs: %1$d</string>
+    <string name="log_initialized_events">Initialized with CATEGORIZED_EVENTS: %1$d, Categories: %2$d</string>
+    <string name="log_updated_events">Updated events: %1$d, Categories: %2$d, DB events: %3$d</string>
+    <string name="log_available_events">Available events: %1$d, Categories: %2$d</string>
+    <string name="log_event_exists">Event \'%1$s\' already exists, skipping</string>
+    <string name="log_added_event">Added event \'%1$s\' to category \'%2$s\'</string>
+    <string name="log_added_config">Added config: event=%1$s, soundFile=%2$s</string>
+    <string name="log_updated_config">Updated config: id=%1$d</string>
+    <string name="log_deleted_config">Deleted config: id=%1$d</string>
+    <string name="log_reordered_configs">Reordered configs: from=%1$d, to=%2$d</string>
+    <string name="log_inserting_config">Inserting config: event=%1$s, soundFile=%2$s</string>
+    <string name="log_updating_config">Updating config: id=%1$d, event=%2$s</string>
+    <string name="log_deleting_config">Deleting config: id=%1$d, event=%2$s</string>
+    <string name="log_updating_position">Updating position: id=%1$d, position=%2$d</string>
+    <string name="log_retrieved_configs">getAllConfigsSync retrieved %1$d configs: %2$s</string>
+    <string name="log_error_configs">Error in getAllConfigsSync</string>
+
+    <!-- XCTrackEventReceiver strings -->
+    <string name="log_xctrack_event">Received event: %1$s, formatArgs: %2$s</string>
+    <string name="log_handling_event">Handling %1$s, formatArgs: %2$s</string>
+    <string name="log_new_event">New or unhandled event: %1$s, formatArgs: %2$s</string>
+
+    <!-- Asset Utils strings -->
+    <string name="log_external_dir_null">External files directory is null</string>
+    <string name="log_failed_create_dir">Failed to create sounds directory: %1$s</string>
+    <string name="log_sounds_dir_info">Sounds directory: %1$s, exists: %2$b</string>
+    <string name="log_existing_sound_files">Existing sound files: %1$s</string>
+    <string name="log_skipping_copy">Skipping copy, sound files already exist</string>
+    <string name="log_asset_files">Sound files in assets/%1$s: %2$s</string>
+    <string name="log_no_sound_files_in_assets">No .mp3 or .wav files found in assets/%1$s</string>
+    <string name="log_copied_sound_file">Copied sound file: %1$s to %2$s</string>
+    <string name="log_failed_copy_sound">Failed to copy sound file: %1$s</string>
+    <string name="log_error_copying">Error copying sound files from assets</string>
+    <string name="log_dir_not_exist">Directory does not exist: %1$s</string>
+    <string name="log_dir_empty">Directory is empty: %1$s</string>
+    <string name="log_dir_contents">Contents of %1$s:</string>
+    <string name="log_file_info">  - %1$s (%2$d bytes, readable: %3$b)</string>
+
+    <!-- Event category names -->
+    <string name="category_battery">Battery</string>
+    <string name="category_flight">Flight</string>
+    <string name="category_competition">Competition</string>
+    <string name="category_airspace">Airspace</string>
+    <string name="category_others">Others</string>
 </resources>

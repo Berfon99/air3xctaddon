@@ -13,6 +13,7 @@ import java.util.UUID
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val configDao = AppDatabase.getDatabase(application).eventConfigDao()
     private val eventDao = AppDatabase.getDatabase(application).eventDao()
+    private val context = application.applicationContext
 
     private val _configs = MutableStateFlow<List<EventConfig>>(emptyList())
     val configs: StateFlow<List<EventConfig>> = _configs.asStateFlow()
@@ -26,44 +27,49 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     companion object {
-        private val CATEGORIZED_EVENTS = listOf(
-            EventItem.Category("Battery"),
-            EventItem.Event("BATTERY50"),
-            EventItem.Event("BATTERY40"),
-            EventItem.Event("BATTERY30"),
-            EventItem.Event("BATTERY20"),
-            EventItem.Event("BATTERY10"),
-            EventItem.Event("BATTERY5"),
-            EventItem.Event("BATTERY_CHARGING"),
-            EventItem.Event("BATTERY_DISCHARGING"),
-            EventItem.Category("Flight"),
-            EventItem.Event("TAKEOFF"),
-            EventItem.Event("LANDING"),
-            EventItem.Event("_LANDING_CONFIRMATION_NEEDED"),
-            EventItem.Event("START_THERMALING"),
-            EventItem.Event("STOP_THERMALING"),
-            EventItem.Category("Competition"),
-            EventItem.Event("COMP_SSS_CROSSED"),
-            EventItem.Event("COMP_TURNPOINT_CROSSED"),
-            EventItem.Event("COMP_ESS_CROSSED"),
-            EventItem.Event("COMP_GOAL_CROSSED"),
-            EventItem.Event("COMP_TURNPOINT_PREV"),
-            EventItem.Category("Airspace"),
-            EventItem.Event("AIRSPACE_CROSSED"),
-            EventItem.Event("AIRSPACE_RED_WARN"),
-            EventItem.Event("AIRSPACE_ORANGE_WARN"),
-            EventItem.Event("AIRSPACE_CROSSED_SOON"),
-            EventItem.Event("AIRSPACE_OBSTACLE"),
-            EventItem.Category("Others"),
-            EventItem.Event("LIVETRACK_MESSAGE"),
-            EventItem.Event("LIVETRACK_ENABLED"),
-            EventItem.Event("BUTTON_CLICK"),
-            EventItem.Event("CALL_REJECTED"),
-            EventItem.Event("SYSTEM_GPS_OK"),
-            EventItem.Event("BT_OK"),
-            EventItem.Event("BT_KO"),
-            EventItem.Event("TEST")
-        )
+        private val CATEGORIZED_EVENTS = mutableListOf<EventItem>().apply {
+            // Using context to get string resources would require a different approach
+            // since companion objects can't access instance properties
+
+            // For now, we'll keep these hardcoded in the companion object
+            // In a real implementation, you might use a factory method that accepts a context
+            add(EventItem.Category("Battery"))
+            add(EventItem.Event("BATTERY50"))
+            add(EventItem.Event("BATTERY40"))
+            add(EventItem.Event("BATTERY30"))
+            add(EventItem.Event("BATTERY20"))
+            add(EventItem.Event("BATTERY10"))
+            add(EventItem.Event("BATTERY5"))
+            add(EventItem.Event("BATTERY_CHARGING"))
+            add(EventItem.Event("BATTERY_DISCHARGING"))
+            add(EventItem.Category("Flight"))
+            add(EventItem.Event("TAKEOFF"))
+            add(EventItem.Event("LANDING"))
+            add(EventItem.Event("_LANDING_CONFIRMATION_NEEDED"))
+            add(EventItem.Event("START_THERMALING"))
+            add(EventItem.Event("STOP_THERMALING"))
+            add(EventItem.Category("Competition"))
+            add(EventItem.Event("COMP_SSS_CROSSED"))
+            add(EventItem.Event("COMP_TURNPOINT_CROSSED"))
+            add(EventItem.Event("COMP_ESS_CROSSED"))
+            add(EventItem.Event("COMP_GOAL_CROSSED"))
+            add(EventItem.Event("COMP_TURNPOINT_PREV"))
+            add(EventItem.Category("Airspace"))
+            add(EventItem.Event("AIRSPACE_CROSSED"))
+            add(EventItem.Event("AIRSPACE_RED_WARN"))
+            add(EventItem.Event("AIRSPACE_ORANGE_WARN"))
+            add(EventItem.Event("AIRSPACE_CROSSED_SOON"))
+            add(EventItem.Event("AIRSPACE_OBSTACLE"))
+            add(EventItem.Category("Others"))
+            add(EventItem.Event("LIVETRACK_MESSAGE"))
+            add(EventItem.Event("LIVETRACK_ENABLED"))
+            add(EventItem.Event("BUTTON_CLICK"))
+            add(EventItem.Event("CALL_REJECTED"))
+            add(EventItem.Event("SYSTEM_GPS_OK"))
+            add(EventItem.Event("BT_OK"))
+            add(EventItem.Event("BT_KO"))
+            add(EventItem.Event("TEST"))
+        }
     }
 
     init {
@@ -71,13 +77,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             // Load configs
             configDao.getAllConfigs().collect { configs ->
                 _configs.value = configs
-                Log.d("MainViewModel", "Loaded configs: ${configs.size}")
+                Log.d("MainViewModel", context.getString(R.string.log_loaded_configs, configs.size))
             }
         }
         viewModelScope.launch {
             // Initialize with CATEGORIZED_EVENTS
             _events.value = CATEGORIZED_EVENTS
-            Log.d("MainViewModel", "Initialized with CATEGORIZED_EVENTS: ${CATEGORIZED_EVENTS.size}, Categories: ${CATEGORIZED_EVENTS.filterIsInstance<EventItem.Category>().size}")
+            Log.d("MainViewModel", context.getString(
+                R.string.log_initialized_events,
+                CATEGORIZED_EVENTS.size,
+                CATEGORIZED_EVENTS.filterIsInstance<EventItem.Category>().size
+            ))
 
             // Merge database events
             eventDao.getAllEvents().collect { dbEvents ->
@@ -97,7 +107,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 // Add custom events from database under their categories
                 dbEvents.filter { it.type == "event" }.forEach { dbEvent ->
                     if (dbEvent.name !in CATEGORIZED_EVENTS.filterIsInstance<EventItem.Event>().map { it.name }) {
-                        val targetCategory = dbEvent.category ?: "Others"
+                        val targetCategory = dbEvent.category ?: context.getString(R.string.category_others)
                         val insertIndex = updatedItems.indexOfFirst { it is EventItem.Category && it.name == targetCategory }
                             .takeIf { it >= 0 }?.let { it + 1 } ?: updatedItems.size
                         updatedItems.add(insertIndex, EventItem.Event(dbEvent.name))
@@ -105,8 +115,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
 
                 _events.value = updatedItems
-                Log.d("MainViewModel", "Updated events: ${updatedItems.size}, Categories: ${updatedItems.filterIsInstance<EventItem.Category>().size}, DB events: ${dbEvents.size}")
-                Log.d("MainViewModel", "Event list: ${updatedItems.joinToString { when (it) { is EventItem.Category -> "Category: ${it.name}"; is EventItem.Event -> "Event: ${it.name}" } }}")
+                Log.d("MainViewModel", context.getString(
+                    R.string.log_updated_events,
+                    updatedItems.size,
+                    updatedItems.filterIsInstance<EventItem.Category>().size,
+                    dbEvents.size
+                ))
+
+                val eventList = updatedItems.joinToString {
+                    when (it) {
+                        is EventItem.Category -> "Category: ${it.name}"
+                        is EventItem.Event -> "Event: ${it.name}"
+                    }
+                }
+                Log.d("MainViewModel", "Event list: $eventList")
             }
         }
     }
@@ -119,19 +141,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 is EventItem.Event -> item.name !in usedEvents
             }
         }
-        Log.d("MainViewModel", "Available events: ${available.size}, Categories: ${available.filterIsInstance<EventItem.Category>().size}")
+        Log.d("MainViewModel", context.getString(
+            R.string.log_available_events,
+            available.size,
+            available.filterIsInstance<EventItem.Category>().size
+        ))
         return available
     }
 
     fun addEvent(category: String, eventName: String) {
         viewModelScope.launch {
             if (_events.value.any { it is EventItem.Event && it.name == eventName }) {
-                Log.w("MainViewModel", "Event '$eventName' already exists, skipping")
+                Log.w("MainViewModel", context.getString(R.string.log_event_exists, eventName))
                 return@launch
             }
             val newEvent = EventEntity(type = "event", name = eventName, category = category)
             eventDao.insert(newEvent)
-            Log.d("MainViewModel", "Added event '$eventName' to category '$category'")
+            Log.d("MainViewModel", context.getString(R.string.log_added_event, eventName, category))
         }
     }
 
@@ -148,14 +174,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 position = maxPosition + 1
             )
             configDao.insert(newConfig)
-            Log.d("MainViewModel", "Added config: event=$event, soundFile=$soundFile")
+            Log.d("MainViewModel", context.getString(R.string.log_added_config, event, soundFile))
         }
     }
 
     fun updateConfig(config: EventConfig) {
         viewModelScope.launch {
             configDao.update(config)
-            Log.d("MainViewModel", "Updated config: id=${config.id}")
+            Log.d("MainViewModel", context.getString(R.string.log_updated_config, config.id))
         }
     }
 
@@ -167,7 +193,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 .forEachIndexed { index, eventConfig ->
                     configDao.updatePosition(eventConfig.id, index)
                 }
-            Log.d("MainViewModel", "Deleted config: id=${config.id}")
+            Log.d("MainViewModel", context.getString(R.string.log_deleted_config, config.id))
         }
     }
 
@@ -181,7 +207,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     configDao.updatePosition(config.id, index)
                 }
                 _configs.value = configs
-                Log.d("MainViewModel", "Reordered configs: from=$fromIndex, to=$toIndex")
+                Log.d("MainViewModel", context.getString(R.string.log_reordered_configs, fromIndex, toIndex))
             }
         }
     }
