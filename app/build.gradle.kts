@@ -13,8 +13,8 @@ android {
         applicationId = "com.xc.air3xctaddon"
         minSdk = 33
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 100
+        versionName = "1.0.0" //Initialisation
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -40,6 +40,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true // Enable BuildConfig generation
     }
     composeOptions {
         kotlinCompilerExtensionVersion = "2.0.0"
@@ -82,4 +83,53 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
+}
+
+// Custom task to extract versionName and comment
+val generateVersionHistory = tasks.register("generateVersionHistory") {
+    group = "Custom"
+    description = "Generates a version history file from the versionName and its comment."
+
+    doLast {
+        val buildFile = project.file("build.gradle.kts")
+        val versionHistoryFile = project.file("version_history.txt")
+        val lastVersionFile = project.file("last_version.txt")
+
+        if (!versionHistoryFile.exists()) {
+            versionHistoryFile.createNewFile()
+        }
+        if (!lastVersionFile.exists()) {
+            lastVersionFile.createNewFile()
+        }
+
+        val lines = buildFile.readLines()
+        var versionNameLine: String? = null
+        for (line in lines) {
+            if (line.trimStart().startsWith("versionName")) {
+                versionNameLine = line
+                break
+            }
+        }
+
+        if (versionNameLine != null) {
+            val versionName = versionNameLine.substringAfter('"').substringBefore('"')
+            val comment = versionNameLine.substringAfter("//").trim()
+            val currentVersionLine = "$versionName - $comment\n"
+
+            val lastVersion = lastVersionFile.readText().trim()
+
+            if (currentVersionLine.trim() != lastVersion.trim()) {
+                versionHistoryFile.appendText(currentVersionLine)
+                lastVersionFile.writeText(currentVersionLine)
+            }
+        } else {
+            println("versionName not found in build.gradle.kts")
+        }
+    }
+}
+
+tasks.configureEach {
+    if (name == "build") {
+        dependsOn(generateVersionHistory)
+    }
 }

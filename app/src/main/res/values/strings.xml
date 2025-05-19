@@ -10,4 +10,6 @@
     <string name="volume_system">System</string>
     <string name="play_count">Play Count</string>
     <string name="delete">Delete</string>
+    <string name="app_version">Version</string>
+    <string name="copyright">© 2025 Bertrand Fontaine</string>
 </resources>
