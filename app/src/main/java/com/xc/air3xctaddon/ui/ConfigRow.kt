@@ -240,7 +240,12 @@ fun ConfigRow(
                                     }
                                     is EventItem.Event -> {
                                         DropdownMenuItem(
-                                            content = { Text(item.name) },
+                                            content = {
+                                                Text(
+                                                    text = item.name,
+                                                    style = MaterialTheme.typography.body2 // Smaller text for events (~14sp)
+                                                )
+                                            },
                                             onClick = {
                                                 event = item.name
                                                 onUpdate(config.copy(event = item.name))
