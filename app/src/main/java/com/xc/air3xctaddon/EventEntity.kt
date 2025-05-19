@@ -7,5 +7,6 @@ import androidx.room.PrimaryKey
 data class EventEntity(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val type: String, // "category" or "event"
-    val name: String
+    val name: String,
+    val category: String? = null // New field for event category
 )

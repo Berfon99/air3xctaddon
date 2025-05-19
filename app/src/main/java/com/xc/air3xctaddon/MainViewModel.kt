@@ -39,6 +39,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             EventItem.Category("Flight"),
             EventItem.Event("TAKEOFF"),
             EventItem.Event("LANDING"),
+            EventItem.Event("_LANDING_CONFIRMATION_NEEDED"),
             EventItem.Event("START_THERMALING"),
             EventItem.Event("STOP_THERMALING"),
             EventItem.Category("Competition"),
@@ -46,13 +47,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             EventItem.Event("COMP_TURNPOINT_CROSSED"),
             EventItem.Event("COMP_ESS_CROSSED"),
             EventItem.Event("COMP_GOAL_CROSSED"),
-            EventItem.Category("System"),
-            EventItem.Event("SYSTEM_GPS_OK"),
+            EventItem.Event("COMP_TURNPOINT_PREV"),
             EventItem.Category("Airspace"),
             EventItem.Event("AIRSPACE_CROSSED"),
             EventItem.Event("AIRSPACE_RED_WARN"),
             EventItem.Event("AIRSPACE_ORANGE_WARN"),
-            EventItem.Category("Others")
+            EventItem.Event("AIRSPACE_CROSSED_SOON"),
+            EventItem.Event("AIRSPACE_OBSTACLE"),
+            EventItem.Category("Others"),
+            EventItem.Event("LIVETRACK_MESSAGE"),
+            EventItem.Event("LIVETRACK_ENABLED"),
+            EventItem.Event("BUTTON_CLICK"),
+            EventItem.Event("CALL_REJECTED"),
+            EventItem.Event("SYSTEM_GPS_OK"),
+            EventItem.Event("BT_OK"),
+            EventItem.Event("BT_KO"),
+            EventItem.Event("TEST")
         )
     }
 
@@ -65,25 +75,38 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
         viewModelScope.launch {
-            // Initialize events with CATEGORIZED_EVENTS
-            val eventItems = CATEGORIZED_EVENTS.toMutableList()
-            _events.value = eventItems
-            Log.d("MainViewModel", "Initialized with CATEGORIZED_EVENTS: ${eventItems.size}, Categories: ${eventItems.filterIsInstance<EventItem.Category>().size}")
+            // Initialize with CATEGORIZED_EVENTS
+            _events.value = CATEGORIZED_EVENTS
+            Log.d("MainViewModel", "Initialized with CATEGORIZED_EVENTS: ${CATEGORIZED_EVENTS.size}, Categories: ${CATEGORIZED_EVENTS.filterIsInstance<EventItem.Category>().size}")
 
-            // Merge with database events
+            // Merge database events
             eventDao.getAllEvents().collect { dbEvents ->
                 val updatedItems = mutableListOf<EventItem>()
-                // Add predefined categories and events, excluding duplicates
+                var currentCategory: String? = null
+
+                // Add predefined categories and events
                 CATEGORIZED_EVENTS.forEach { item ->
-                    if (item is EventItem.Category || dbEvents.none { it.type == "event" && it.name == (item as? EventItem.Event)?.name }) {
+                    if (item is EventItem.Category) {
+                        currentCategory = item.name
+                        updatedItems.add(item)
+                    } else if (item is EventItem.Event && dbEvents.none { it.type == "event" && it.name == item.name }) {
                         updatedItems.add(item)
                     }
                 }
-                // Add custom events from database
-                dbEvents.filter { it.type == "event" && it.name !in CATEGORIZED_EVENTS.filterIsInstance<EventItem.Event>().map { it.name } }
-                    .forEach { updatedItems.add(EventItem.Event(it.name)) }
+
+                // Add custom events from database under their categories
+                dbEvents.filter { it.type == "event" }.forEach { dbEvent ->
+                    if (dbEvent.name !in CATEGORIZED_EVENTS.filterIsInstance<EventItem.Event>().map { it.name }) {
+                        val targetCategory = dbEvent.category ?: "Others"
+                        val insertIndex = updatedItems.indexOfFirst { it is EventItem.Category && it.name == targetCategory }
+                            .takeIf { it >= 0 }?.let { it + 1 } ?: updatedItems.size
+                        updatedItems.add(insertIndex, EventItem.Event(dbEvent.name))
+                    }
+                }
+
                 _events.value = updatedItems
                 Log.d("MainViewModel", "Updated events: ${updatedItems.size}, Categories: ${updatedItems.filterIsInstance<EventItem.Category>().size}, DB events: ${dbEvents.size}")
+                Log.d("MainViewModel", "Event list: ${updatedItems.joinToString { when (it) { is EventItem.Category -> "Category: ${it.name}"; is EventItem.Event -> "Event: ${it.name}" } }}")
             }
         }
     }
@@ -106,7 +129,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 Log.w("MainViewModel", "Event '$eventName' already exists, skipping")
                 return@launch
             }
-            val newEvent = EventEntity(type = "event", name = eventName)
+            val newEvent = EventEntity(type = "event", name = eventName, category = category)
             eventDao.insert(newEvent)
             Log.d("MainViewModel", "Added event '$eventName' to category '$category'")
         }
@@ -139,7 +162,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteConfig(config: EventConfig) {
         viewModelScope.launch {
             configDao.delete(config)
-            // Reorder positions
             _configs.value.filter { it.id != config.id }
                 .sortedBy { it.position }
                 .forEachIndexed { index, eventConfig ->

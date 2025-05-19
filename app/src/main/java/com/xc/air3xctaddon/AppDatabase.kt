@@ -9,7 +9,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.xc.air3xctaddon.converters.Converters
 
-@Database(entities = [EventConfig::class, EventEntity::class], version = 3, exportSchema = false)
+@Database(entities = [EventConfig::class, EventEntity::class], version = 4, exportSchema = false)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun eventConfigDao(): EventConfigDao
@@ -51,10 +51,12 @@ abstract class AppDatabase : RoomDatabase() {
                         name TEXT NOT NULL
                     )
                 """.trimIndent())
-                // Pre-populate categories
-                listOf("Battery", "Flight", "Competition", "System", "Airspace", "Others").forEach {
-                    database.execSQL("INSERT INTO events (type, name) VALUES ('category', ?)", arrayOf(it))
-                }
+            }
+        }
+
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE events ADD COLUMN category TEXT")
             }
         }
 
@@ -65,7 +67,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "xct_addon_database"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .build()
                 INSTANCE = instance
                 instance
