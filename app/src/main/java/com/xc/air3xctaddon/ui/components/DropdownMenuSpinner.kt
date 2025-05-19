@@ -23,11 +23,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.xc.air3xctaddon.R
 
 // Define sealed class for spinner items
 sealed class SpinnerItem {
@@ -80,7 +82,7 @@ fun DropdownMenuSpinner(
         ) {
             if (items.isEmpty()) {
                 DropdownMenuItem(
-                    content = { Text("No items available") },
+                    content = { Text(stringResource(R.string.no_items_available)) },
                     onClick = {
                         expanded = false
                         Log.d("DropdownMenuSpinner", "No items available clicked")

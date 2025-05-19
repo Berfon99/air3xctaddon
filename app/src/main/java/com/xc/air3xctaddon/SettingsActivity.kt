@@ -10,6 +10,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xc.air3xctaddon.ui.theme.AIR3XCTAddonTheme
@@ -37,7 +38,7 @@ fun SettingsScreen() {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Settings") }
+                title = { Text(stringResource(R.string.title_settings)) }
             )
         }
     ) { padding ->
@@ -55,14 +56,14 @@ fun SettingsScreen() {
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Add a new event")
+                Text(stringResource(R.string.add_new_event))
             }
 
             // Display count of custom events (optional)
             val customEventCount = events.count { it is MainViewModel.EventItem.Event }
-            Text("Total Events: $customEventCount")
+            Text(stringResource(R.string.event_count, customEventCount))
 
-            Text("Settings Activity - More to be implemented")
+            Text(stringResource(R.string.settings_more))
         }
     }
 }

@@ -55,7 +55,7 @@ class MainActivity : ComponentActivity() {
 
             if (!success) {
                 Log.e(TAG, "Failed to copy sound files")
-                Toast.makeText(this, "Failed to copy sound files. Some features may not work.", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, getString(R.string.sound_files_copy_failed), Toast.LENGTH_LONG).show()
                 return
             }
 
@@ -63,7 +63,7 @@ class MainActivity : ComponentActivity() {
             val files = externalSoundsDir.listFiles()?.filter { it.isFile && it.canRead() }
             if (files == null || files.isEmpty()) {
                 Log.e(TAG, "No files found in ${externalSoundsDir.absolutePath}")
-                Toast.makeText(this, "No sound files found. Some features may not work.", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, getString(R.string.sound_files_not_found), Toast.LENGTH_LONG).show()
                 return
             }
 
@@ -73,7 +73,7 @@ class MainActivity : ComponentActivity() {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error setting up sound files", e)
-            Toast.makeText(this, "Error copying sound files.", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, getString(R.string.sound_files_error), Toast.LENGTH_LONG).show()
         }
     }
 
@@ -103,7 +103,7 @@ class MainActivity : ComponentActivity() {
                     Log.d(TAG, "POST_NOTIFICATIONS permission granted")
                 } else {
                     Log.w(TAG, "POST_NOTIFICATIONS permission denied")
-                    Toast.makeText(this, "Notification permission is required for full functionality.", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this, getString(R.string.notification_permission_required), Toast.LENGTH_LONG).show()
                 }
                 startLogMonitorService()
             }
@@ -113,7 +113,7 @@ class MainActivity : ComponentActivity() {
                     copyAndVerifySoundFiles()
                 } else {
                     Log.w(TAG, "WRITE_EXTERNAL_STORAGE permission denied")
-                    Toast.makeText(this, "Storage permission is required to copy sound files.", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this, getString(R.string.storage_permission_required), Toast.LENGTH_LONG).show()
                 }
             }
         }

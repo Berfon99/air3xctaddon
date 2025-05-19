@@ -16,15 +16,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.xc.air3xctaddon.AboutActivity
-import com.xc.air3xctaddon.EventConfig
-import com.xc.air3xctaddon.MainViewModel
-import com.xc.air3xctaddon.SettingsActivity
-import com.xc.air3xctaddon.VolumeType
-import com.xc.air3xctaddon.MainViewModelFactory
+import com.xc.air3xctaddon.*
+import com.xc.air3xctaddon.R
 
 @Composable
 fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFactory(LocalContext.current.applicationContext as android.app.Application))) {
@@ -55,24 +52,24 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("AIR3 XCT Addon") },
+                title = { Text(stringResource(R.string.title_main)) },
                 actions = {
                     IconButton(onClick = { showMenu = true }) {
-                        Icon(Icons.Default.MoreVert, contentDescription = "Menu")
+                        Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.menu_settings))
                     }
                     DropdownMenu(
                         expanded = showMenu,
                         onDismissRequest = { showMenu = false }
                     ) {
                         DropdownMenuItem(
-                            content = { Text("Settings") },
+                            content = { Text(stringResource(R.string.menu_settings)) },
                             onClick = {
                                 showMenu = false
                                 context.startActivity(Intent(context, SettingsActivity::class.java))
                             }
                         )
                         DropdownMenuItem(
-                            content = { Text("About") },
+                            content = { Text(stringResource(R.string.menu_about)) },
                             onClick = {
                                 showMenu = false
                                 context.startActivity(Intent(context, AboutActivity::class.java))
@@ -101,7 +98,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
                 itemsIndexed(configs, key = { _, config -> config.id }) { index, config ->
                     ConfigRow(
                         config = config,
-                        availableEvents = availableEvents, // Fixed: Removed .value
+                        availableEvents = availableEvents,
                         onUpdate = { updatedConfig -> viewModel.updateConfig(updatedConfig) },
                         onDelete = { viewModel.deleteConfig(config) },
                         onDrag = { _, dragAmount ->
@@ -153,16 +150,16 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
                     )
                 ) {
                     Text(
-                        text = "Close",
+                        text = stringResource(R.string.close_app),
                         color = Color.White
                     )
                 }
 
                 // Add Configuration Button
-                if (availableEvents.isNotEmpty()) { // Fixed: Removed .value
+                if (availableEvents.isNotEmpty()) {
                     Button(
                         onClick = {
-                            val selectedEvent = availableEvents.firstOrNull { item -> item is MainViewModel.EventItem.Event } as? MainViewModel.EventItem.Event // Fixed: Explicit parameter
+                            val selectedEvent = availableEvents.firstOrNull { item -> item is MainViewModel.EventItem.Event } as? MainViewModel.EventItem.Event
                             val defaultSoundFile = "Airspace.wav"
                             if (selectedEvent != null) {
                                 Log.d("MainScreen", "Add button clicked, adding config: event=${selectedEvent.name}, soundFile=$defaultSoundFile")
@@ -185,7 +182,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
                     ) {
                         Icon(
                             imageVector = Icons.Default.Add,
-                            contentDescription = "Add Configuration",
+                            contentDescription = stringResource(R.string.add_config),
                             tint = Color.White
                         )
                     }

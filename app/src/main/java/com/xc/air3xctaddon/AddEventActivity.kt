@@ -12,6 +12,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xc.air3xctaddon.ui.theme.AIR3XCTAddonTheme
@@ -55,7 +56,7 @@ fun AddEventScreen() {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Add New Event") }
+                title = { Text(stringResource(R.string.title_add_event)) }
             )
         }
     ) { padding ->
@@ -70,7 +71,7 @@ fun AddEventScreen() {
         ) {
             if (categories.isEmpty()) {
                 Text(
-                    "No categories available. Please try again later.",
+                    stringResource(R.string.no_categories_retry),
                     modifier = Modifier.padding(16.dp),
                     color = MaterialTheme.colors.error
                 )
@@ -83,7 +84,7 @@ fun AddEventScreen() {
                     enabled = categories.isNotEmpty()
                 ) {
                     Text(
-                        text = if (selectedCategory.isEmpty()) "Select Category" else selectedCategory,
+                        text = if (selectedCategory.isEmpty()) stringResource(R.string.select_category) else selectedCategory,
                         maxLines = 1
                     )
                 }
@@ -96,7 +97,7 @@ fun AddEventScreen() {
                 ) {
                     if (categories.isEmpty()) {
                         DropdownMenuItem(
-                            content = { Text("No categories available") },
+                            content = { Text(stringResource(R.string.no_categories)) },
                             onClick = { categoryMenuExpanded = false }
                         )
                     } else {
@@ -117,7 +118,7 @@ fun AddEventScreen() {
             OutlinedTextField(
                 value = eventName,
                 onValueChange = { eventName = it },
-                label = { Text("Event Name") },
+                label = { Text(stringResource(R.string.event_name)) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true
             )
@@ -139,17 +140,25 @@ fun AddEventScreen() {
                 modifier = Modifier.fillMaxWidth(),
                 enabled = selectedCategory.isNotEmpty() && eventName.isNotEmpty()
             ) {
-                Text("Confirm")
+                Text(stringResource(R.string.confirm))
             }
 
-            message?.let {
-                Text(it, modifier = Modifier.padding(8.dp))
+            message?.let { msg ->
+                Text(
+                    text = msg,
+                    modifier = Modifier.padding(8.dp)
+                )
             }
 
             Text(
-                "Debug - Current Events: ${events.filterIsInstance<EventItem.Event>().size}, Categories: ${categories.size}",
+                stringResource(
+                    R.string.debug_events,
+                    events.filterIsInstance<EventItem.Event>().size,
+                    categories.size
+                ),
                 modifier = Modifier.padding(top = 16.dp)
             )
         }
     }
 }
+

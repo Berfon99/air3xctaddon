@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -28,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.xc.air3xctaddon.EventConfig
 import com.xc.air3xctaddon.MainViewModel.EventItem
+import com.xc.air3xctaddon.R
 import com.xc.air3xctaddon.VolumeType
 import com.xc.air3xctaddon.model.SoundFilesState
 import com.xc.air3xctaddon.ui.components.DragHandle
@@ -276,7 +278,7 @@ fun ConfigRow(
                                 .background(SoundFieldBackground)
                         ) {
                             Text(
-                                text = if (soundFile.isEmpty()) "Select Sound" else soundFile,
+                                text = if (soundFile.isEmpty()) stringResource(id = R.string.select_sound) else soundFile,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -297,7 +299,7 @@ fun ConfigRow(
                                 when (val state = soundFilesState) {
                                     is SoundFilesState.Loading -> {
                                         DropdownMenuItem(
-                                            content = { Text("Loading...") },
+                                            content = { Text(stringResource(id = R.string.loading)) },
                                             onClick = { /* Do nothing */ }
                                         )
                                     }
@@ -317,7 +319,7 @@ fun ConfigRow(
                                     }
                                     is SoundFilesState.Empty -> {
                                         DropdownMenuItem(
-                                            content = { Text("No sound files") },
+                                            content = { Text(stringResource(id = R.string.no_sound_files)) },
                                             onClick = {
                                                 soundMenuExpanded = false
                                                 Log.d("ConfigRow", "No sound files selected")
@@ -346,7 +348,7 @@ fun ConfigRow(
                     ) {
                         Icon(
                             imageVector = Icons.Default.PlayArrow,
-                            contentDescription = "Play Sound",
+                            contentDescription = stringResource(id = R.string.play),
                             tint = if (soundFile.isNotEmpty()) MaterialTheme.colors.primary else Color.Gray
                         )
                     }
@@ -362,7 +364,7 @@ fun ConfigRow(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Stop,
-                            contentDescription = "Stop Sound",
+                            contentDescription = stringResource(id = R.string.stop),
                             tint = if (mediaPlayer != null && mediaPlayer?.isPlaying == true) MaterialTheme.colors.primary else Color.Gray
                         )
                     }
@@ -400,7 +402,7 @@ fun ConfigRow(
                         onUpdate(config.copy(volumeType = volumeType, volumePercentage = volumePercentage))
                         Log.d("ConfigRow", "Volume selected: $selected, volumeType: $volumeType, volumePercentage: $volumePercentage")
                     },
-                    label = "Volume",
+                    label = stringResource(id = R.string.select_volume),
                     modifier = Modifier.width(100.dp)
                 )
 
@@ -411,7 +413,7 @@ fun ConfigRow(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Count",
+                        text = stringResource(id = R.string.play_count),
                         fontSize = 14.sp,
                         color = Color.White, // Changed to white
                         modifier = Modifier.padding(end = 4.dp)
@@ -443,7 +445,7 @@ fun ConfigRow(
                 }) {
                     Icon(
                         imageVector = Icons.Default.Delete,
-                        contentDescription = "Delete",
+                        contentDescription = stringResource(id = R.string.delete),
                         tint = Color.White // Changed to white
                     )
                 }
