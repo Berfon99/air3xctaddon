@@ -2,6 +2,8 @@ package com.xc.air3xctaddon.ui
 
 import android.content.Intent
 import android.util.Log
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -19,10 +21,17 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.google.android.gms.location.LocationServices
 import com.xc.air3xctaddon.*
+import com.xc.air3xctaddon.ui.components.DropdownMenuSpinner
+import com.xc.air3xctaddon.ui.components.SpinnerItem
 import com.xc.air3xctaddon.R
 
+@OptIn(ExperimentalMaterialApi::class)
 @Composable
 fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFactory(LocalContext.current.applicationContext as android.app.Application))) {
     val configs by viewModel.configs.collectAsState()
@@ -40,6 +49,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
     }
     val context = LocalContext.current
     var showMenu by remember { mutableStateOf(false) }
+    var showAddDialog by remember { mutableStateOf(false) }
 
     var draggedIndex by remember { mutableStateOf<Int?>(null) }
     var dragOffset by remember { mutableStateOf(0f) }
@@ -61,14 +71,14 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
                         onDismissRequest = { showMenu = false }
                     ) {
                         DropdownMenuItem(
-                            content = { Text(stringResource(R.string.menu_settings)) },
+                            text = { Text(stringResource(R.string.menu_settings)) },
                             onClick = {
                                 showMenu = false
                                 context.startActivity(Intent(context, SettingsActivity::class.java))
                             }
                         )
                         DropdownMenuItem(
-                            content = { Text(stringResource(R.string.menu_about)) },
+                            text = { Text(stringResource(R.string.menu_about)) },
                             onClick = {
                                 showMenu = false
                                 context.startActivity(Intent(context, AboutActivity::class.java))
@@ -152,22 +162,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
 
                 if (availableEvents.isNotEmpty()) {
                     Button(
-                        onClick = {
-                            val selectedEvent = availableEvents.firstOrNull { item -> item is MainViewModel.EventItem.Event } as? MainViewModel.EventItem.Event
-                            if (selectedEvent != null) {
-                                Log.d("MainScreen", "Add button clicked, adding config: event=${selectedEvent.name}, taskType='', taskData=''")
-                                viewModel.addConfig(
-                                    event = selectedEvent.name,
-                                    taskType = "",
-                                    taskData = "",
-                                    volumeType = VolumeType.SYSTEM,
-                                    volumePercentage = 100,
-                                    playCount = 1
-                                )
-                            } else {
-                                Log.w("MainScreen", "Add button clicked, but no EventItem.Event found in availableEvents")
-                            }
-                        },
+                        onClick = { showAddDialog = true },
                         modifier = Modifier.size(56.dp),
                         shape = CircleShape,
                         colors = ButtonDefaults.buttonColors(
@@ -179,6 +174,225 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
                             contentDescription = stringResource(R.string.add_config),
                             tint = Color.White
                         )
+                    }
+                }
+            }
+        }
+    }
+
+    if (showAddDialog) {
+        AddConfigDialog(
+            availableEvents = availableEvents,
+            onAdd = { event, taskType, taskData, volumeType, volumePercentage, playCount, telegramChatId ->
+                viewModel.addConfig(
+                    event = event,
+                    taskType = taskType,
+                    taskData = taskData,
+                    volumeType = volumeType,
+                    volumePercentage = volumePercentage,
+                    playCount = playCount,
+                    telegramChatId = telegramChatId
+                )
+                showAddDialog = false
+            },
+            onDismiss = { showAddDialog = false }
+        )
+    }
+}
+
+@Composable
+fun AddConfigDialog(
+    availableEvents: List<MainViewModel.EventItem>,
+    onAdd: (String, String, String?, VolumeType, Int, Int, String?) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var selectedEvent by remember { mutableStateOf<String?>(null) }
+    var taskType by remember { mutableStateOf("Sound") }
+    var taskData by remember { mutableStateOf("") }
+    var volumeType by remember { mutableStateOf(VolumeType.SYSTEM) }
+    var volumePercentage by remember { mutableStateOf("100") }
+    var playCount by remember { mutableStateOf("1") }
+    var telegramChatId by remember { mutableStateOf("") }
+    var telegramGroupName by remember { mutableStateOf("") }
+    var isLoadingGroups by remember { mutableStateOf(false) }
+    var groupError by remember { mutableStateOf<String?>(null) }
+    var groups by remember { mutableStateOf<List<TelegramGroup>>(emptyList()) }
+    var hasLocationPermission by remember { mutableStateOf(false) }
+
+    val context = LocalContext.current
+    val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
+    val telegramBotHelper = remember { TelegramBotHelper(BuildConfig.TELEGRAM_BOT_TOKEN, fusedLocationClient) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        hasLocationPermission = isGranted
+        if (!isGranted) {
+            groupError = "Location permission denied"
+        }
+    }
+
+    LaunchedEffect(taskType) {
+        if (taskType == "SendTelegramPosition") {
+            permissionLauncher.launch(android.Manifest.permission.ACCESS_FINE_LOCATION)
+            if (hasLocationPermission) {
+                isLoadingGroups = true
+                telegramBotHelper.fetchGroups(
+                    onResult = { fetchedGroups ->
+                        groups = fetchedGroups
+                        isLoadingGroups = false
+                        if (fetchedGroups.isEmpty()) {
+                            groupError = "No groups found. Send /start in a group with the bot."
+                        } else {
+                            groupError = null
+                        }
+                    },
+                    onError = { error ->
+                        isLoadingGroups = false
+                        groupError = error
+                    }
+                )
+            }
+        } else {
+            isLoadingGroups = false
+            groupError = null
+            groups = emptyList()
+        }
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            shape = MaterialTheme.shapes.medium,
+            color = MaterialTheme.colors.surface
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(16.dp)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = stringResource(R.string.add_config),
+                    style = MaterialTheme.typography.h6
+                )
+
+                // Event selection
+                DropdownMenuSpinner(
+                    items = availableEvents.filterIsInstance<MainViewModel.EventItem.Event>().map { SpinnerItem.Item(it.name) },
+                    selectedItem = selectedEvent ?: "",
+                    onItemSelected = { selectedEvent = it },
+                    label = "Event",
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // Task type selection
+                DropdownMenuSpinner(
+                    items = listOf("Sound", "SendPosition", "SendTelegramPosition").map { SpinnerItem.Item(it) },
+                    selectedItem = taskType,
+                    onItemSelected = { taskType = it },
+                    label = "Task Type",
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // Task data (e.g., sound file)
+                if (taskType == "Sound") {
+                    TextField(
+                        value = taskData,
+                        onValueChange = { taskData = it },
+                        label = { Text("Sound File (e.g., Airspace.wav)") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                // Sound-specific fields
+                if (taskType == "Sound") {
+                    DropdownMenuSpinner(
+                        items = VolumeType.values().map { SpinnerItem.Item(it.name) },
+                        selectedItem = volumeType.name,
+                        onItemSelected = { volumeType = VolumeType.valueOf(it) },
+                        label = "Volume Type",
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    TextField(
+                        value = volumePercentage,
+                        onValueChange = { volumePercentage = it },
+                        label = { Text("Volume Percentage") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    TextField(
+                        value = playCount,
+                        onValueChange = { playCount = it },
+                        label = { Text("Play Count") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                // Telegram group selection
+                if (taskType == "SendTelegramPosition") {
+                    Text(
+                        text = "Send /start to @AIR3SendPositionBot in a group to select it.",
+                        style = MaterialTheme.typography.body2
+                    )
+                    if (isLoadingGroups) {
+                        Text("Loading groups...")
+                    } else if (groupError != null) {
+                        Text(
+                            text = groupError ?: "Error loading groups",
+                            color = MaterialTheme.colors.error
+                        )
+                    } else {
+                        DropdownMenuSpinner(
+                            items = groups.map { SpinnerItem.Item(it.title) },
+                            selectedItem = telegramGroupName,
+                            onItemSelected = { selectedTitle ->
+                                groups.find { it.title == selectedTitle }?.let { group ->
+                                    telegramChatId = group.chatId
+                                    telegramGroupName = group.title
+                                }
+                            },
+                            label = "Select Group",
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 16.dp),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("Cancel")
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            if (selectedEvent != null) {
+                                onAdd(
+                                    selectedEvent!!,
+                                    taskType,
+                                    taskData.takeIf { it.isNotBlank() && taskType == "Sound" } ?: when (taskType) {
+                                        "SendTelegramPosition" -> "Send Telegram Position"
+                                        "SendPosition" -> "Send Position"
+                                        else -> null
+                                    },
+                                    if (taskType == "Sound") volumeType else VolumeType.SYSTEM,
+                                    if (taskType == "Sound") volumePercentage.toIntOrNull() ?: 100 else 100,
+                                    if (taskType == "Sound") playCount.toIntOrNull() ?: 1 else 1,
+                                    telegramChatId.takeIf { taskType == "SendTelegramPosition" && it.isNotBlank() }
+                                )
+                            }
+                        },
+                        enabled = selectedEvent != null && (taskType != "Sound" || taskData.isNotBlank()) && (taskType != "SendTelegramPosition" || telegramChatId.isNotBlank())
+                    ) {
+                        Text("Add")
                     }
                 }
             }

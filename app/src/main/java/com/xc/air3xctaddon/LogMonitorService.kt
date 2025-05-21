@@ -14,6 +14,8 @@ import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationServices
 import com.xc.air3xctaddon.R
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -24,6 +26,8 @@ class LogMonitorService : Service() {
     private lateinit var eventReceiver: BroadcastReceiver
     private lateinit var filter: IntentFilter
     private val scope = CoroutineScope(Dispatchers.IO)
+    private lateinit var fusedLocationClient: FusedLocationProviderClient
+    private lateinit var telegramBotHelper: TelegramBotHelper
 
     companion object {
         private const val NOTIFICATION_CHANNEL_ID = "LogMonitorServiceChannel"
@@ -42,6 +46,9 @@ class LogMonitorService : Service() {
         startForeground(NOTIFICATION_ID, notification)
         Log.d("LogMonitorService", getString(R.string.log_started_foreground))
 
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+        telegramBotHelper = TelegramBotHelper(BuildConfig.TELEGRAM_BOT_TOKEN, fusedLocationClient)
+
         eventReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
                 intent?.let {
@@ -56,15 +63,39 @@ class LogMonitorService : Service() {
                                 "Sound" -> {
                                     Log.d("LogMonitorService", getString(R.string.log_found_config, event, config.taskData))
                                     if (!config.taskData.isNullOrEmpty()) {
-                                        playSound(config.taskData, config.volumeType, config.volumePercentage, config.playCount)
+                                        playSound(
+                                            config.taskData,
+                                            config.volumeType,
+                                            config.volumePercentage,
+                                            config.playCount
+                                        )
                                     } else {
                                         Log.w("LogMonitorService", "No sound file specified for event: $event")
                                     }
                                 }
                                 "SendPosition" -> {
                                     Log.d("LogMonitorService", getString(R.string.log_found_config, event, config.taskData))
-                                    // TODO: Implement SendPosition logic (e.g., send GPS coordinates)
+                                    // TODO: Implement SendPosition logic
                                     Log.d("LogMonitorService", "Sending position for event: $event")
+                                }
+                                "SendTelegramPosition" -> {
+                                    Log.d("LogMonitorService", getString(R.string.log_found_config, event, config.taskData))
+                                    if (config.telegramChatId?.isNotEmpty() == true) { // Fixed: Line 78
+                                        telegramBotHelper.getCurrentLocation(
+                                            onResult = { latitude, longitude ->
+                                                telegramBotHelper.sendLiveLocation(
+                                                    config.telegramChatId, // Fixed: Line 81
+                                                    latitude,
+                                                    longitude
+                                                )
+                                            },
+                                            onError = { error ->
+                                                Log.e("LogMonitorService", "Error getting location: $error")
+                                            }
+                                        )
+                                    } else {
+                                        Log.w("LogMonitorService", "No chat ID specified for event: $event")
+                                    }
                                 }
                                 else -> {
                                     Log.w("LogMonitorService", getString(R.string.log_no_config, event))
@@ -125,7 +156,7 @@ class LogMonitorService : Service() {
         }
     }
 
-    private fun playSound(fileName: String, volumeType: VolumeType, volumePercentage: Int, playCount: Int) {
+    private fun playSound(fileName: String, volumeType: VolumeType?, volumePercentage: Int?, playCount: Int?) {
         try {
             val soundsDir = File(getExternalFilesDir(null), "Sounds")
             val soundFilePath = File(soundsDir, fileName).absolutePath
@@ -139,7 +170,8 @@ class LogMonitorService : Service() {
                     val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC).toFloat()
                     if (maxVolume > 0) currentVolume / maxVolume else 1.0f
                 }
-                VolumeType.PERCENTAGE -> volumePercentage / 100.0f
+                VolumeType.PERCENTAGE -> (volumePercentage ?: 100) / 100.0f
+                null -> 1.0f
             }
 
             var currentPlayCount = 0
@@ -153,7 +185,7 @@ class LogMonitorService : Service() {
             }
 
             mediaPlayer.setOnCompletionListener {
-                if (currentPlayCount < playCount) {
+                if (currentPlayCount < (playCount ?: 1)) {
                     try {
                         mediaPlayer.reset()
                         mediaPlayer.setDataSource(soundFilePath)

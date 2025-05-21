@@ -1,3 +1,6 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android") version "2.0.0"
@@ -14,12 +17,26 @@ android {
         minSdk = 33
         targetSdk = 34
         versionCode = 100
-        versionName = "1.0.0" //Initialisation
-
+        versionName = "1.0.0" // Initialisation
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
         }
+        // Read bot token from local.properties
+        val localProperties = Properties()
+        val localPropertiesFile = project.rootProject.file("local.properties")
+        if (localPropertiesFile.exists()) {
+            localProperties.load(FileInputStream(localPropertiesFile))
+            println("Loaded local.properties: $localProperties")
+        } else {
+            throw GradleException("local.properties not found at ${localPropertiesFile.absolutePath}")
+        }
+        val token = localProperties.getProperty("telegram.bot.token") ?: ""
+        println("Telegram bot token: '$token'")
+        if (token.isBlank()) {
+            throw GradleException("Telegram bot token is missing or empty in local.properties")
+        }
+        buildConfigField("String", "TELEGRAM_BOT_TOKEN", "\"$token\"")
     }
 
     buildTypes {
@@ -40,7 +57,7 @@ android {
     }
     buildFeatures {
         compose = true
-        buildConfig = true // Enable BuildConfig generation
+        buildConfig = true
     }
     composeOptions {
         kotlinCompilerExtensionVersion = "2.0.0"
@@ -53,29 +70,49 @@ android {
 }
 
 dependencies {
+    // Core Android dependencies
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.appcompat)
     implementation(libs.androidx.activity.compose)
-    implementation(platform(libs.androidx.compose.bom))
-    implementation(libs.androidx.ui)
-    implementation(libs.androidx.ui.graphics)
-    implementation(libs.androidx.ui.tooling.preview)
-    implementation(libs.androidx.material3)
-    implementation("androidx.compose.material:material")
-    implementation("androidx.compose.material:material-icons-extended")
-    implementation("androidx.compose.runtime:runtime")
-    implementation("androidx.compose.runtime:runtime-livedata")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.6")
-    implementation("androidx.room:room-runtime:2.6.1")
-    implementation("androidx.room:room-ktx:2.6.1")
-    kapt("androidx.room:room-compiler:2.6.1")
-    implementation("androidx.navigation:navigation-compose:2.8.3")
-    implementation("com.google.android.material:material:1.12.0")
-    implementation("androidx.appcompat:appcompat:1.7.0")
-    implementation("androidx.localbroadcastmanager:localbroadcastmanager:1.1.0")
-    implementation("androidx.documentfile:documentfile:1.0.1")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
+    implementation(libs.google.material)
 
+    // Jetpack Compose
+    implementation(platform(libs.androidx.compose.bom))
+    implementation(libs.androidx.compose.ui)
+    implementation(libs.androidx.compose.ui.graphics)
+    implementation(libs.androidx.compose.ui.tooling.preview)
+    implementation(libs.androidx.compose.material)
+    implementation(libs.androidx.compose.material.icons.extended)
+    implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.compose.runtime)
+    implementation(libs.androidx.compose.runtime.livedata)
+
+    // Lifecycle and ViewModel
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.lifecycle.runtime.ktx)
+
+    // Room
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    kapt(libs.androidx.room.compiler)
+
+    // Navigation
+    implementation(libs.androidx.navigation.compose)
+
+    // Coroutines
+    implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.kotlinx.coroutines.android)
+
+    // OkHttp
+    implementation(libs.okhttp)
+
+    // Google Play Services (Location)
+    implementation(libs.google.play.services.location)
+
+    // JSON parsing (for TelegramBotHelper)
+    implementation(libs.json)
+
+    // Testing
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -85,51 +122,27 @@ dependencies {
     debugImplementation(libs.androidx.ui.test.manifest)
 }
 
-// Custom task to extract versionName and comment
-val generateVersionHistory = tasks.register("generateVersionHistory") {
+tasks.register<DefaultTask>("generateVersionHistory") {
     group = "Custom"
     description = "Generates a version history file from the versionName and its comment."
 
     doLast {
-        val buildFile = project.file("build.gradle.kts")
-        val versionHistoryFile = project.file("version_history.txt")
-        val lastVersionFile = project.file("last_version.txt")
+        val versionName = android.defaultConfig.versionName ?: throw GradleException("versionName not found")
+        val comment = android.defaultConfig.versionName?.substringAfter("//")?.trim() ?: "No comment"
+        val currentVersionLine = "$versionName - $comment\n"
 
-        if (!versionHistoryFile.exists()) {
-            versionHistoryFile.createNewFile()
-        }
-        if (!lastVersionFile.exists()) {
-            lastVersionFile.createNewFile()
-        }
+        val versionHistoryFile = project.file("version_history.txt").apply { createNewFile() }
+        val lastVersionFile = project.file("last_version.txt").apply { createNewFile() }
 
-        val lines = buildFile.readLines()
-        var versionNameLine: String? = null
-        for (line in lines) {
-            if (line.trimStart().startsWith("versionName")) {
-                versionNameLine = line
-                break
-            }
-        }
-
-        if (versionNameLine != null) {
-            val versionName = versionNameLine.substringAfter('"').substringBefore('"')
-            val comment = versionNameLine.substringAfter("//").trim()
-            val currentVersionLine = "$versionName - $comment\n"
-
-            val lastVersion = lastVersionFile.readText().trim()
-
-            if (currentVersionLine.trim() != lastVersion.trim()) {
-                versionHistoryFile.appendText(currentVersionLine)
-                lastVersionFile.writeText(currentVersionLine)
-            }
-        } else {
-            println("versionName not found in build.gradle.kts")
+        if (currentVersionLine.trim() != lastVersionFile.readText().trim()) {
+            versionHistoryFile.appendText(currentVersionLine)
+            lastVersionFile.writeText(currentVersionLine)
         }
     }
 }
 
 tasks.configureEach {
     if (name == "build") {
-        dependsOn(generateVersionHistory)
+        dependsOn(tasks.named("generateVersionHistory"))
     }
 }

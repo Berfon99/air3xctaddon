@@ -114,4 +114,9 @@
     <string name="category_competition">Competition</string>
     <string name="category_airspace">Airspace</string>
     <string name="category_others">Others</string>
+
+    <string name="configure_telegram_position">Configure Telegram Position</string>
+    <string name="telegram_group_instructions">To select a group, send /start to @AIR3SendPositionBot in the desired group, then select it below.</string>
+    <string name="select_group">Select Group</string>
+
 </resources>

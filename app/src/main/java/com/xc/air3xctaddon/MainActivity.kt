@@ -20,6 +20,7 @@ class MainActivity : ComponentActivity() {
         private const val TAG = "MainActivity"
         private const val REQUEST_NOTIFICATION_PERMISSION = 100
         private const val REQUEST_STORAGE_PERMISSION = 101
+        private const val REQUEST_LOCATION_PERMISSION = 102
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -38,6 +39,15 @@ class MainActivity : ComponentActivity() {
             copyAndVerifySoundFiles()
         }
 
+        // Check location permissions
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            Log.d(TAG, "Requesting ACCESS_FINE_LOCATION permission")
+            requestPermissions(
+                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
+                REQUEST_LOCATION_PERMISSION
+            )
+        }
+
         setContent {
             AIR3XCTAddonTheme {
                 MainScreen()
@@ -49,7 +59,6 @@ class MainActivity : ComponentActivity() {
 
     private fun copyAndVerifySoundFiles() {
         try {
-            // Copy sound files to external storage
             val externalSoundsDir = File(getExternalFilesDir(null), "Sounds")
             val success = assets.copySoundFilesFromAssets(externalSoundsDir)
 
@@ -59,7 +68,6 @@ class MainActivity : ComponentActivity() {
                 return
             }
 
-            // Verify copied files
             val files = externalSoundsDir.listFiles()?.filter { it.isFile && it.canRead() }
             if (files == null || files.isEmpty()) {
                 Log.e(TAG, "No files found in ${externalSoundsDir.absolutePath}")
@@ -114,6 +122,14 @@ class MainActivity : ComponentActivity() {
                 } else {
                     Log.w(TAG, "WRITE_EXTERNAL_STORAGE permission denied")
                     Toast.makeText(this, getString(R.string.storage_permission_required), Toast.LENGTH_LONG).show()
+                }
+            }
+            REQUEST_LOCATION_PERMISSION -> {
+                if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    Log.d(TAG, "ACCESS_FINE_LOCATION permission granted")
+                } else {
+                    Log.w(TAG, "ACCESS_FINE_LOCATION permission denied")
+                    Toast.makeText(this, "Location permission required for Telegram position", Toast.LENGTH_LONG).show()
                 }
             }
         }
