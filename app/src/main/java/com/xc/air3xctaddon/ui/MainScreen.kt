@@ -70,20 +70,18 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
                         expanded = showMenu,
                         onDismissRequest = { showMenu = false }
                     ) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.menu_settings)) },
-                            onClick = {
-                                showMenu = false
-                                context.startActivity(Intent(context, SettingsActivity::class.java))
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.menu_about)) },
-                            onClick = {
-                                showMenu = false
-                                context.startActivity(Intent(context, AboutActivity::class.java))
-                            }
-                        )
+                        DropdownMenuItem(onClick = {
+                            showMenu = false
+                            context.startActivity(Intent(context, SettingsActivity::class.java))
+                        }) {
+                            Text(stringResource(R.string.menu_settings))
+                        }
+                        DropdownMenuItem(onClick = {
+                            showMenu = false
+                            context.startActivity(Intent(context, AboutActivity::class.java))
+                        }) {
+                            Text(stringResource(R.string.menu_about))
+                        }
                     }
                 }
             )
@@ -187,11 +185,11 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
                 viewModel.addConfig(
                     event = event,
                     taskType = taskType,
-                    taskData = taskData,
+                    taskData = taskData ?: "", // Provide empty string if null
                     volumeType = volumeType,
                     volumePercentage = volumePercentage,
                     playCount = playCount,
-                    telegramChatId = telegramChatId
+                    telegramChatId = telegramChatId ?: "" // Provide empty string if null
                 )
                 showAddDialog = false
             },
@@ -374,11 +372,11 @@ fun AddConfigDialog(
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
                         onClick = {
-                            if (selectedEvent != null) {
+                            selectedEvent?.let { event ->
                                 onAdd(
-                                    selectedEvent!!,
+                                    event,
                                     taskType,
-                                    taskData.takeIf { it.isNotBlank() && taskType == "Sound" } ?: when (taskType) {
+                                    if (taskType == "Sound" && taskData.isNotBlank()) taskData else when (taskType) {
                                         "SendTelegramPosition" -> "Send Telegram Position"
                                         "SendPosition" -> "Send Position"
                                         else -> null
@@ -386,7 +384,7 @@ fun AddConfigDialog(
                                     if (taskType == "Sound") volumeType else VolumeType.SYSTEM,
                                     if (taskType == "Sound") volumePercentage.toIntOrNull() ?: 100 else 100,
                                     if (taskType == "Sound") playCount.toIntOrNull() ?: 1 else 1,
-                                    telegramChatId.takeIf { taskType == "SendTelegramPosition" && it.isNotBlank() }
+                                    if (taskType == "SendTelegramPosition" && telegramChatId.isNotBlank()) telegramChatId else null
                                 )
                             }
                         },
