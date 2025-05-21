@@ -22,11 +22,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.ui.zIndex
+import androidx.compose.ui.window.Dialog
 import com.xc.air3xctaddon.EventConfig
 import com.xc.air3xctaddon.MainViewModel.EventItem
 import com.xc.air3xctaddon.R
@@ -53,16 +51,19 @@ fun ConfigRow(
     dragOffset: Float
 ) {
     var event by remember { mutableStateOf(config.event) }
-    var soundFile by remember(config.soundFile) { mutableStateOf(config.soundFile) }
+    var taskType by remember { mutableStateOf(config.taskType ?: "") }
+    var taskData by remember { mutableStateOf(config.taskData ?: "") }
+    var eventMenuExpanded by remember { mutableStateOf(false) }
+    var taskMenuExpanded by remember { mutableStateOf(false) }
+    var soundDialogOpen by remember { mutableStateOf(false) }
+    var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
+    val context = LocalContext.current
+
+    var soundFile by remember { mutableStateOf(if (taskType == "Sound") taskData else "") }
     var volumeType by remember { mutableStateOf(config.volumeType) }
     var volumePercentage by remember { mutableStateOf(config.volumePercentage) }
     var playCount by remember { mutableStateOf(config.playCount) }
-    var forceRecompose by remember { mutableStateOf(0) }
-    var eventMenuExpanded by remember { mutableStateOf(false) }
     var soundMenuExpanded by remember { mutableStateOf(false) }
-    var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
-
-    val context = LocalContext.current
 
     val soundFilesState by produceState<SoundFilesState>(
         initialValue = SoundFilesState.Loading,
@@ -74,7 +75,6 @@ fun ConfigRow(
                 ?.map { it.name }
                 ?.filter { it.endsWith(".mp3") || it.endsWith(".wav") }
                 ?.sorted() ?: emptyList()
-            Log.d("ConfigRow", "Available sound files: $soundFiles")
             if (soundFiles.isEmpty()) SoundFilesState.Empty else SoundFilesState.Success(soundFiles)
         } catch (e: Exception) {
             Log.e("ConfigRow", "Error accessing Sounds directory", e)
@@ -102,10 +102,8 @@ fun ConfigRow(
                 }
                 VolumeType.PERCENTAGE -> volumePercentage / 100.0f
             }
-            Log.d("ConfigRow", "Calculated volume: $volume")
 
             var currentPlayCount by mutableIntStateOf(0)
-
             mediaPlayer?.release()
             val newMediaPlayer = MediaPlayer().apply {
                 setDataSource(soundFilePath)
@@ -174,7 +172,6 @@ fun ConfigRow(
                 .padding(vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Drag Handle
             DragHandle(
                 modifier = Modifier
                     .pointerInput(Unit) {
@@ -189,14 +186,12 @@ fun ConfigRow(
                     }
             )
 
-            // Main Row Content
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(start = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Event dropdown with categories
                 Box {
                     Button(
                         onClick = {
@@ -204,7 +199,7 @@ fun ConfigRow(
                             eventMenuExpanded = true
                         },
                         modifier = Modifier
-                            .width(240.dp)
+                            .width(336.dp)
                             .focusable()
                     ) {
                         Text(
@@ -217,7 +212,7 @@ fun ConfigRow(
                         expanded = eventMenuExpanded,
                         onDismissRequest = { eventMenuExpanded = false },
                         modifier = Modifier
-                            .width(240.dp)
+                            .width(336.dp)
                             .heightIn(max = 300.dp)
                     ) {
                         Column(
@@ -231,9 +226,7 @@ fun ConfigRow(
                                     is EventItem.Category -> {
                                         Text(
                                             text = item.name,
-                                            style = MaterialTheme.typography.subtitle1.copy(
-                                                fontWeight = FontWeight.Bold
-                                            ),
+                                            style = MaterialTheme.typography.subtitle1,
                                             modifier = Modifier
                                                 .fillMaxWidth()
                                                 .padding(horizontal = 8.dp, vertical = 4.dp),
@@ -242,12 +235,7 @@ fun ConfigRow(
                                     }
                                     is EventItem.Event -> {
                                         DropdownMenuItem(
-                                            content = {
-                                                Text(
-                                                    text = item.name,
-                                                    style = MaterialTheme.typography.body2 // Smaller text for events (~14sp)
-                                                )
-                                            },
+                                            content = { Text(item.name) },
                                             onClick = {
                                                 event = item.name
                                                 onUpdate(config.copy(event = item.name))
@@ -264,176 +252,299 @@ fun ConfigRow(
 
                 Spacer(modifier = Modifier.width(4.dp))
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box {
-                        Button(
+                Box {
+                    Button(
+                        onClick = {
+                            Log.d("ConfigRow", "Task button clicked")
+                            taskMenuExpanded = true
+                        },
+                        modifier = Modifier
+                            .width(360.dp)
+                            .focusable()
+                            .background(SoundFieldBackground)
+                    ) {
+                        Text(
+                            text = if (taskData.isEmpty()) stringResource(id = R.string.select_task) else taskData,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = taskMenuExpanded,
+                        onDismissRequest = { taskMenuExpanded = false },
+                        modifier = Modifier.width(360.dp)
+                    ) {
+                        DropdownMenuItem(
+                            content = { Text("Sound") },
                             onClick = {
-                                Log.d("ConfigRow", "Sound button clicked")
-                                soundMenuExpanded = true
-                            },
+                                taskMenuExpanded = false
+                                soundDialogOpen = true
+                                Log.d("ConfigRow", "Selected task: Sound")
+                            }
+                        )
+                        DropdownMenuItem(
+                            content = { Text("Send Position") },
+                            onClick = {
+                                taskType = "SendPosition"
+                                taskData = "Send Position"
+                                onUpdate(config.copy(taskType = taskType, taskData = taskData, volumeType = VolumeType.SYSTEM, volumePercentage = 100, playCount = 1))
+                                taskMenuExpanded = false
+                                Log.d("ConfigRow", "Selected task: Send Position")
+                            }
+                        )
+                    }
+                }
+
+                if (soundDialogOpen) {
+                    Dialog(onDismissRequest = { soundDialogOpen = false }) {
+                        Card(
                             modifier = Modifier
-                                .width(240.dp)
-                                .focusable()
-                                .zIndex(1f)
-                                .background(SoundFieldBackground)
-                        ) {
-                            Text(
-                                text = if (soundFile.isEmpty()) stringResource(id = R.string.select_sound) else soundFile,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                        DropdownMenu(
-                            expanded = soundMenuExpanded,
-                            onDismissRequest = { soundMenuExpanded = false },
-                            modifier = Modifier
-                                .width(240.dp)
-                                .heightIn(max = 300.dp)
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            elevation = 8.dp
                         ) {
                             Column(
                                 modifier = Modifier
-                                    .heightIn(max = 300.dp)
+                                    .padding(16.dp)
                                     .verticalScroll(rememberScrollState())
-                                    .fillMaxWidth()
                             ) {
-                                when (val state = soundFilesState) {
-                                    is SoundFilesState.Loading -> {
-                                        DropdownMenuItem(
-                                            content = { Text(stringResource(id = R.string.loading)) },
-                                            onClick = { /* Do nothing */ }
+                                Text(
+                                    text = stringResource(id = R.string.select_sound),
+                                    style = MaterialTheme.typography.h6
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Box {
+                                    Button(
+                                        onClick = { soundMenuExpanded = true },
+                                        modifier = Modifier
+                                            .width(480.dp)
+                                            .focusable()
+                                            .background(SoundFieldBackground)
+                                    ) {
+                                        Text(
+                                            text = if (soundFile.isEmpty()) stringResource(id = R.string.select_sound) else soundFile,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
                                         )
                                     }
-                                    is SoundFilesState.Success -> {
-                                        state.files.forEach { fileName ->
-                                            DropdownMenuItem(
-                                                content = { Text(fileName) },
-                                                onClick = {
-                                                    soundFile = fileName
-                                                    onUpdate(config.copy(soundFile = fileName))
-                                                    soundMenuExpanded = false
-                                                    Log.d("ConfigRow", "Selected sound file: $fileName")
-                                                    forceRecompose += 1
+                                    DropdownMenu(
+                                        expanded = soundMenuExpanded,
+                                        onDismissRequest = { soundMenuExpanded = false },
+                                        modifier = Modifier
+                                            .width(480.dp)
+                                            .heightIn(max = 300.dp)
+                                    ) {
+                                        when (val state = soundFilesState) {
+                                            is SoundFilesState.Loading -> {
+                                                DropdownMenuItem(
+                                                    content = { Text(stringResource(id = R.string.loading)) },
+                                                    onClick = { /* Do nothing */ }
+                                                )
+                                            }
+                                            is SoundFilesState.Success -> {
+                                                state.files.forEach { fileName ->
+                                                    DropdownMenuItem(
+                                                        content = { Text(fileName) },
+                                                        onClick = {
+                                                            soundFile = fileName
+                                                            soundMenuExpanded = false
+                                                            Log.d("ConfigRow", "Selected sound file: $fileName")
+                                                        }
+                                                    )
                                                 }
-                                            )
+                                            }
+                                            is SoundFilesState.Empty -> {
+                                                DropdownMenuItem(
+                                                    content = { Text(stringResource(id = R.string.no_sound_files)) },
+                                                    onClick = { soundMenuExpanded = false }
+                                                )
+                                            }
+                                            is SoundFilesState.Error -> {
+                                                DropdownMenuItem(
+                                                    content = { Text(state.message) },
+                                                    onClick = { soundMenuExpanded = false }
+                                                )
+                                            }
                                         }
                                     }
-                                    is SoundFilesState.Empty -> {
-                                        DropdownMenuItem(
-                                            content = { Text(stringResource(id = R.string.no_sound_files)) },
-                                            onClick = {
-                                                soundMenuExpanded = false
-                                                Log.d("ConfigRow", "No sound files selected")
-                                            }
+                                }
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    IconButton(
+                                        onClick = {
+                                            Log.d("ConfigRow", "Play button clicked for file: $soundFile")
+                                            playSound(soundFile, volumeType, volumePercentage, playCount)
+                                        },
+                                        enabled = soundFile.isNotEmpty(),
+                                        modifier = Modifier.size(36.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.PlayArrow,
+                                            contentDescription = stringResource(id = R.string.play),
+                                            tint = if (soundFile.isNotEmpty()) MaterialTheme.colors.primary else Color.Gray
                                         )
                                     }
-                                    is SoundFilesState.Error -> {
-                                        DropdownMenuItem(
-                                            content = { Text(state.message) },
-                                            onClick = { soundMenuExpanded = false }
+                                    IconButton(
+                                        onClick = {
+                                            Log.d("ConfigRow", "Stop button clicked for file: $soundFile")
+                                            stopSound()
+                                        },
+                                        enabled = mediaPlayer != null && mediaPlayer?.isPlaying == true,
+                                        modifier = Modifier.size(36.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Stop,
+                                            contentDescription = stringResource(id = R.string.stop),
+                                            tint = if (mediaPlayer != null && mediaPlayer?.isPlaying == true) MaterialTheme.colors.primary else Color.Gray
                                         )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "Volume:",
+                                        style = MaterialTheme.typography.body1,
+                                        modifier = Modifier.width(80.dp)
+                                    )
+                                    DropdownMenuSpinner(
+                                        items = listOf(
+                                            SpinnerItem.Item("MAXIMUM"),
+                                            SpinnerItem.Item("SYSTEM"),
+                                            SpinnerItem.Header("Percentage"),
+                                            *(0..10).map { SpinnerItem.Item("${it * 10}%") }.toTypedArray()
+                                        ),
+                                        selectedItem = when (volumeType) {
+                                            VolumeType.MAXIMUM -> "MAXIMUM"
+                                            VolumeType.SYSTEM -> "SYSTEM"
+                                            VolumeType.PERCENTAGE -> "$volumePercentage%"
+                                        },
+                                        onItemSelected = { selected ->
+                                            when (selected) {
+                                                "MAXIMUM" -> {
+                                                    volumeType = VolumeType.MAXIMUM
+                                                    volumePercentage = 100
+                                                }
+                                                "SYSTEM" -> {
+                                                    volumeType = VolumeType.SYSTEM
+                                                    volumePercentage = 100
+                                                }
+                                                else -> {
+                                                    volumeType = VolumeType.PERCENTAGE
+                                                    volumePercentage = selected.removeSuffix("%").toInt()
+                                                }
+                                            }
+                                            Log.d("ConfigRow", "Volume selected: $selected")
+                                        },
+                                        label = "",
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "Count:",
+                                        style = MaterialTheme.typography.body1,
+                                        modifier = Modifier.width(80.dp)
+                                    )
+                                    DropdownMenuSpinner(
+                                        items = (1..5).map { SpinnerItem.Item(it.toString()) },
+                                        selectedItem = playCount.toString(),
+                                        onItemSelected = { selected ->
+                                            playCount = selected.toInt()
+                                            Log.d("ConfigRow", "Play count selected: $selected")
+                                        },
+                                        label = "",
+                                        modifier = Modifier.width(100.dp)
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(16.dp))
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.End
+                                ) {
+                                    Button(
+                                        onClick = { soundDialogOpen = false },
+                                        modifier = Modifier.padding(end = 8.dp)
+                                    ) {
+                                        Text(stringResource(id = R.string.cancel))
+                                    }
+                                    Button(
+                                        onClick = {
+                                            taskType = "Sound"
+                                            taskData = soundFile
+                                            onUpdate(config.copy(
+                                                taskType = taskType,
+                                                taskData = taskData,
+                                                volumeType = volumeType,
+                                                volumePercentage = volumePercentage,
+                                                playCount = playCount
+                                            ))
+                                            soundDialogOpen = false
+                                            Log.d("ConfigRow", "Sound config saved: $soundFile, $volumeType, $volumePercentage, $playCount")
+                                        },
+                                        enabled = soundFile.isNotEmpty()
+                                    ) {
+                                        Text(stringResource(id = R.string.confirm))
                                     }
                                 }
                             }
                         }
                     }
-                    IconButton(
-                        onClick = {
-                            Log.d("ConfigRow", "Play button clicked for file: $soundFile")
-                            playSound(soundFile, volumeType, volumePercentage, playCount)
-                        },
-                        enabled = soundFile.isNotEmpty(),
-                        modifier = Modifier
-                            .size(36.dp)
-                            .focusable()
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.PlayArrow,
-                            contentDescription = stringResource(id = R.string.play),
-                            tint = if (soundFile.isNotEmpty()) MaterialTheme.colors.primary else Color.Gray
-                        )
-                    }
-                    IconButton(
-                        onClick = {
-                            Log.d("ConfigRow", "Stop button clicked for file: $soundFile")
-                            stopSound()
-                        },
-                        enabled = mediaPlayer != null && mediaPlayer?.isPlaying == true,
-                        modifier = Modifier
-                            .size(36.dp)
-                            .focusable()
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Stop,
-                            contentDescription = stringResource(id = R.string.stop),
-                            tint = if (mediaPlayer != null && mediaPlayer?.isPlaying == true) MaterialTheme.colors.primary else Color.Gray
-                        )
-                    }
                 }
 
                 Spacer(modifier = Modifier.width(4.dp))
 
-                DropdownMenuSpinner(
-                    items = listOf(
-                        SpinnerItem.Item("MAXIMUM"),
-                        SpinnerItem.Item("SYSTEM"),
-                        SpinnerItem.Header("Percentage"),
-                        *(0..10).map { SpinnerItem.Item("${it * 10}%") }.toTypedArray()
-                    ),
-                    selectedItem = when (volumeType) {
-                        VolumeType.MAXIMUM -> "MAXIMUM"
-                        VolumeType.SYSTEM -> "SYSTEM"
-                        VolumeType.PERCENTAGE -> "$volumePercentage%"
-                    },
-                    onItemSelected = { selected ->
-                        when (selected) {
-                            "MAXIMUM" -> {
-                                volumeType = VolumeType.MAXIMUM
-                                volumePercentage = 100
-                            }
-                            "SYSTEM" -> {
-                                volumeType = VolumeType.SYSTEM
-                                volumePercentage = 100
-                            }
-                            else -> {
-                                volumeType = VolumeType.PERCENTAGE
-                                volumePercentage = selected.removeSuffix("%").toInt()
-                            }
+                IconButton(
+                    onClick = {
+                        if (taskType == "Sound" && taskData.isNotEmpty()) {
+                            Log.d("ConfigRow", "Main play button clicked for sound: $taskData")
+                            playSound(taskData, volumeType, volumePercentage, playCount)
+                        } else if (taskType == "SendPosition") {
+                            Log.d("ConfigRow", "Main play button clicked for Send Position")
+                            // TODO: Implement Send Position logic
                         }
-                        onUpdate(config.copy(volumeType = volumeType, volumePercentage = volumePercentage))
-                        Log.d("ConfigRow", "Volume selected: $selected, volumeType: $volumeType, volumePercentage: $volumePercentage")
                     },
-                    label = stringResource(id = R.string.select_volume),
-                    modifier = Modifier.width(100.dp)
-                )
-
-                Spacer(modifier = Modifier.width(4.dp))
-
-                Row(
-                    modifier = Modifier.width(93.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    enabled = taskData.isNotEmpty(),
+                    modifier = Modifier.size(36.dp)
                 ) {
-                    Text(
-                        text = stringResource(id = R.string.play_count),
-                        fontSize = 14.sp,
-                        color = Color.White, // Changed to white
-                        modifier = Modifier.padding(end = 4.dp)
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = stringResource(id = R.string.play),
+                        tint = if (taskData.isNotEmpty()) MaterialTheme.colors.primary else Color.Gray
                     )
-                    DropdownMenuSpinner(
-                        items = listOf(
-                            SpinnerItem.Item("1"),
-                            SpinnerItem.Item("2"),
-                            SpinnerItem.Item("3"),
-                            SpinnerItem.Item("4"),
-                            SpinnerItem.Item("5")
-                        ),
-                        selectedItem = playCount.toString(),
-                        onItemSelected = { selected ->
-                            playCount = selected.toInt()
-                            onUpdate(config.copy(playCount = playCount))
-                            Log.d("ConfigRow", "Play count selected: $selected")
-                        },
-                        label = "",
-                        modifier = Modifier.width(73.dp)
+                }
+                IconButton(
+                    onClick = {
+                        if (taskType == "Sound") {
+                            Log.d("ConfigRow", "Main stop button clicked for sound: $taskData")
+                            stopSound()
+                        }
+                    },
+                    enabled = taskType == "Sound" && mediaPlayer != null && mediaPlayer?.isPlaying == true,
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Stop,
+                        contentDescription = stringResource(id = R.string.stop),
+                        tint = if (taskType == "Sound" && mediaPlayer != null && mediaPlayer?.isPlaying == true) MaterialTheme.colors.primary else Color.Gray
                     )
                 }
 
@@ -446,7 +557,7 @@ fun ConfigRow(
                     Icon(
                         imageVector = Icons.Default.Delete,
                         contentDescription = stringResource(id = R.string.delete),
-                        tint = Color.White // Changed to white
+                        tint = Color.White
                     )
                 }
             }

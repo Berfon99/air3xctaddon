@@ -8,6 +8,8 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.media.AudioManager
+import android.media.MediaPlayer
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
@@ -16,11 +18,12 @@ import com.xc.air3xctaddon.R
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import java.io.File
 
 class LogMonitorService : Service() {
     private lateinit var eventReceiver: BroadcastReceiver
     private lateinit var filter: IntentFilter
-    private val scope = CoroutineScope(Dispatchers.IO) // Coroutine scope for database queries
+    private val scope = CoroutineScope(Dispatchers.IO)
 
     companion object {
         private const val NOTIFICATION_CHANNEL_ID = "LogMonitorServiceChannel"
@@ -29,10 +32,8 @@ class LogMonitorService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        // Create notification channel
         createNotificationChannel()
 
-        // Start foreground service
         val notification = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
             .setContentTitle(getString(R.string.notification_title))
             .setContentText(getString(R.string.notification_text))
@@ -41,20 +42,34 @@ class LogMonitorService : Service() {
         startForeground(NOTIFICATION_ID, notification)
         Log.d("LogMonitorService", getString(R.string.log_started_foreground))
 
-        // Initialize eventReceiver
         eventReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
                 intent?.let {
                     val event = it.action?.substringAfterLast(".")
                     Log.d("LogMonitorService", getString(R.string.log_received_event, event))
-                    // Process event in coroutine scope
                     scope.launch {
                         val db = AppDatabase.getDatabase(applicationContext)
                         val configDao = db.eventConfigDao()
                         val config = configDao.getAllConfigsSync().find { it.event == event }
                         if (config != null) {
-                            Log.d("LogMonitorService", getString(R.string.log_found_config, event, config.soundFile))
-                            // TODO: Implement sound playback (e.g., MediaPlayer)
+                            when (config.taskType) {
+                                "Sound" -> {
+                                    Log.d("LogMonitorService", getString(R.string.log_found_config, event, config.taskData))
+                                    if (!config.taskData.isNullOrEmpty()) {
+                                        playSound(config.taskData, config.volumeType, config.volumePercentage, config.playCount)
+                                    } else {
+                                        Log.w("LogMonitorService", "No sound file specified for event: $event")
+                                    }
+                                }
+                                "SendPosition" -> {
+                                    Log.d("LogMonitorService", getString(R.string.log_found_config, event, config.taskData))
+                                    // TODO: Implement SendPosition logic (e.g., send GPS coordinates)
+                                    Log.d("LogMonitorService", "Sending position for event: $event")
+                                }
+                                else -> {
+                                    Log.w("LogMonitorService", getString(R.string.log_no_config, event))
+                                }
+                            }
                         } else {
                             Log.w("LogMonitorService", getString(R.string.log_no_config, event))
                         }
@@ -63,7 +78,6 @@ class LogMonitorService : Service() {
             }
         }
 
-        // Initialize filter for XCTrack events
         filter = IntentFilter().apply {
             addAction("org.xcontest.XCTrack.Event.TAKEOFF")
             addAction("org.xcontest.XCTrack.Event.LANDING")
@@ -85,10 +99,8 @@ class LogMonitorService : Service() {
             addAction("org.xcontest.XCTrack.Event.AIRSPACE_CROSSED")
             addAction("org.xcontest.XCTrack.Event.AIRSPACE_RED_WARN")
             addAction("org.xcontest.XCTrack.Event.AIRSPACE_ORANGE_WARN")
-            // Add other events as needed
         }
 
-        // Register receiver with RECEIVER_NOT_EXPORTED
         registerReceiver(
             eventReceiver,
             filter,
@@ -110,6 +122,63 @@ class LogMonitorService : Service() {
             }
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(channel)
+        }
+    }
+
+    private fun playSound(fileName: String, volumeType: VolumeType, volumePercentage: Int, playCount: Int) {
+        try {
+            val soundsDir = File(getExternalFilesDir(null), "Sounds")
+            val soundFilePath = File(soundsDir, fileName).absolutePath
+            Log.d("LogMonitorService", "Playing sound: $soundFilePath, volumeType: $volumeType, volumePercentage: $volumePercentage%, playCount: $playCount")
+
+            val volume = when (volumeType) {
+                VolumeType.MAXIMUM -> 1.0f
+                VolumeType.SYSTEM -> {
+                    val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                    val currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat()
+                    val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC).toFloat()
+                    if (maxVolume > 0) currentVolume / maxVolume else 1.0f
+                }
+                VolumeType.PERCENTAGE -> volumePercentage / 100.0f
+            }
+
+            var currentPlayCount = 0
+            val mediaPlayer = MediaPlayer().apply {
+                setDataSource(soundFilePath)
+                prepare()
+                setVolume(volume, volume)
+                start()
+                currentPlayCount++
+                Log.d("LogMonitorService", "Started playback $currentPlayCount/$playCount for: $fileName")
+            }
+
+            mediaPlayer.setOnCompletionListener {
+                if (currentPlayCount < playCount) {
+                    try {
+                        mediaPlayer.reset()
+                        mediaPlayer.setDataSource(soundFilePath)
+                        mediaPlayer.prepare()
+                        mediaPlayer.setVolume(volume, volume)
+                        mediaPlayer.start()
+                        currentPlayCount++
+                        Log.d("LogMonitorService", "Started playback $currentPlayCount/$playCount for: $fileName")
+                    } catch (e: Exception) {
+                        Log.e("LogMonitorService", "Error restarting playback $currentPlayCount/$playCount for: $fileName", e)
+                        mediaPlayer.release()
+                    }
+                } else {
+                    Log.d("LogMonitorService", "Playback completed $currentPlayCount/$playCount for: $fileName")
+                    mediaPlayer.release()
+                }
+            }
+
+            mediaPlayer.setOnErrorListener { _, what, extra ->
+                Log.e("LogMonitorService", "MediaPlayer error: what=$what, extra=$extra")
+                mediaPlayer.release()
+                true
+            }
+        } catch (e: Exception) {
+            Log.e("LogMonitorService", "Error playing sound file: $fileName", e)
         }
     }
 

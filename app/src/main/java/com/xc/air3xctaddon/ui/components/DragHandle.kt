@@ -13,10 +13,10 @@ fun DragHandle(
     modifier: Modifier = Modifier
 ) {
     Canvas(
-        modifier = modifier.size(width = 24.dp, height = 32.dp)
+        modifier = modifier.size(width = 36.dp, height = 32.dp)
     ) {
         val lineHeight = 4.dp.toPx()
-        val lineWidth = 12.dp.toPx()
+        val lineWidth = 24.dp.toPx()
         val spacing = 4.dp.toPx()
         val yStart = (size.height - (3 * lineHeight + 2 * spacing)) / 2
 

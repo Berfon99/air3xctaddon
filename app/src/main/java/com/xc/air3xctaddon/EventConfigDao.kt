@@ -17,7 +17,7 @@ interface EventConfigDao {
     suspend fun getAllConfigsSync(): List<EventConfig> {
         return try {
             val configs = getAllConfigsSyncInternal()
-            Log.d("EventConfigDao", "getAllConfigsSync retrieved ${configs.size} configs: ${configs.map { it.event }}")
+            Log.d("EventConfigDao", "getAllConfigsSync retrieved ${configs.size} configs: ${configs.map { "${it.event} (${it.taskType}: ${it.taskData})" }}")
             configs
         } catch (e: Exception) {
             Log.e("EventConfigDao", "Error in getAllConfigsSync", e)
@@ -30,7 +30,7 @@ interface EventConfigDao {
 
     @Insert
     suspend fun insert(config: EventConfig) {
-        Log.d("EventConfigDao", "Inserting config: event=${config.event}, soundFile=${config.soundFile}")
+        Log.d("EventConfigDao", "Inserting config: event=${config.event}, taskType=${config.taskType}, taskData=${config.taskData}")
         insertInternal(config)
     }
 
@@ -39,7 +39,7 @@ interface EventConfigDao {
 
     @Update
     suspend fun update(config: EventConfig) {
-        Log.d("EventConfigDao", "Updating config: id=${config.id}, event=${config.event}")
+        Log.d("EventConfigDao", "Updating config: id=${config.id}, event=${config.event}, taskType=${config.taskType}, taskData=${config.taskData}")
         updateInternal(config)
     }
 
@@ -48,7 +48,7 @@ interface EventConfigDao {
 
     @Delete
     suspend fun delete(config: EventConfig) {
-        Log.d("EventConfigDao", "Deleting config: id=${config.id}, event=${config.event}")
+        Log.d("EventConfigDao", "Deleting config: id=${config.id}, event=${config.event}, taskType=${config.taskType}, taskData=${config.taskData}")
         deleteInternal(config)
     }
 

@@ -41,10 +41,9 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
     val context = LocalContext.current
     var showMenu by remember { mutableStateOf(false) }
 
-    // Drag state
     var draggedIndex by remember { mutableStateOf<Int?>(null) }
     var dragOffset by remember { mutableStateOf(0f) }
-    val rowHeight: Dp = 48.dp // Approximate height of a ConfigRow
+    val rowHeight: Dp = 48.dp
     val rowHeightPx: Float = LocalDensity.current.run { rowHeight.toPx() }
 
     Log.d("MainScreen", "Configs: $configs, AvailableEvents: $availableEvents")
@@ -87,7 +86,6 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // Liste des configurations
             LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -103,13 +101,12 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
                         onDelete = { viewModel.deleteConfig(config) },
                         onDrag = { _, dragAmount ->
                             dragOffset += dragAmount
-                            // Check if the dragged row should swap with another
                             val offsetRows = (dragOffset / rowHeightPx).toInt()
                             val targetIndex = (index + offsetRows).coerceIn(0, configs.size - 1)
                             if (targetIndex != index && draggedIndex == index) {
                                 viewModel.reorderConfigs(index, targetIndex)
                                 draggedIndex = targetIndex
-                                dragOffset = 0f // Reset offset after swap
+                                dragOffset = 0f
                             }
                         },
                         index = index,
@@ -124,7 +121,6 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
                 }
             }
 
-            // Bottom Row for Close and Add buttons
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -132,7 +128,6 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Close App Button
                 Button(
                     onClick = {
                         context.startActivity(Intent(Intent.ACTION_MAIN).apply {
@@ -155,17 +150,16 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
                     )
                 }
 
-                // Add Configuration Button
                 if (availableEvents.isNotEmpty()) {
                     Button(
                         onClick = {
                             val selectedEvent = availableEvents.firstOrNull { item -> item is MainViewModel.EventItem.Event } as? MainViewModel.EventItem.Event
-                            val defaultSoundFile = "Airspace.wav"
                             if (selectedEvent != null) {
-                                Log.d("MainScreen", "Add button clicked, adding config: event=${selectedEvent.name}, soundFile=$defaultSoundFile")
+                                Log.d("MainScreen", "Add button clicked, adding config: event=${selectedEvent.name}, taskType='', taskData=''")
                                 viewModel.addConfig(
                                     event = selectedEvent.name,
-                                    soundFile = defaultSoundFile,
+                                    taskType = "",
+                                    taskData = "",
                                     volumeType = VolumeType.SYSTEM,
                                     volumePercentage = 100,
                                     playCount = 1

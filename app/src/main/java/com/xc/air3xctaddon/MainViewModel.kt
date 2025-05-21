@@ -28,11 +28,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     companion object {
         private val CATEGORIZED_EVENTS = mutableListOf<EventItem>().apply {
-            // Using context to get string resources would require a different approach
-            // since companion objects can't access instance properties
-
-            // For now, we'll keep these hardcoded in the companion object
-            // In a real implementation, you might use a factory method that accepts a context
             add(EventItem.Category("Battery"))
             add(EventItem.Event("BATTERY50"))
             add(EventItem.Event("BATTERY40"))
@@ -74,14 +69,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         viewModelScope.launch {
-            // Load configs
             configDao.getAllConfigs().collect { configs ->
                 _configs.value = configs
                 Log.d("MainViewModel", context.getString(R.string.log_loaded_configs, configs.size))
             }
         }
         viewModelScope.launch {
-            // Initialize with CATEGORIZED_EVENTS
             _events.value = CATEGORIZED_EVENTS
             Log.d("MainViewModel", context.getString(
                 R.string.log_initialized_events,
@@ -89,12 +82,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 CATEGORIZED_EVENTS.filterIsInstance<EventItem.Category>().size
             ))
 
-            // Merge database events
             eventDao.getAllEvents().collect { dbEvents ->
                 val updatedItems = mutableListOf<EventItem>()
                 var currentCategory: String? = null
 
-                // Add predefined categories and events
                 CATEGORIZED_EVENTS.forEach { item ->
                     if (item is EventItem.Category) {
                         currentCategory = item.name
@@ -104,7 +95,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
 
-                // Add custom events from database under their categories
                 dbEvents.filter { it.type == "event" }.forEach { dbEvent ->
                     if (dbEvent.name !in CATEGORIZED_EVENTS.filterIsInstance<EventItem.Event>().map { it.name }) {
                         val targetCategory = dbEvent.category ?: context.getString(R.string.category_others)
@@ -121,14 +111,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     updatedItems.filterIsInstance<EventItem.Category>().size,
                     dbEvents.size
                 ))
-
-                val eventList = updatedItems.joinToString {
-                    when (it) {
-                        is EventItem.Category -> "Category: ${it.name}"
-                        is EventItem.Event -> "Event: ${it.name}"
-                    }
-                }
-                Log.d("MainViewModel", "Event list: $eventList")
             }
         }
     }
@@ -161,20 +143,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun addConfig(event: String, soundFile: String, volumeType: VolumeType, volumePercentage: Int, playCount: Int) {
+    fun addConfig(event: String, taskType: String = "Sound", taskData: String = "Airspace.wav", volumeType: VolumeType = VolumeType.SYSTEM, volumePercentage: Int = 100, playCount: Int = 1) {
         viewModelScope.launch {
             val maxPosition = _configs.value.maxOfOrNull { it.position } ?: -1
             val newConfig = EventConfig(
                 id = UUID.randomUUID().hashCode(),
                 event = event,
-                soundFile = soundFile,
+                taskType = taskType,
+                taskData = taskData,
                 volumeType = volumeType,
                 volumePercentage = volumePercentage,
                 playCount = playCount,
                 position = maxPosition + 1
             )
             configDao.insert(newConfig)
-            Log.d("MainViewModel", context.getString(R.string.log_added_config, event, soundFile))
+            Log.d("MainViewModel", context.getString(R.string.log_added_config, event, taskData))
         }
     }
 

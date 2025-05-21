@@ -9,7 +9,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.xc.air3xctaddon.converters.Converters
 
-@Database(entities = [EventConfig::class, EventEntity::class], version = 4, exportSchema = false)
+@Database(entities = [EventConfig::class, EventEntity::class], version = 5, exportSchema = false)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun eventConfigDao(): EventConfigDao
@@ -60,6 +60,19 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE event_configs ADD COLUMN taskType TEXT")
+                database.execSQL("ALTER TABLE event_configs ADD COLUMN taskData TEXT")
+                // Optionally, update existing rows to set taskType to "Sound" and taskData to soundFile
+                database.execSQL("""
+                    UPDATE event_configs
+                    SET taskType = 'Sound', taskData = soundFile
+                    WHERE soundFile IS NOT NULL
+                """.trimIndent())
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -67,7 +80,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "xct_addon_database"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .build()
                 INSTANCE = instance
                 instance

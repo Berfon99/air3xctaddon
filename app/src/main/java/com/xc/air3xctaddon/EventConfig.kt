@@ -5,11 +5,12 @@ import androidx.room.PrimaryKey
 
 @Entity(tableName = "event_configs")
 data class EventConfig(
-    @PrimaryKey(autoGenerate = true) val id: Int = 0,
-    val event: String, // Changed from Event to String to support all XCTrack events
-    val soundFile: String,
+    @PrimaryKey val id: Int,
+    val event: String,
+    val taskType: String? = null, // e.g., "Sound" or "SendPosition"
+    val taskData: String? = null, // e.g., sound file name or position data
     val volumeType: VolumeType,
-    val volumePercentage: Int, // Used if volumeType is PERCENTAGE
+    val volumePercentage: Int,
     val playCount: Int,
-    val position: Int // For ordering
+    val position: Int
 )
