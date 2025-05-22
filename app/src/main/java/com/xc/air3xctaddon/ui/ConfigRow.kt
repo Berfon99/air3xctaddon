@@ -604,10 +604,15 @@ fun SendTelegramConfigDialog(
 ) {
     var telegramChatId by remember { mutableStateOf("") }
     var telegramGroupName by remember { mutableStateOf("") }
-    var isLoadingGroups by remember { mutableStateOf(false) }
+    var isLoadingGroups by remember { mutableStateOf(true) } // Start with loading
+    var isCheckingBot by remember { mutableStateOf(false) }
+    var isSendingStart by remember { mutableStateOf(false) }
     var groupError by remember { mutableStateOf<String?>(null) }
     var groups by remember { mutableStateOf<List<TelegramGroup>>(emptyList()) }
     var hasLocationPermission by remember { mutableStateOf(false) }
+    var botInfo by remember { mutableStateOf<TelegramBotInfo?>(null) }
+    var selectedGroup by remember { mutableStateOf<TelegramGroup?>(null) }
+    var showBotSetupDialog by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
     val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
@@ -615,27 +620,96 @@ fun SendTelegramConfigDialog(
 
     fun fetchGroups() {
         isLoadingGroups = true
+        groupError = null
         telegramBotHelper.fetchGroups(
             onResult = { fetchedGroups ->
                 groups = fetchedGroups
                 isLoadingGroups = false
-                if (fetchedGroups.isEmpty()) {
-                    groupError = "No groups found. Add @AIR3SendPositionBot to a group and send /start in the group chat."
-                } else {
-                    groupError = null
-                    // Auto-select the first group if available and none is selected
-                    if (telegramChatId.isEmpty() && fetchedGroups.isNotEmpty()) {
-                        val firstGroup = fetchedGroups.first()
-                        telegramChatId = firstGroup.chatId
-                        telegramGroupName = firstGroup.title
+
+                // Clear previous selection if it's no longer valid
+                if (telegramChatId.isNotEmpty()) {
+                    val stillExists = fetchedGroups.any { it.chatId == telegramChatId }
+                    if (!stillExists) {
+                        // Previously selected group no longer exists, clear selection
+                        telegramChatId = ""
+                        telegramGroupName = ""
+                        selectedGroup = null
                     }
+                }
+
+                // Auto-select first group only if no valid selection exists
+                if (telegramChatId.isEmpty() && fetchedGroups.isNotEmpty()) {
+                    val firstGroup = fetchedGroups.first()
+                    telegramChatId = firstGroup.chatId
+                    telegramGroupName = firstGroup.title
+                    selectedGroup = firstGroup
                 }
             },
             onError = { error ->
                 isLoadingGroups = false
                 groupError = error
+                // Clear selection on error
+                telegramChatId = ""
+                telegramGroupName = ""
+                selectedGroup = null
             }
         )
+    }
+
+    fun checkBotInSelectedGroup() {
+        selectedGroup?.let { group ->
+            isCheckingBot = true
+            telegramBotHelper.checkBotInGroup(
+                chatId = group.chatId,
+                onResult = { isMember, isActive ->
+                    isCheckingBot = false
+                    // Update the selected group with fresh bot status
+                    selectedGroup = group.copy(isBotMember = isMember, isBotActive = isActive)
+
+                    // Also update the group in the list
+                    groups = groups.map {
+                        if (it.chatId == group.chatId)
+                            it.copy(isBotMember = isMember, isBotActive = isActive)
+                        else it
+                    }
+
+                    if (!isMember) {
+                        showBotSetupDialog = true
+                    }
+                },
+                onError = { error ->
+                    isCheckingBot = false
+                    groupError = "Failed to check bot status: $error"
+                    // On error, assume bot is not available
+                    selectedGroup = group.copy(isBotMember = false, isBotActive = false)
+                }
+            )
+        }
+    }
+
+    fun sendStartCommand() {
+        selectedGroup?.let { group ->
+            isSendingStart = true
+            telegramBotHelper.sendStartCommand(
+                chatId = group.chatId,
+                onResult = {
+                    isSendingStart = false
+                    selectedGroup = group.copy(isBotActive = true)
+                    // Update the group in the list as well
+                    groups = groups.map {
+                        if (it.chatId == group.chatId)
+                            it.copy(isBotActive = true)
+                        else it
+                    }
+                    // Configuration is complete
+                    onAdd(group.chatId)
+                },
+                onError = { error ->
+                    isSendingStart = false
+                    groupError = "Failed to activate bot: $error"
+                }
+            )
+        }
     }
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -643,14 +717,75 @@ fun SendTelegramConfigDialog(
     ) { isGranted ->
         hasLocationPermission = isGranted
         if (!isGranted) {
-            groupError = "Location permission denied. Please grant permission to select a group."
+            groupError = "Location permission denied. Please grant permission to continue."
         } else {
             fetchGroups()
         }
     }
 
+    // Check bot status when selectedGroup changes
+    LaunchedEffect(selectedGroup?.chatId) {
+        selectedGroup?.let { group ->
+            if (group.chatId.isNotEmpty()) {
+                checkBotInSelectedGroup()
+            }
+        }
+    }
+
+    // Refresh data every time dialog opens
     LaunchedEffect(Unit) {
+        // Reset all state when dialog opens
+        telegramChatId = ""
+        telegramGroupName = ""
+        selectedGroup = null
+        groups = emptyList()
+        groupError = null
+
+        // Get bot info first
+        telegramBotHelper.getBotInfo(
+            onResult = { info ->
+                botInfo = info
+            },
+            onError = { error ->
+                Log.e("TelegramDialog", "Failed to get bot info: $error")
+            }
+        )
+
         permissionLauncher.launch(android.Manifest.permission.ACCESS_FINE_LOCATION)
+    }
+
+    if (showBotSetupDialog) {
+        AlertDialog(
+            onDismissRequest = { showBotSetupDialog = false },
+            title = { Text("Add Bot to Group") },
+            text = {
+                Column {
+                    Text("The bot is not added to the selected group yet.")
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Would you like to open Telegram to add the bot to '${selectedGroup?.title}'?")
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("After adding the bot, come back here and refresh to continue the setup.",
+                        style = MaterialTheme.typography.caption)
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        botInfo?.let { info ->
+                            telegramBotHelper.openTelegramToAddBot(context, info.username, selectedGroup?.title)
+                        }
+                        showBotSetupDialog = false
+                    }
+                ) {
+                    Text("Open Telegram")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showBotSetupDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 
     Dialog(onDismissRequest = onDismiss) {
@@ -666,47 +801,251 @@ fun SendTelegramConfigDialog(
                     .padding(16.dp)
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text(
-                    text = "Configure Telegram Position",
-                    style = MaterialTheme.typography.h6
-                )
-
-                Text(
-                    text = "Add @AIR3SendPositionBot to a group, then send /start in the group chat to select it.",
-                    style = MaterialTheme.typography.body2,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                if (isLoadingGroups) {
-                    Text("Loading groups...")
-                } else if (groupError != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text(
-                        text = groupError ?: "Error loading groups",
-                        color = MaterialTheme.colors.error,
-                        modifier = Modifier.fillMaxWidth()
+                        text = "Configure Telegram Position",
+                        style = MaterialTheme.typography.h6
                     )
-                    Button(
+
+                    // Refresh button
+                    IconButton(
                         onClick = { fetchGroups() },
-                        modifier = Modifier.padding(top = 8.dp)
+                        enabled = !isLoadingGroups
                     ) {
-                        Text(stringResource(id = R.string.retry))
+                        Icon(
+                            imageVector = Icons.Default.PlayArrow, // You might want to use a refresh icon
+                            contentDescription = "Refresh",
+                            tint = MaterialTheme.colors.primary
+                        )
                     }
-                } else {
-                    // Show the group selection UI
-                    DropdownMenuSpinner(
-                        items = groups.map { SpinnerItem.Item(it.title) },
-                        selectedItem = if (telegramGroupName.isNotEmpty()) telegramGroupName else if (groups.isEmpty()) "No group selected" else "Select Group",
-                        onItemSelected = { selectedTitle ->
-                            groups.find { it.title == selectedTitle }?.let { group ->
-                                telegramChatId = group.chatId
-                                telegramGroupName = group.title
+                }
+
+                when {
+                    isLoadingGroups -> {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            CircularProgressIndicator(modifier = Modifier.size(16.dp))
+                            Text("Searching for available groups...")
+                        }
+                    }
+
+                    groupError != null -> {
+                        Card(
+                            backgroundColor = MaterialTheme.colors.error.copy(alpha = 0.1f),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text(
+                                    text = groupError ?: "Error loading groups",
+                                    color = MaterialTheme.colors.error
+                                )
+                                Button(
+                                    onClick = {
+                                        groupError = null
+                                        fetchGroups()
+                                    },
+                                    modifier = Modifier.padding(top = 8.dp)
+                                ) {
+                                    Text("Retry")
+                                }
                             }
-                        },
-                        label = "Select Group",
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                        }
+                    }
+
+                    groups.isEmpty() -> {
+                        Card(
+                            backgroundColor = MaterialTheme.colors.primary.copy(alpha = 0.1f),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text(
+                                    text = "No groups found with the bot",
+                                    style = MaterialTheme.typography.subtitle1
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "To get started:",
+                                    style = MaterialTheme.typography.body2
+                                )
+                                Text("1. Create or choose a Telegram group", style = MaterialTheme.typography.body2)
+                                Text("2. Add the bot to that group", style = MaterialTheme.typography.body2)
+                                Text("3. Send /start in the group", style = MaterialTheme.typography.body2)
+                                Text("4. Come back here and refresh", style = MaterialTheme.typography.body2)
+
+                                Row(
+                                    modifier = Modifier.padding(top = 12.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Button(
+                                        onClick = {
+                                            botInfo?.let { info ->
+                                                telegramBotHelper.openTelegramToAddBot(context, info.username)
+                                            }
+                                        },
+                                        enabled = botInfo != null
+                                    ) {
+                                        Text("Open Bot in Telegram")
+                                    }
+
+                                    OutlinedButton(onClick = { fetchGroups() }) {
+                                        Text("Refresh")
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    else -> {
+                        // Show group selection
+                        Text("Select the group where you want to send position updates:")
+
+                        DropdownMenuSpinner(
+                            items = groups.map { SpinnerItem.Item(it.title) },
+                            selectedItem = telegramGroupName.ifEmpty { "Select Group" },
+                            onItemSelected = { selectedTitle ->
+                                groups.find { it.title == selectedTitle }?.let { group ->
+                                    telegramChatId = group.chatId
+                                    telegramGroupName = group.title
+                                    selectedGroup = group
+                                    // Always check bot status when a group is manually selected
+                                    checkBotInSelectedGroup()
+                                }
+                            },
+                            label = "Telegram Group",
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        // Show bot status for selected group
+                        selectedGroup?.let { group ->
+                            when {
+                                isCheckingBot -> {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        CircularProgressIndicator(modifier = Modifier.size(16.dp))
+                                        Text("Checking bot status...")
+                                    }
+                                }
+
+                                !group.isBotMember -> {
+                                    Card(
+                                        backgroundColor = MaterialTheme.colors.secondary.copy(alpha = 0.1f),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(modifier = Modifier.padding(12.dp)) {
+                                            Text(
+                                                text = "Bot Setup Required",
+                                                style = MaterialTheme.typography.subtitle1,
+                                                color = MaterialTheme.colors.secondary
+                                            )
+                                            Text("The bot needs to be added to this group.")
+                                            Row(
+                                                modifier = Modifier.padding(top = 8.dp),
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                Button(
+                                                    onClick = { showBotSetupDialog = true }
+                                                ) {
+                                                    Text("Add Bot to Group")
+                                                }
+                                                OutlinedButton(
+                                                    onClick = { checkBotInSelectedGroup() }
+                                                ) {
+                                                    Text("Refresh Status")
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                group.isBotMember && !group.isBotActive -> {
+                                    Card(
+                                        backgroundColor = MaterialTheme.colors.primary.copy(alpha = 0.1f),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(modifier = Modifier.padding(12.dp)) {
+                                            Text(
+                                                text = "Activate Bot",
+                                                style = MaterialTheme.typography.subtitle1,
+                                                color = MaterialTheme.colors.primary
+                                            )
+                                            Text("The bot is in the group but needs to be activated.")
+
+                                            if (isSendingStart) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                    modifier = Modifier.padding(top = 8.dp)
+                                                ) {
+                                                    CircularProgressIndicator(modifier = Modifier.size(16.dp))
+                                                    Text("Activating bot...")
+                                                }
+                                            } else {
+                                                Row(
+                                                    modifier = Modifier.padding(top = 8.dp),
+                                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                                ) {
+                                                    Button(
+                                                        onClick = { sendStartCommand() }
+                                                    ) {
+                                                        Text("Activate Bot")
+                                                    }
+                                                    OutlinedButton(
+                                                        onClick = { checkBotInSelectedGroup() }
+                                                    ) {
+                                                        Text("Refresh Status")
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                group.isBotMember && group.isBotActive -> {
+                                    Card(
+                                        backgroundColor = Color.Green.copy(alpha = 0.1f),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(12.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.PlayArrow, // You might want to use a checkmark icon
+                                                    contentDescription = "Ready",
+                                                    tint = Color.Green
+                                                )
+                                                Text(
+                                                    text = "Ready to send position updates!",
+                                                    color = Color.Green,
+                                                    style = MaterialTheme.typography.subtitle1
+                                                )
+                                            }
+                                            OutlinedButton(
+                                                onClick = { checkBotInSelectedGroup() }
+                                            ) {
+                                                Text("Refresh")
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
 
                 Row(
@@ -723,7 +1062,7 @@ fun SendTelegramConfigDialog(
                         onClick = {
                             onAdd(telegramChatId)
                         },
-                        enabled = telegramChatId.isNotBlank()
+                        enabled = selectedGroup?.isBotMember == true && selectedGroup?.isBotActive == true
                     ) {
                         Text(stringResource(id = R.string.confirm))
                     }
