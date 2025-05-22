@@ -4,6 +4,8 @@ import android.content.Context
 import android.media.AudioManager
 import android.media.MediaPlayer
 import android.util.Log
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -25,17 +27,16 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
-import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import com.xc.air3xctaddon.*
-import com.xc.air3xctaddon.R
 import com.xc.air3xctaddon.model.SoundFilesState
 import com.xc.air3xctaddon.ui.components.DragHandle
-import com.xc.air3xctaddon.ui.components.DropdownMenuSpinner
 import com.xc.air3xctaddon.ui.components.SpinnerItem
+import com.xc.air3xctaddon.ui.components.DropdownMenuSpinner
 import com.xc.air3xctaddon.ui.theme.RowBackground
 import com.xc.air3xctaddon.ui.theme.SoundFieldBackground
 import java.io.File
+import com.xc.air3xctaddon.R
 
 @Composable
 fun ConfigRow(
@@ -54,54 +55,19 @@ fun ConfigRow(
     var taskType by remember { mutableStateOf(config.taskType ?: "") }
     var taskData by remember { mutableStateOf(config.taskData ?: "") }
     var telegramChatId by remember { mutableStateOf(config.telegramChatId ?: "") }
-    var telegramGroupName by remember { mutableStateOf("") }
     var eventMenuExpanded by remember { mutableStateOf(false) }
     var taskMenuExpanded by remember { mutableStateOf(false) }
     var soundDialogOpen by remember { mutableStateOf(false) }
     var telegramDialogOpen by remember { mutableStateOf(false) }
     var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
     val context = LocalContext.current
+    val telegramBotHelper = remember { TelegramBotHelper(BuildConfig.TELEGRAM_BOT_TOKEN, LocationServices.getFusedLocationProviderClient(context)) }
 
     var soundFile by remember { mutableStateOf(if (taskType == "Sound") taskData else "") }
-    var volumeType by remember { mutableStateOf(config.volumeType ?: VolumeType.SYSTEM) }
-    var volumePercentage by remember { mutableStateOf(config.volumePercentage ?: 100) }
-    var playCount by remember { mutableStateOf(config.playCount ?: 1) }
+    var volumeType by remember { mutableStateOf(config.volumeType) }
+    var volumePercentage by remember { mutableStateOf(config.volumePercentage) }
+    var playCount by remember { mutableStateOf(config.playCount) }
     var soundMenuExpanded by remember { mutableStateOf(false) }
-
-    val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
-    val telegramBotHelper by remember {
-        mutableStateOf(
-            TelegramBotHelper(
-                botToken = BuildConfig.TELEGRAM_BOT_TOKEN,
-                fusedLocationClient = fusedLocationClient
-            )
-        )
-    }
-
-    var groups by remember { mutableStateOf<List<TelegramGroup>>(emptyList()) }
-    var isLoadingGroups by remember { mutableStateOf(false) }
-    var groupError by remember { mutableStateOf<String?>(null) }
-
-    LaunchedEffect(telegramDialogOpen) {
-        if (telegramDialogOpen) {
-            isLoadingGroups = true
-            telegramBotHelper.fetchGroups(
-                onResult = { fetchedGroups ->
-                    groups = fetchedGroups
-                    isLoadingGroups = false
-                    if (fetchedGroups.isEmpty()) {
-                        groupError = "No groups found. Send /start in a group with the bot."
-                    } else {
-                        groupError = null
-                    }
-                },
-                onError = { error ->
-                    isLoadingGroups = false
-                    groupError = error
-                }
-            )
-        }
-    }
 
     val soundFilesState by produceState<SoundFilesState>(
         initialValue = SoundFilesState.Loading,
@@ -196,22 +162,6 @@ fun ConfigRow(
             player.release()
             mediaPlayer = null
         }
-    }
-
-    fun sendTelegramPosition() {
-        if (telegramChatId.isEmpty()) {
-            Log.d("ConfigRow", "Cannot send position: No chat ID configured")
-            return
-        }
-        telegramBotHelper.getCurrentLocation(
-            onResult = { latitude, longitude ->
-                telegramBotHelper.sendLiveLocation(telegramChatId, latitude, longitude)
-            },
-            onError = { error ->
-                Log.e("ConfigRow", "Error getting location: $error")
-                android.widget.Toast.makeText(context, "Error getting location: $error", android.widget.Toast.LENGTH_LONG).show()
-            }
-        )
     }
 
     Box(
@@ -337,28 +287,11 @@ fun ConfigRow(
                             }
                         )
                         DropdownMenuItem(
-                            content = { Text("Send Position") },
-                            onClick = {
-                                taskType = "SendPosition"
-                                taskData = "Send Position"
-                                onUpdate(config.copy(
-                                    taskType = taskType,
-                                    taskData = taskData,
-                                    volumeType = VolumeType.SYSTEM,
-                                    volumePercentage = 100,
-                                    playCount = 1,
-                                    telegramChatId = null
-                                ))
-                                taskMenuExpanded = false
-                                Log.d("ConfigRow", "Selected task: Send Position")
-                            }
-                        )
-                        DropdownMenuItem(
-                            content = { Text("Send Telegram Position") },
+                            content = { Text("SendTelegramPosition") },
                             onClick = {
                                 taskMenuExpanded = false
                                 telegramDialogOpen = true
-                                Log.d("ConfigRow", "Selected task: Send Telegram Position")
+                                Log.d("ConfigRow", "Selected task: SendTelegramPosition")
                             }
                         )
                     }
@@ -581,117 +514,53 @@ fun ConfigRow(
                 }
 
                 if (telegramDialogOpen) {
-                    Dialog(onDismissRequest = { telegramDialogOpen = false }) {
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            elevation = 8.dp
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .padding(16.dp)
-                                    .verticalScroll(rememberScrollState())
-                            ) {
-                                Text(
-                                    text = stringResource(id = R.string.configure_telegram_position),
-                                    style = MaterialTheme.typography.h6
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-
-                                Text(
-                                    text = "To select a group, send /start to @AIR3SendPositionBot in the desired group, then select it below.",
-                                    style = MaterialTheme.typography.body2
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-
-                                if (isLoadingGroups) {
-                                    Text("Loading groups...")
-                                } else if (groupError != null) {
-                                    Text(
-                                        text = groupError ?: "Error loading groups",
-                                        color = MaterialTheme.colors.error
-                                    )
-                                } else {
-                                    DropdownMenuSpinner(
-                                        items = groups.map { SpinnerItem.Item(it.title) },
-                                        selectedItem = telegramGroupName,
-                                        onItemSelected = { selected ->
-                                            val selectedGroup = groups.find { it.title == selected }
-                                            telegramChatId = selectedGroup?.chatId ?: ""
-                                            telegramGroupName = selected
-                                            Log.d("ConfigRow", "Selected group: $selected, chatId: $telegramChatId")
-                                        },
-                                        label = "Select Group",
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.height(16.dp))
-
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.End
-                                ) {
-                                    Button(
-                                        onClick = { telegramDialogOpen = false },
-                                        modifier = Modifier.padding(end = 8.dp)
-                                    ) {
-                                        Text(stringResource(id = R.string.cancel))
-                                    }
-                                    Button(
-                                        onClick = {
-                                            taskType = "SendTelegramPosition"
-                                            taskData = "Send Telegram Position"
-                                            onUpdate(config.copy(
-                                                taskType = taskType,
-                                                taskData = taskData,
-                                                telegramChatId = telegramChatId,
-                                                volumeType = null,
-                                                volumePercentage = null,
-                                                playCount = null
-                                            ))
-                                            telegramDialogOpen = false
-                                            Log.d("ConfigRow", "Telegram position config saved: chatId=$telegramChatId")
-                                        },
-                                        enabled = telegramChatId.isNotEmpty()
-                                    ) {
-                                        Text(stringResource(id = R.string.confirm))
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    SendTelegramConfigDialog(
+                        onAdd = { selectedChatId ->
+                            taskType = "SendTelegramPosition"
+                            taskData = "Send Telegram Position"
+                            telegramChatId = selectedChatId
+                            onUpdate(config.copy(
+                                taskType = taskType,
+                                taskData = taskData,
+                                volumeType = VolumeType.SYSTEM,
+                                volumePercentage = 100,
+                                playCount = 1,
+                                telegramChatId = telegramChatId
+                            ))
+                            telegramDialogOpen = false
+                            Log.d("ConfigRow", "Telegram config saved: chatId=$selectedChatId")
+                        },
+                        onDismiss = { telegramDialogOpen = false }
+                    )
                 }
 
                 Spacer(modifier = Modifier.width(4.dp))
 
                 IconButton(
                     onClick = {
-                        when (taskType) {
-                            "Sound" -> {
-                                if (taskData.isNotEmpty()) {
-                                    Log.d("ConfigRow", "Main play button clicked for sound: $taskData")
-                                    playSound(taskData, volumeType, volumePercentage, playCount)
+                        if (taskType == "Sound" && taskData.isNotEmpty()) {
+                            Log.d("ConfigRow", "Main play button clicked for sound: $taskData")
+                            playSound(taskData, volumeType, volumePercentage, playCount)
+                        } else if (taskType == "SendTelegramPosition" && telegramChatId.isNotEmpty()) {
+                            Log.d("ConfigRow", "Main play button clicked for SendTelegramPosition: chatId=$telegramChatId")
+                            telegramBotHelper.getCurrentLocation(
+                                onResult = { latitude, longitude ->
+                                    telegramBotHelper.sendLiveLocation(telegramChatId, latitude, longitude)
+                                    Log.d("ConfigRow", "Sent location to Telegram: lat=$latitude, lon=$longitude")
+                                },
+                                onError = { error ->
+                                    Log.e("ConfigRow", "Failed to get location: $error")
                                 }
-                            }
-                            "SendPosition" -> {
-                                Log.d("ConfigRow", "Main play button clicked for Send Position")
-                                // TODO: Implement Send Position logic
-                            }
-                            "SendTelegramPosition" -> {
-                                Log.d("ConfigRow", "Main play button clicked for Send Telegram Position")
-                                sendTelegramPosition()
-                            }
+                            )
                         }
                     },
-                    enabled = taskData.isNotEmpty(),
+                    enabled = (taskType == "Sound" && taskData.isNotEmpty()) || (taskType == "SendTelegramPosition" && telegramChatId.isNotEmpty()),
                     modifier = Modifier.size(36.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.PlayArrow,
                         contentDescription = stringResource(id = R.string.play),
-                        tint = if (taskData.isNotEmpty()) MaterialTheme.colors.primary else Color.Gray
+                        tint = if ((taskType == "Sound" && taskData.isNotEmpty()) || (taskType == "SendTelegramPosition" && telegramChatId.isNotEmpty())) MaterialTheme.colors.primary else Color.Gray
                     )
                 }
                 IconButton(
@@ -722,6 +591,122 @@ fun ConfigRow(
                         contentDescription = stringResource(id = R.string.delete),
                         tint = Color.White
                     )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SendTelegramConfigDialog(
+    onAdd: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var telegramChatId by remember { mutableStateOf("") }
+    var telegramGroupName by remember { mutableStateOf("") }
+    var isLoadingGroups by remember { mutableStateOf(false) }
+    var groupError by remember { mutableStateOf<String?>(null) }
+    var groups by remember { mutableStateOf<List<TelegramGroup>>(emptyList()) }
+    var hasLocationPermission by remember { mutableStateOf(false) }
+
+    val context = LocalContext.current
+    val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
+    val telegramBotHelper = remember { TelegramBotHelper(BuildConfig.TELEGRAM_BOT_TOKEN, fusedLocationClient) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        hasLocationPermission = isGranted
+        if (!isGranted) {
+            groupError = "Location permission denied. Please grant permission to select a group."
+        } else {
+            isLoadingGroups = true
+            telegramBotHelper.fetchGroups(
+                onResult = { fetchedGroups ->
+                    groups = fetchedGroups
+                    isLoadingGroups = false
+                    if (fetchedGroups.isEmpty()) {
+                        groupError = "No groups found. Send /start in a group with @AIR3SendPositionBot."
+                    } else {
+                        groupError = null
+                    }
+                },
+                onError = { error ->
+                    isLoadingGroups = false
+                    groupError = error
+                }
+            )
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        permissionLauncher.launch(android.Manifest.permission.ACCESS_FINE_LOCATION)
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            shape = MaterialTheme.shapes.medium,
+            color = MaterialTheme.colors.surface
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(16.dp)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "Configure Telegram Position",
+                    style = MaterialTheme.typography.h6
+                )
+
+                Text(
+                    text = "Send /start to @AIR3SendPositionBot in a group to select it.",
+                    style = MaterialTheme.typography.body2
+                )
+                if (isLoadingGroups) {
+                    Text("Loading groups...")
+                } else if (groupError != null) {
+                    Text(
+                        text = groupError ?: "Error loading groups",
+                        color = MaterialTheme.colors.error
+                    )
+                } else {
+                    DropdownMenuSpinner(
+                        items = groups.map { SpinnerItem.Item(it.title) },
+                        selectedItem = telegramGroupName,
+                        onItemSelected = { selectedTitle ->
+                            groups.find { it.title == selectedTitle }?.let { group ->
+                                telegramChatId = group.chatId
+                                telegramGroupName = group.title
+                            }
+                        },
+                        label = "Select Group",
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 16.dp),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("Cancel")
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            onAdd(telegramChatId)
+                        },
+                        enabled = telegramChatId.isNotBlank()
+                    ) {
+                        Text("Confirm")
+                    }
                 }
             }
         }

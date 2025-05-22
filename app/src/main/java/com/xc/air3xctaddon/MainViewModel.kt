@@ -145,15 +145,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun addConfig(
         event: String,
-        taskType: String = "Sound",
-        taskData: String = "Airspace.wav",
-        volumeType: VolumeType = VolumeType.SYSTEM,
-        volumePercentage: Int = 100,
-        playCount: Int = 1,
+        taskType: String,
+        taskData: String,
+        volumeType: VolumeType,
+        volumePercentage: Int,
+        playCount: Int,
         telegramChatId: String? = null
     ) {
         viewModelScope.launch {
-            val maxPosition = _configs.value.maxOfOrNull { it.position ?: -1 } ?: -1
+            val maxPosition = _configs.value.maxByOrNull { it.position }?.position ?: -1
             val newConfig = EventConfig(
                 id = UUID.randomUUID().hashCode(),
                 event = event,
@@ -166,14 +166,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 telegramChatId = telegramChatId
             )
             configDao.insert(newConfig)
-            Log.d("MainViewModel", context.getString(R.string.log_added_config, event, taskData))
+            Log.d("MainViewModel", "Added config: event=$event, taskType=$taskType, taskData=$taskData, telegramChatId=$telegramChatId")
         }
     }
 
     fun updateConfig(config: EventConfig) {
         viewModelScope.launch {
             configDao.update(config)
-            Log.d("MainViewModel", context.getString(R.string.log_updated_config, config.id))
+            Log.d("MainViewModel", "Updated config: id=${config.id}, event=${config.event}, taskType=${config.taskType}, taskData=${config.taskData}, telegramChatId=${config.telegramChatId}")
         }
     }
 

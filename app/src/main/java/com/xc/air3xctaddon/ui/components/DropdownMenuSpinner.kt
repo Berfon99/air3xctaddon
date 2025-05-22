@@ -22,7 +22,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -31,7 +30,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xc.air3xctaddon.R
 
-// Define sealed class for spinner items
 sealed class SpinnerItem {
     data class Header(val name: String) : SpinnerItem()
     data class Item(val name: String) : SpinnerItem()
@@ -52,14 +50,14 @@ fun DropdownMenuSpinner(
 
     Box(
         modifier = modifier
-            .background(Color.Yellow)
+            .background(MaterialTheme.colors.surface)
             .focusable()
     ) {
         Text(
             text = selected,
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color.White)
+                .background(MaterialTheme.colors.surface)
                 .padding(8.dp)
                 .clickable {
                     expanded = true
@@ -77,7 +75,7 @@ fun DropdownMenuSpinner(
                 Log.d("DropdownMenuSpinner", "Dropdown dismissed, expanded set to false")
             },
             modifier = Modifier
-                .width(200.dp)
+                .width(480.dp)
                 .heightIn(max = 300.dp)
         ) {
             if (items.isEmpty()) {

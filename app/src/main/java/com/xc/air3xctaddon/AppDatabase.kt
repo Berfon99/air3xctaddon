@@ -19,6 +19,7 @@ abstract class AppDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
+        // Migration 1→2: Initial schema with soundFile (replaced by taskData in later migrations)
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("""
@@ -42,6 +43,7 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // Migration 2→3: Add events table for EventEntity
         val MIGRATION_2_3 = object : Migration(2, 3) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("""
@@ -54,12 +56,14 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // Migration 3→4: Add category to events table
         val MIGRATION_3_4 = object : Migration(3, 4) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("ALTER TABLE events ADD COLUMN category TEXT")
             }
         }
 
+        // Migration 4→5: Add taskType and taskData, map soundFile to taskData
         val MIGRATION_4_5 = object : Migration(4, 5) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("ALTER TABLE event_configs ADD COLUMN taskType TEXT")
@@ -72,6 +76,7 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // Migration 5→6: Add telegramChatId for SendTelegramPosition
         val MIGRATION_5_6 = object : Migration(5, 6) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("ALTER TABLE event_configs ADD COLUMN telegramChatId TEXT")
