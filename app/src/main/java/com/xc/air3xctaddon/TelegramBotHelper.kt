@@ -225,10 +225,83 @@ class TelegramBotHelper(
     }
 
     fun fetchGroups(onResult: (List<TelegramGroup>) -> Unit, onError: (String) -> Unit) {
-        fetchGroupsWithOffset(0, onResult, onError)
+        // Clear stale updates first
+        clearUpdates { success, error ->
+            if (!success) {
+                onError(error ?: "Failed to clear updates")
+                return@clearUpdates
+            }
+            fetchGroupsWithOffset(0, { rawGroups ->
+                // Validate each group with checkBotInGroup
+                validateGroups(rawGroups, onResult, onError)
+            }, onError)
+        }
     }
 
-    private fun fetchGroupsWithOffset(offset: Int, onResult: (List<TelegramGroup>) -> Unit, onError: (String) -> Unit) {
+    private fun clearUpdates(onComplete: (Boolean, String?) -> Unit) {
+        val url = "https://api.telegram.org/bot$botToken/getUpdates?offset=-1"
+        val request = Request.Builder()
+            .url(url)
+            .get()
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                onComplete(false, "Failed to clear updates: ${e.message}")
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                response.close()
+                if (response.isSuccessful) {
+                    onComplete(true, null)
+                } else {
+                    onComplete(false, "Error clearing updates: ${response.message}")
+                }
+            }
+        })
+    }
+
+    private fun validateGroups(
+        rawGroups: List<TelegramGroup>,
+        onResult: (List<TelegramGroup>) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        if (rawGroups.isEmpty()) {
+            onResult(emptyList())
+            return
+        }
+
+        val validatedGroups = mutableListOf<TelegramGroup>()
+        var groupsProcessed = 0
+
+        rawGroups.forEach { group ->
+            checkBotInGroup(
+                chatId = group.chatId,
+                onResult = { isMember, isActive ->
+                    if (isMember) {
+                        validatedGroups.add(group.copy(isBotMember = isMember, isBotActive = isActive))
+                    }
+                    groupsProcessed++
+                    if (groupsProcessed == rawGroups.size) {
+                        onResult(validatedGroups)
+                    }
+                },
+                onError = { error ->
+                    Log.w("TelegramBotHelper", "Skipping group ${group.title}: $error")
+                    groupsProcessed++
+                    if (groupsProcessed == rawGroups.size) {
+                        onResult(validatedGroups)
+                    }
+                }
+            )
+        }
+    }
+
+    private fun fetchGroupsWithOffset(
+        offset: Int,
+        onResult: (List<TelegramGroup>) -> Unit,
+        onError: (String) -> Unit
+    ) {
         val url = "https://api.telegram.org/bot$botToken/getUpdates?offset=$offset"
         val request = Request.Builder()
             .url(url)
@@ -274,14 +347,13 @@ class TelegramBotHelper(
                             val chatType = chat.getString("type")
                             if ((chatType == "group" || chatType == "supergroup") && chatId !in seenChatIds) {
                                 val title = chat.optString("title", "Unknown Group")
-                                groups.add(TelegramGroup(chatId, title, true, true)) // If we see it in updates, bot is active
+                                groups.add(TelegramGroup(chatId, title))
                                 seenChatIds.add(chatId)
                             }
                         }
                     }
 
                     if (updates.length() == 100) {
-                        // More updates may be available, fetch next batch
                         fetchGroupsWithOffset(maxUpdateId + 1, { newGroups ->
                             onResult(groups + newGroups)
                         }, onError)

@@ -604,7 +604,7 @@ fun SendTelegramConfigDialog(
 ) {
     var telegramChatId by remember { mutableStateOf("") }
     var telegramGroupName by remember { mutableStateOf("") }
-    var isLoadingGroups by remember { mutableStateOf(true) } // Start with loading
+    var isLoadingGroups by remember { mutableStateOf(true) }
     var isCheckingBot by remember { mutableStateOf(false) }
     var isSendingStart by remember { mutableStateOf(false) }
     var groupError by remember { mutableStateOf<String?>(null) }
@@ -625,19 +625,13 @@ fun SendTelegramConfigDialog(
             onResult = { fetchedGroups ->
                 groups = fetchedGroups
                 isLoadingGroups = false
-
-                // Clear previous selection if it's no longer valid
-                if (telegramChatId.isNotEmpty()) {
-                    val stillExists = fetchedGroups.any { it.chatId == telegramChatId }
-                    if (!stillExists) {
-                        // Previously selected group no longer exists, clear selection
-                        telegramChatId = ""
-                        telegramGroupName = ""
-                        selectedGroup = null
-                    }
+                // Clear selection if no valid groups or if current selection is invalid
+                if (fetchedGroups.isEmpty() || telegramChatId.isNotEmpty() && fetchedGroups.none { it.chatId == telegramChatId }) {
+                    telegramChatId = ""
+                    telegramGroupName = ""
+                    selectedGroup = null
                 }
-
-                // Auto-select first group only if no valid selection exists
+                // Auto-select first valid group if no selection
                 if (telegramChatId.isEmpty() && fetchedGroups.isNotEmpty()) {
                     val firstGroup = fetchedGroups.first()
                     telegramChatId = firstGroup.chatId
@@ -648,7 +642,6 @@ fun SendTelegramConfigDialog(
             onError = { error ->
                 isLoadingGroups = false
                 groupError = error
-                // Clear selection on error
                 telegramChatId = ""
                 telegramGroupName = ""
                 selectedGroup = null
@@ -663,16 +656,10 @@ fun SendTelegramConfigDialog(
                 chatId = group.chatId,
                 onResult = { isMember, isActive ->
                     isCheckingBot = false
-                    // Update the selected group with fresh bot status
                     selectedGroup = group.copy(isBotMember = isMember, isBotActive = isActive)
-
-                    // Also update the group in the list
                     groups = groups.map {
-                        if (it.chatId == group.chatId)
-                            it.copy(isBotMember = isMember, isBotActive = isActive)
-                        else it
+                        if (it.chatId == group.chatId) it.copy(isBotMember = isMember, isBotActive = isActive) else it
                     }
-
                     if (!isMember) {
                         showBotSetupDialog = true
                     }
@@ -680,7 +667,6 @@ fun SendTelegramConfigDialog(
                 onError = { error ->
                     isCheckingBot = false
                     groupError = "Failed to check bot status: $error"
-                    // On error, assume bot is not available
                     selectedGroup = group.copy(isBotMember = false, isBotActive = false)
                 }
             )
@@ -695,13 +681,9 @@ fun SendTelegramConfigDialog(
                 onResult = {
                     isSendingStart = false
                     selectedGroup = group.copy(isBotActive = true)
-                    // Update the group in the list as well
                     groups = groups.map {
-                        if (it.chatId == group.chatId)
-                            it.copy(isBotActive = true)
-                        else it
+                        if (it.chatId == group.chatId) it.copy(isBotActive = true) else it
                     }
-                    // Configuration is complete
                     onAdd(group.chatId)
                 },
                 onError = { error ->
@@ -732,26 +714,24 @@ fun SendTelegramConfigDialog(
         }
     }
 
-    // Refresh data every time dialog opens
-    LaunchedEffect(Unit) {
-        // Reset all state when dialog opens
-        telegramChatId = ""
-        telegramGroupName = ""
-        selectedGroup = null
-        groups = emptyList()
-        groupError = null
-
-        // Get bot info first
-        telegramBotHelper.getBotInfo(
-            onResult = { info ->
-                botInfo = info
-            },
-            onError = { error ->
-                Log.e("TelegramDialog", "Failed to get bot info: $error")
+    // Reset state when dialog opens or bot setup dialog is dismissed
+    LaunchedEffect(Unit, showBotSetupDialog) {
+        if (!showBotSetupDialog) {
+            telegramChatId = ""
+            telegramGroupName = ""
+            selectedGroup = null
+            groups = emptyList()
+            groupError = null
+            telegramBotHelper.getBotInfo(
+                onResult = { info -> botInfo = info },
+                onError = { error -> Log.e("TelegramDialog", "Failed to get bot info: $error") }
+            )
+            if (hasLocationPermission) {
+                fetchGroups()
+            } else {
+                permissionLauncher.launch(android.Manifest.permission.ACCESS_FINE_LOCATION)
             }
-        )
-
-        permissionLauncher.launch(android.Manifest.permission.ACCESS_FINE_LOCATION)
+        }
     }
 
     if (showBotSetupDialog) {
@@ -764,8 +744,7 @@ fun SendTelegramConfigDialog(
                     Spacer(modifier = Modifier.height(8.dp))
                     Text("Would you like to open Telegram to add the bot to '${selectedGroup?.title}'?")
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("After adding the bot, come back here and refresh to continue the setup.",
-                        style = MaterialTheme.typography.caption)
+                    Text("After adding the bot, come back here and refresh to continue the setup.", style = MaterialTheme.typography.caption)
                 }
             },
             confirmButton = {
@@ -812,14 +791,12 @@ fun SendTelegramConfigDialog(
                         text = "Configure Telegram Position",
                         style = MaterialTheme.typography.h6
                     )
-
-                    // Refresh button
                     IconButton(
                         onClick = { fetchGroups() },
                         enabled = !isLoadingGroups
                     ) {
                         Icon(
-                            imageVector = Icons.Default.PlayArrow, // You might want to use a refresh icon
+                            imageVector = Icons.Default.PlayArrow, // Replace with refresh icon if available
                             contentDescription = "Refresh",
                             tint = MaterialTheme.colors.primary
                         )
@@ -836,7 +813,6 @@ fun SendTelegramConfigDialog(
                             Text("Searching for available groups...")
                         }
                     }
-
                     groupError != null -> {
                         Card(
                             backgroundColor = MaterialTheme.colors.error.copy(alpha = 0.1f),
@@ -854,12 +830,11 @@ fun SendTelegramConfigDialog(
                                     },
                                     modifier = Modifier.padding(top = 8.dp)
                                 ) {
-                                    Text("Retry")
+                                    Text(stringResource(id = R.string.retry))
                                 }
                             }
                         }
                     }
-
                     groups.isEmpty() -> {
                         Card(
                             backgroundColor = MaterialTheme.colors.primary.copy(alpha = 0.1f),
@@ -879,7 +854,6 @@ fun SendTelegramConfigDialog(
                                 Text("2. Add the bot to that group", style = MaterialTheme.typography.body2)
                                 Text("3. Send /start in the group", style = MaterialTheme.typography.body2)
                                 Text("4. Come back here and refresh", style = MaterialTheme.typography.body2)
-
                                 Row(
                                     modifier = Modifier.padding(top = 12.dp),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -894,7 +868,6 @@ fun SendTelegramConfigDialog(
                                     ) {
                                         Text("Open Bot in Telegram")
                                     }
-
                                     OutlinedButton(onClick = { fetchGroups() }) {
                                         Text("Refresh")
                                     }
@@ -902,11 +875,8 @@ fun SendTelegramConfigDialog(
                             }
                         }
                     }
-
                     else -> {
-                        // Show group selection
                         Text("Select the group where you want to send position updates:")
-
                         DropdownMenuSpinner(
                             items = groups.map { SpinnerItem.Item(it.title) },
                             selectedItem = telegramGroupName.ifEmpty { "Select Group" },
@@ -915,15 +885,12 @@ fun SendTelegramConfigDialog(
                                     telegramChatId = group.chatId
                                     telegramGroupName = group.title
                                     selectedGroup = group
-                                    // Always check bot status when a group is manually selected
                                     checkBotInSelectedGroup()
                                 }
                             },
                             label = "Telegram Group",
                             modifier = Modifier.fillMaxWidth()
                         )
-
-                        // Show bot status for selected group
                         selectedGroup?.let { group ->
                             when {
                                 isCheckingBot -> {
@@ -935,7 +902,6 @@ fun SendTelegramConfigDialog(
                                         Text("Checking bot status...")
                                     }
                                 }
-
                                 !group.isBotMember -> {
                                     Card(
                                         backgroundColor = MaterialTheme.colors.secondary.copy(alpha = 0.1f),
@@ -966,7 +932,6 @@ fun SendTelegramConfigDialog(
                                         }
                                     }
                                 }
-
                                 group.isBotMember && !group.isBotActive -> {
                                     Card(
                                         backgroundColor = MaterialTheme.colors.primary.copy(alpha = 0.1f),
@@ -979,7 +944,6 @@ fun SendTelegramConfigDialog(
                                                 color = MaterialTheme.colors.primary
                                             )
                                             Text("The bot is in the group but needs to be activated.")
-
                                             if (isSendingStart) {
                                                 Row(
                                                     verticalAlignment = Alignment.CenterVertically,
@@ -1009,7 +973,6 @@ fun SendTelegramConfigDialog(
                                         }
                                     }
                                 }
-
                                 group.isBotMember && group.isBotActive -> {
                                     Card(
                                         backgroundColor = Color.Green.copy(alpha = 0.1f),
@@ -1025,7 +988,7 @@ fun SendTelegramConfigDialog(
                                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                                             ) {
                                                 Icon(
-                                                    imageVector = Icons.Default.PlayArrow, // You might want to use a checkmark icon
+                                                    imageVector = Icons.Default.PlayArrow, // Replace with checkmark if available
                                                     contentDescription = "Ready",
                                                     tint = Color.Green
                                                 )
@@ -1059,9 +1022,7 @@ fun SendTelegramConfigDialog(
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
-                        onClick = {
-                            onAdd(telegramChatId)
-                        },
+                        onClick = { onAdd(telegramChatId) },
                         enabled = selectedGroup?.isBotMember == true && selectedGroup?.isBotActive == true
                     ) {
                         Text(stringResource(id = R.string.confirm))
