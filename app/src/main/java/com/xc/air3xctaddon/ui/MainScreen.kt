@@ -11,6 +11,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -259,6 +261,15 @@ fun AddConfigDialog(
 ) {
     var selectedEvent by remember { mutableStateOf<String?>(null) }
     var taskType by remember { mutableStateOf("Sound") }
+    var showEventDropdown by remember { mutableStateOf(false) }
+
+    // Log available events and selected event
+    LaunchedEffect(availableEvents) {
+        Log.d("AddConfigDialog", "Available events: $availableEvents")
+    }
+    LaunchedEffect(selectedEvent) {
+        Log.d("AddConfigDialog", "Selected event: $selectedEvent")
+    }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -280,16 +291,48 @@ fun AddConfigDialog(
                     style = MaterialTheme.typography.h6
                 )
 
-                // Event selection
-                DropdownMenuSpinner(
-                    items = availableEvents.filterIsInstance<MainViewModel.EventItem.Event>().map { SpinnerItem.Item(it.name) },
-                    selectedItem = selectedEvent ?: "",
-                    onItemSelected = { selectedEvent = it },
-                    label = "Event",
-                    modifier = Modifier.fillMaxWidth()
-                )
+                // Event selection using TextField and DropdownMenu
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    TextField(
+                        value = selectedEvent ?: "",
+                        onValueChange = {},
+                        label = { Text("Event") },
+                        readOnly = true,
+                        trailingIcon = {
+                            IconButton(onClick = { showEventDropdown = !showEventDropdown }) {
+                                Icon(
+                                    imageVector = if (showEventDropdown) Icons.Filled.ArrowDropUp else Icons.Filled.ArrowDropDown,
+                                    contentDescription = "Toggle dropdown"
+                                )
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    DropdownMenu(
+                        expanded = showEventDropdown,
+                        onDismissRequest = { showEventDropdown = false },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        val eventItems = availableEvents.filterIsInstance<MainViewModel.EventItem.Event>()
+                        if (eventItems.isEmpty()) {
+                            DropdownMenuItem(onClick = {}) {
+                                Text("No events available")
+                            }
+                        } else {
+                            eventItems.forEach { event ->
+                                DropdownMenuItem(onClick = {
+                                    selectedEvent = event.name
+                                    showEventDropdown = false
+                                    Log.d("AddConfigDialog", "Event selected: ${event.name}")
+                                }) {
+                                    Text(event.name)
+                                }
+                            }
+                        }
+                    }
+                }
 
-                // Task type selection
+                // Task type selection using DropdownMenuSpinner
                 DropdownMenuSpinner(
                     items = listOf("Sound", "SendTelegramPosition").map { SpinnerItem.Item(it) },
                     selectedItem = taskType,
