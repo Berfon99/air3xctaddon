@@ -25,7 +25,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xc.air3xctaddon.R
@@ -64,9 +63,7 @@ fun DropdownMenuSpinner(
                     Log.d("DropdownMenuSpinner", "Text clicked, expanded set to true")
                 },
             fontSize = 14.sp,
-            textAlign = TextAlign.Start,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            textAlign = TextAlign.Start
         )
         DropdownMenu(
             expanded = expanded,
@@ -75,7 +72,7 @@ fun DropdownMenuSpinner(
                 Log.d("DropdownMenuSpinner", "Dropdown dismissed, expanded set to false")
             },
             modifier = Modifier
-                .width(480.dp)
+                .width(800.dp)
                 .heightIn(max = 300.dp)
         ) {
             if (items.isEmpty()) {

@@ -28,7 +28,7 @@ class TelegramBotHelper(
             .toString()
 
         val requestBody = RequestBody.create(
-            "application/json; charset=utf-8".toMediaType(), // Fixed: Replaced MediaType.parse
+            "application/json; charset=utf-8".toMediaType(),
             json
         )
 
@@ -72,7 +72,11 @@ class TelegramBotHelper(
     }
 
     fun fetchGroups(onResult: (List<TelegramGroup>) -> Unit, onError: (String) -> Unit) {
-        val url = "https://api.telegram.org/bot$botToken/getUpdates"
+        fetchGroupsWithOffset(0, onResult, onError)
+    }
+
+    private fun fetchGroupsWithOffset(offset: Int, onResult: (List<TelegramGroup>) -> Unit, onError: (String) -> Unit) {
+        val url = "https://api.telegram.org/bot$botToken/getUpdates?offset=$offset"
         val request = Request.Builder()
             .url(url)
             .get()
@@ -84,38 +88,62 @@ class TelegramBotHelper(
             }
 
             override fun onResponse(call: Call, response: Response) {
-                if (response.isSuccessful) {
-                    val json = response.body?.string() ?: run {
-                        onError("Response body is null")
-                        response.close()
-                        return
-                    }
+                if (!response.isSuccessful) {
+                    onError("Error fetching groups: ${response.message}")
+                    response.close()
+                    return
+                }
+
+                val json = response.body?.string() ?: run {
+                    onError("Response body is null")
+                    response.close()
+                    return
+                }
+
+                Log.d("TelegramBotHelper", "getUpdates response: $json")
+
+                try {
+                    val jsonObject = JSONObject(json)
+                    val updates = jsonObject.getJSONArray("result")
                     val groups = mutableListOf<TelegramGroup>()
-                    try {
-                        val updates = JSONObject(json).getJSONArray("result")
-                        val seenChatIds = mutableSetOf<String>()
-                        for (i in 0 until updates.length()) {
-                            val update = updates.getJSONObject(i)
-                            if (update.has("message")) {
-                                val message = update.getJSONObject("message")
-                                val chat = message.getJSONObject("chat")
-                                val chatId = chat.getString("id")
-                                val chatType = chat.getString("type")
-                                if ((chatType == "group" || chatType == "supergroup") && chatId !in seenChatIds) {
-                                    val title = chat.optString("title", "Unknown Group")
-                                    groups.add(TelegramGroup(chatId, title))
-                                    seenChatIds.add(chatId)
-                                }
+                    val seenChatIds = mutableSetOf<String>()
+                    var maxUpdateId = offset
+
+                    for (i in 0 until updates.length()) {
+                        val update = updates.getJSONObject(i)
+                        val updateId = update.optInt("update_id", 0)
+                        if (updateId > maxUpdateId) maxUpdateId = updateId
+
+                        if (update.has("message")) {
+                            val message = update.getJSONObject("message")
+                            val chat = message.getJSONObject("chat")
+                            val chatId = chat.getString("id")
+                            val chatType = chat.getString("type")
+                            if ((chatType == "group" || chatType == "supergroup") && chatId !in seenChatIds) {
+                                val title = chat.optString("title", "Unknown Group")
+                                groups.add(TelegramGroup(chatId, title))
+                                seenChatIds.add(chatId)
                             }
                         }
-                        onResult(groups)
-                    } catch (e: Exception) {
-                        onError("Error parsing groups: ${e.message}")
                     }
-                } else {
-                    onError("Error fetching groups: ${response.message}")
+
+                    if (updates.length() == 100) {
+                        // More updates may be available, fetch next batch
+                        fetchGroupsWithOffset(maxUpdateId + 1, { newGroups ->
+                            onResult(groups + newGroups)
+                        }, onError)
+                    } else {
+                        if (groups.isEmpty()) {
+                            onError("No groups found. Ensure @AIR3SendPositionBot is added to a group and /start is sent.")
+                        } else {
+                            onResult(groups)
+                        }
+                    }
+                } catch (e: Exception) {
+                    onError("Error parsing groups: ${e.message}")
+                } finally {
+                    response.close()
                 }
-                response.close()
             }
         })
     }

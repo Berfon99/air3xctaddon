@@ -613,6 +613,25 @@ fun SendTelegramConfigDialog(
     val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
     val telegramBotHelper = remember { TelegramBotHelper(BuildConfig.TELEGRAM_BOT_TOKEN, fusedLocationClient) }
 
+    fun fetchGroups() {
+        isLoadingGroups = true
+        telegramBotHelper.fetchGroups(
+            onResult = { fetchedGroups ->
+                groups = fetchedGroups
+                isLoadingGroups = false
+                if (fetchedGroups.isEmpty()) {
+                    groupError = "No groups found. Add @AIR3SendPositionBot to a group and send /start in the group chat."
+                } else {
+                    groupError = null
+                }
+            },
+            onError = { error ->
+                isLoadingGroups = false
+                groupError = error
+            }
+        )
+    }
+
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
@@ -620,22 +639,7 @@ fun SendTelegramConfigDialog(
         if (!isGranted) {
             groupError = "Location permission denied. Please grant permission to select a group."
         } else {
-            isLoadingGroups = true
-            telegramBotHelper.fetchGroups(
-                onResult = { fetchedGroups ->
-                    groups = fetchedGroups
-                    isLoadingGroups = false
-                    if (fetchedGroups.isEmpty()) {
-                        groupError = "No groups found. Send /start in a group with @AIR3SendPositionBot."
-                    } else {
-                        groupError = null
-                    }
-                },
-                onError = { error ->
-                    isLoadingGroups = false
-                    groupError = error
-                }
-            )
+            fetchGroups()
         }
     }
 
@@ -646,7 +650,7 @@ fun SendTelegramConfigDialog(
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             modifier = Modifier
-                .fillMaxWidth()
+                .widthIn(min = 800.dp)
                 .padding(16.dp),
             shape = MaterialTheme.shapes.medium,
             color = MaterialTheme.colors.surface
@@ -664,16 +668,24 @@ fun SendTelegramConfigDialog(
                 )
 
                 Text(
-                    text = "Send /start to @AIR3SendPositionBot in a group to select it.",
-                    style = MaterialTheme.typography.body2
+                    text = "Add @AIR3SendPositionBot to a group, then send /start in the group chat to select it.",
+                    style = MaterialTheme.typography.body2,
+                    modifier = Modifier.fillMaxWidth()
                 )
                 if (isLoadingGroups) {
                     Text("Loading groups...")
                 } else if (groupError != null) {
                     Text(
                         text = groupError ?: "Error loading groups",
-                        color = MaterialTheme.colors.error
+                        color = MaterialTheme.colors.error,
+                        modifier = Modifier.fillMaxWidth()
                     )
+                    Button(
+                        onClick = { fetchGroups() },
+                        modifier = Modifier.padding(top = 8.dp)
+                    ) {
+                        Text(stringResource(id = R.string.retry))
+                    }
                 } else {
                     DropdownMenuSpinner(
                         items = groups.map { SpinnerItem.Item(it.title) },
@@ -696,7 +708,7 @@ fun SendTelegramConfigDialog(
                     horizontalArrangement = Arrangement.End
                 ) {
                     TextButton(onClick = onDismiss) {
-                        Text("Cancel")
+                        Text(stringResource(id = R.string.cancel))
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
@@ -705,7 +717,7 @@ fun SendTelegramConfigDialog(
                         },
                         enabled = telegramChatId.isNotBlank()
                     ) {
-                        Text("Confirm")
+                        Text(stringResource(id = R.string.confirm))
                     }
                 }
             }
