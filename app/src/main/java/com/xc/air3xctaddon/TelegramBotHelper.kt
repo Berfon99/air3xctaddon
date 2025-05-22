@@ -85,6 +85,53 @@ class TelegramBotHelper(
         })
     }
 
+    fun sendLocationMessage(
+        chatId: String,
+        latitude: Double,
+        longitude: Double,
+        username: String? = null
+    ) {
+        val url = "https://api.telegram.org/bot$botToken/sendMessage"
+        val messageText = if (!username.isNullOrEmpty()) {
+            "Position from $username: https://maps.google.com/?q=$latitude,$longitude"
+        } else {
+            "Position: https://maps.google.com/?q=$latitude,$longitude"
+        }
+        val json = JSONObject()
+            .put("chat_id", chatId)
+            .put("text", messageText)
+            .toString()
+            .also { Log.d("TelegramBotHelper", "Sending location message JSON: $it, username=$username") }
+
+        val requestBody = RequestBody.create(
+            "application/json; charset=utf-8".toMediaType(),
+            json
+        )
+
+        val request = Request.Builder()
+            .url(url)
+            .post(requestBody)
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                Log.e("TelegramBotHelper", "Failed to send location message to chat $chatId, username=$username: ${e.message}")
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                if (response.isSuccessful) {
+                    Log.d("TelegramBotHelper", "Location message sent to chat $chatId, username=$username")
+                } else {
+                    Log.e("TelegramBotHelper", "Error sending location message to chat $chatId, username=$username: ${response.message}, code=${response.code}")
+                    response.body?.string()?.let { body ->
+                        Log.e("TelegramBotHelper", "Response body: $body")
+                    }
+                }
+                response.close()
+            }
+        })
+    }
+
     fun getCurrentLocation(onResult: (latitude: Double, longitude: Double) -> Unit, onError: (String) -> Unit) {
         try {
             fusedLocationClient.getCurrentLocation(LocationRequest.PRIORITY_HIGH_ACCURACY, CancellationTokenSource().token)
