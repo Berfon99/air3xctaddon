@@ -37,6 +37,12 @@ import com.xc.air3xctaddon.ui.theme.RowBackground
 import com.xc.air3xctaddon.ui.theme.SoundFieldBackground
 import java.io.File
 import com.xc.air3xctaddon.R
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Refresh
 
 @Composable
 fun ConfigRow(
@@ -613,12 +619,19 @@ fun SendTelegramConfigDialog(
     var botInfo by remember { mutableStateOf<TelegramBotInfo?>(null) }
     var selectedGroup by remember { mutableStateOf<TelegramGroup?>(null) }
     var showBotSetupDialog by remember { mutableStateOf(false) }
+    var isAddingNewGroup by remember { mutableStateOf(false) } // Track intent to add new group
 
     val context = LocalContext.current
     val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
     val telegramBotHelper = remember { TelegramBotHelper(BuildConfig.TELEGRAM_BOT_TOKEN, fusedLocationClient) }
 
-    fun fetchGroups() {
+    fun fetchGroups(retryCount: Int = 0, maxRetries: Int = 2) {
+        if (retryCount > maxRetries) {
+            isLoadingGroups = false
+            groupError = "Failed to fetch groups after $maxRetries retries"
+            Log.e("ConfigRow", "Max retries reached for fetchGroups")
+            return
+        }
         isLoadingGroups = true
         groupError = null
         telegramBotHelper.fetchGroups(
@@ -632,24 +645,30 @@ fun SendTelegramConfigDialog(
                     telegramGroupName = ""
                     selectedGroup = null
                 }
-                // Auto-select first active group if no selection
+                // Auto-select logic
                 if (telegramChatId.isEmpty() && fetchedGroups.isNotEmpty()) {
-                    val firstActiveGroup = fetchedGroups.firstOrNull { it.isBotMember && it.isBotActive }
-                        ?: fetchedGroups.first()
-                    telegramChatId = firstActiveGroup.chatId
-                    telegramGroupName = firstActiveGroup.title
-                    selectedGroup = firstActiveGroup
-                    Log.d("ConfigRow", "Auto-selected group: ${firstActiveGroup.title}")
+                    val targetGroup = if (isAddingNewGroup) {
+                        // Prefer newest group (highest chatId, assuming negative IDs are sequential)
+                        fetchedGroups.maxByOrNull { it.chatId.toLongOrNull() ?: Long.MIN_VALUE }
+                    } else {
+                        // Prefer active group, then first group
+                        fetchedGroups.firstOrNull { it.isBotMember && it.isBotActive } ?: fetchedGroups.first()
+                    }
+                    targetGroup?.let { group ->
+                        telegramChatId = group.chatId
+                        telegramGroupName = group.title
+                        selectedGroup = group
+                        Log.d("ConfigRow", "Auto-selected group: ${group.title}, isAddingNewGroup=$isAddingNewGroup")
+                    }
                 }
             },
             onError = { error ->
-                isLoadingGroups = false
-                groupError = error
-                telegramChatId = ""
-                telegramGroupName = ""
-                selectedGroup = null
-                groups = emptyList()
-                Log.e("ConfigRow", "Error fetching groups: $error")
+                Log.w("ConfigRow", "Fetch groups error (retry $retryCount/$maxRetries): $error")
+                // Retry with delay
+                CoroutineScope(Dispatchers.Main).launch {
+                    delay(1000L * (retryCount + 1)) // Exponential backoff: 1s, 2s, 3s
+                    fetchGroups(retryCount + 1, maxRetries)
+                }
             }
         )
     }
@@ -723,7 +742,7 @@ fun SendTelegramConfigDialog(
         }
     }
 
-    // Fetch groups when dialog opens, preserve groups unless refreshing
+    // Fetch groups when dialog opens
     LaunchedEffect(Unit) {
         telegramBotHelper.getBotInfo(
             onResult = { info -> botInfo = info },
@@ -736,13 +755,11 @@ fun SendTelegramConfigDialog(
         }
     }
 
-    // Reset selection when bot setup dialog is dismissed
+    // Refresh groups when bot setup dialog is dismissed
     LaunchedEffect(showBotSetupDialog) {
         if (!showBotSetupDialog) {
-            telegramChatId = ""
-            telegramGroupName = ""
-            selectedGroup = null
-            fetchGroups() // Refresh groups to ensure new groups appear
+            isAddingNewGroup = false // Reset after dialog dismiss
+            fetchGroups()
         }
     }
 
@@ -762,6 +779,7 @@ fun SendTelegramConfigDialog(
             confirmButton = {
                 Button(
                     onClick = {
+                        isAddingNewGroup = true // Mark intent to add new group
                         botInfo?.let { info ->
                             telegramBotHelper.openTelegramToAddBot(context, info.username)
                         }
@@ -805,10 +823,10 @@ fun SendTelegramConfigDialog(
                     )
                     IconButton(
                         onClick = { fetchGroups() },
-                        enabled = !isLoadingGroups
+                        enabled = true // Always enable to allow retry
                     ) {
                         Icon(
-                            imageVector = Icons.Default.PlayArrow, // Replace with refresh icon if available
+                            imageVector = Icons.Default.Refresh, // Use correct refresh icon
                             contentDescription = "Refresh",
                             tint = MaterialTheme.colors.primary
                         )
@@ -904,6 +922,7 @@ fun SendTelegramConfigDialog(
                                     telegramChatId = ""
                                     selectedGroup = null
                                     showBotSetupDialog = true
+                                    isAddingNewGroup = true
                                     Log.d("ConfigRow", "Selected 'Other...', opening bot setup dialog")
                                 } else {
                                     groups.find { it.title == selectedTitle }?.let { group ->
@@ -911,6 +930,7 @@ fun SendTelegramConfigDialog(
                                         telegramGroupName = group.title
                                         selectedGroup = group
                                         checkBotInSelectedGroup()
+                                        isAddingNewGroup = false
                                         Log.d("ConfigRow", "Selected group: ${group.title}")
                                     }
                                 }
@@ -1015,7 +1035,7 @@ fun SendTelegramConfigDialog(
                                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                                             ) {
                                                 Icon(
-                                                    imageVector = Icons.Default.PlayArrow, // Replace with checkmark if available
+                                                    imageVector = Icons.Default.Check, // Use checkmark
                                                     contentDescription = "Ready",
                                                     tint = Color.Green
                                                 )

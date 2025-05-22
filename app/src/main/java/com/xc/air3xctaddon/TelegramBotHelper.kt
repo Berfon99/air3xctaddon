@@ -7,9 +7,12 @@ import android.util.Log
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.tasks.CancellationTokenSource
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
-import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
 
@@ -22,7 +25,8 @@ data class TelegramGroup(
 
 data class TelegramBotInfo(
     val username: String,
-    val botName: String
+    val botName: String,
+    val id: Long
 )
 
 class TelegramBotHelper(
@@ -93,17 +97,20 @@ class TelegramBotHelper(
 
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
+                Log.e("TelegramBotHelper", "Failed to get bot info: ${e.message}")
                 onError("Failed to get bot info: ${e.message}")
             }
 
             override fun onResponse(call: Call, response: Response) {
                 if (!response.isSuccessful) {
+                    Log.e("TelegramBotHelper", "Error getting bot info: ${response.message}")
                     onError("Error getting bot info: ${response.message}")
                     response.close()
                     return
                 }
 
                 val json = response.body?.string() ?: run {
+                    Log.e("TelegramBotHelper", "Response body is null")
                     onError("Response body is null")
                     response.close()
                     return
@@ -114,8 +121,11 @@ class TelegramBotHelper(
                     val result = jsonObject.getJSONObject("result")
                     val username = result.getString("username")
                     val firstName = result.getString("first_name")
-                    onResult(TelegramBotInfo(username, firstName))
+                    val id = result.getLong("id")
+                    Log.d("TelegramBotHelper", "Bot info fetched: username=$username, id=$id")
+                    onResult(TelegramBotInfo(username, firstName, id))
                 } catch (e: Exception) {
+                    Log.e("TelegramBotHelper", "Error parsing bot info: ${e.message}")
                     onError("Error parsing bot info: ${e.message}")
                 } finally {
                     response.close()
@@ -125,43 +135,54 @@ class TelegramBotHelper(
     }
 
     fun checkBotInGroup(chatId: String, onResult: (Boolean, Boolean) -> Unit, onError: (String) -> Unit) {
-        val url = "https://api.telegram.org/bot$botToken/getChatMember?chat_id=$chatId&user_id=${getBotUserId()}"
-        val request = Request.Builder()
-            .url(url)
-            .get()
-            .build()
+        getBotInfo(
+            onResult = { botInfo ->
+                val url = "https://api.telegram.org/bot$botToken/getChatMember?chat_id=$chatId&user_id=${botInfo.id}"
+                val request = Request.Builder()
+                    .url(url)
+                    .get()
+                    .build()
 
-        client.newCall(request).enqueue(object : Callback {
-            override fun onFailure(call: Call, e: IOException) {
-                onError("Failed to check bot status: ${e.message}")
-            }
-
-            override fun onResponse(call: Call, response: Response) {
-                val json = response.body?.string() ?: ""
-                response.close()
-
-                if (!response.isSuccessful) {
-                    // Bot is not in the group
-                    onResult(false, false)
-                    return
-                }
-
-                try {
-                    val jsonObject = JSONObject(json)
-                    if (jsonObject.getBoolean("ok")) {
-                        val result = jsonObject.getJSONObject("result")
-                        val status = result.getString("status")
-                        val isMember = status in listOf("member", "administrator", "creator")
-                        // For this use case, if bot is a member, we consider it active
-                        onResult(isMember, isMember)
-                    } else {
-                        onResult(false, false)
+                client.newCall(request).enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) {
+                        Log.e("TelegramBotHelper", "Failed to check bot status for chat $chatId: ${e.message}")
+                        onError("Failed to check bot status: ${e.message}")
                     }
-                } catch (e: Exception) {
-                    onResult(false, false)
-                }
+
+                    override fun onResponse(call: Call, response: Response) {
+                        val json = response.body?.string() ?: ""
+                        response.close()
+
+                        if (!response.isSuccessful) {
+                            Log.d("TelegramBotHelper", "Bot not in group $chatId: ${response.message} (code=${response.code})")
+                            onResult(false, false)
+                            return
+                        }
+
+                        try {
+                            val jsonObject = JSONObject(json)
+                            if (jsonObject.getBoolean("ok")) {
+                                val result = jsonObject.getJSONObject("result")
+                                val status = result.getString("status")
+                                val isMember = status in listOf("member", "administrator", "creator")
+                                Log.d("TelegramBotHelper", "Bot status in chat $chatId: isMember=$isMember, status=$status")
+                                onResult(isMember, isMember)
+                            } else {
+                                Log.d("TelegramBotHelper", "Bot not in group $chatId: Response not ok, json=$json")
+                                onResult(false, false)
+                            }
+                        } catch (e: Exception) {
+                            Log.e("TelegramBotHelper", "Error parsing bot status for chat $chatId: ${e.message}, json=$json")
+                            onResult(false, false)
+                        }
+                    }
+                })
+            },
+            onError = { error ->
+                Log.e("TelegramBotHelper", "Failed to get bot info for checkBotInGroup: $error")
+                onError("Failed to get bot info: $error")
             }
-        })
+        )
     }
 
     fun sendStartCommand(chatId: String, onResult: () -> Unit, onError: (String) -> Unit) {
@@ -183,6 +204,7 @@ class TelegramBotHelper(
 
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
+                Log.e("TelegramBotHelper", "Failed to send start command: ${e.message}")
                 onError("Failed to send start command: ${e.message}")
             }
 
@@ -191,6 +213,7 @@ class TelegramBotHelper(
                     Log.d("TelegramBotHelper", "Start command sent to chat $chatId")
                     onResult()
                 } else {
+                    Log.e("TelegramBotHelper", "Error sending start command: ${response.message}")
                     onError("Error sending start command: ${response.message}")
                 }
                 response.close()
@@ -199,39 +222,33 @@ class TelegramBotHelper(
     }
 
     fun openTelegramToAddBot(context: Context, botUsername: String, groupTitle: String? = null) {
-        val intent = if (groupTitle != null) {
-            // Try to open Telegram with a deep link to add bot to a specific group
-            Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/$botUsername?startgroup=true"))
-        } else {
-            // Open bot in Telegram
-            Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/$botUsername"))
-        }
-
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-
+        val deepLink = "https://t.me/${botUsername.removePrefix("@")}?startgroup=true"
+        Log.d("TelegramBotHelper", "Opening Telegram with deep link: $deepLink")
         try {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(deepLink))
+            intent.setPackage("org.telegram.messenger")
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(intent)
         } catch (e: Exception) {
-            // Fallback to web browser
-            val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/$botUsername"))
+            Log.e("TelegramBotHelper", "Failed to open Telegram: ${e.message}")
+            val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse(deepLink))
             webIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(webIntent)
         }
     }
 
-    private fun getBotUserId(): String {
-        // Extract bot user ID from token (it's the part before the colon)
-        return botToken.substringBefore(":")
-    }
-
     fun fetchGroups(onResult: (List<TelegramGroup>) -> Unit, onError: (String) -> Unit) {
-        fetchGroupsWithOffset(0, { rawGroups ->
-            Log.d("TelegramBotHelper", "Raw groups fetched: ${rawGroups.map { it.title }}")
-            validateGroups(rawGroups, { validatedGroups ->
-                Log.d("TelegramBotHelper", "Validated groups: ${validatedGroups.map { it.title }}")
-                onResult(validatedGroups)
+        // Add delay to ensure Telegram processes new group
+        CoroutineScope(Dispatchers.IO).launch {
+            delay(2000L) // Wait 2s for Telegram to process
+            fetchGroupsWithOffset(0, { rawGroups ->
+                Log.d("TelegramBotHelper", "Raw groups fetched: ${rawGroups.map { it.title }}")
+                validateGroups(rawGroups, { validatedGroups ->
+                    Log.d("TelegramBotHelper", "Validated groups: ${validatedGroups.map { it.title }}")
+                    onResult(validatedGroups)
+                }, onError)
             }, onError)
-        }, onError)
+        }
     }
 
     private fun validateGroups(
