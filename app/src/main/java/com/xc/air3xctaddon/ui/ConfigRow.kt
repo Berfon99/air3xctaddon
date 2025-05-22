@@ -623,6 +623,12 @@ fun SendTelegramConfigDialog(
                     groupError = "No groups found. Add @AIR3SendPositionBot to a group and send /start in the group chat."
                 } else {
                     groupError = null
+                    // Auto-select the first group if available and none is selected
+                    if (telegramChatId.isEmpty() && fetchedGroups.isNotEmpty()) {
+                        val firstGroup = fetchedGroups.first()
+                        telegramChatId = firstGroup.chatId
+                        telegramGroupName = firstGroup.title
+                    }
                 }
             },
             onError = { error ->
@@ -672,6 +678,7 @@ fun SendTelegramConfigDialog(
                     style = MaterialTheme.typography.body2,
                     modifier = Modifier.fillMaxWidth()
                 )
+
                 if (isLoadingGroups) {
                     Text("Loading groups...")
                 } else if (groupError != null) {
@@ -687,9 +694,10 @@ fun SendTelegramConfigDialog(
                         Text(stringResource(id = R.string.retry))
                     }
                 } else {
+                    // Show the group selection UI
                     DropdownMenuSpinner(
                         items = groups.map { SpinnerItem.Item(it.title) },
-                        selectedItem = telegramGroupName,
+                        selectedItem = if (telegramGroupName.isNotEmpty()) telegramGroupName else if (groups.isEmpty()) "No group selected" else "Select Group",
                         onItemSelected = { selectedTitle ->
                             groups.find { it.title == selectedTitle }?.let { group ->
                                 telegramChatId = group.chatId
