@@ -39,13 +39,27 @@ class MainActivity : ComponentActivity() {
             copyAndVerifySoundFiles()
         }
 
-        // Check location permissions
+        // Check location and notification permissions
+        val permissionsToRequest = mutableListOf<String>()
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            Log.d(TAG, "Requesting ACCESS_FINE_LOCATION permission")
+            permissionsToRequest.add(Manifest.permission.ACCESS_FINE_LOCATION)
+            Log.d(TAG, "ACCESS_FINE_LOCATION permission needed")
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
+            Log.d(TAG, "POST_NOTIFICATIONS permission needed")
+        }
+
+        if (permissionsToRequest.isNotEmpty()) {
+            Log.d(TAG, "Requesting permissions: $permissionsToRequest")
             requestPermissions(
-                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
-                REQUEST_LOCATION_PERMISSION
+                permissionsToRequest.toTypedArray(),
+                REQUEST_LOCATION_PERMISSION // Reuse location code, as it handles both
             )
+        } else {
+            startLogMonitorService()
         }
 
         setContent {
@@ -53,8 +67,6 @@ class MainActivity : ComponentActivity() {
                 MainScreen()
             }
         }
-
-        requestNotificationPermissions()
     }
 
     private fun copyAndVerifySoundFiles() {
@@ -125,11 +137,35 @@ class MainActivity : ComponentActivity() {
                 }
             }
             REQUEST_LOCATION_PERMISSION -> {
-                if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    Log.d(TAG, "ACCESS_FINE_LOCATION permission granted")
+                var locationGranted = false
+                var notificationGranted = true // Default to true if not requested
+                for (i in permissions.indices) {
+                    when (permissions[i]) {
+                        Manifest.permission.ACCESS_FINE_LOCATION -> {
+                            if (grantResults[i] == PackageManager.PERMISSION_GRANTED) {
+                                Log.d(TAG, "ACCESS_FINE_LOCATION permission granted")
+                                locationGranted = true
+                            } else {
+                                Log.w(TAG, "ACCESS_FINE_LOCATION permission denied")
+                                Toast.makeText(this, "Location permission required for Telegram position", Toast.LENGTH_LONG).show()
+                            }
+                        }
+                        Manifest.permission.POST_NOTIFICATIONS -> {
+                            if (grantResults[i] == PackageManager.PERMISSION_GRANTED) {
+                                Log.d(TAG, "POST_NOTIFICATIONS permission granted")
+                                notificationGranted = true
+                            } else {
+                                Log.w(TAG, "POST_NOTIFICATIONS permission denied")
+                                Toast.makeText(this, getString(R.string.notification_permission_required), Toast.LENGTH_LONG).show()
+                                notificationGranted = false
+                            }
+                        }
+                    }
+                }
+                if (locationGranted && notificationGranted) {
+                    startLogMonitorService()
                 } else {
-                    Log.w(TAG, "ACCESS_FINE_LOCATION permission denied")
-                    Toast.makeText(this, "Location permission required for Telegram position", Toast.LENGTH_LONG).show()
+                    startLogMonitorService() // Start anyway, as service may handle partial permissions
                 }
             }
         }
