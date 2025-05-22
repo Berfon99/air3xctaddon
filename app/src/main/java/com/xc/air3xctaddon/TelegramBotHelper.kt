@@ -35,14 +35,26 @@ class TelegramBotHelper(
 ) {
     private val client = OkHttpClient()
 
-    fun sendLiveLocation(chatId: String, latitude: Double, longitude: Double, livePeriod: Int = 3600) {
+    fun sendLiveLocation(
+        chatId: String,
+        latitude: Double,
+        longitude: Double,
+        livePeriod: Int = 3600,
+        username: String? = null
+    ) {
         val url = "https://api.telegram.org/bot$botToken/sendLocation"
         val json = JSONObject()
             .put("chat_id", chatId)
             .put("latitude", latitude)
             .put("longitude", longitude)
             .put("live_period", livePeriod)
+            .apply {
+                if (!username.isNullOrEmpty()) {
+                    put("caption", "Position from $username")
+                }
+            }
             .toString()
+            .also { Log.d("TelegramBotHelper", "Sending live location JSON: $it, username=$username") }
 
         val requestBody = RequestBody.create(
             "application/json; charset=utf-8".toMediaType(),
@@ -56,14 +68,17 @@ class TelegramBotHelper(
 
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
-                Log.e("TelegramBotHelper", "Failed to send location: ${e.message}")
+                Log.e("TelegramBotHelper", "Failed to send live location to chat $chatId, username=$username: ${e.message}")
             }
 
             override fun onResponse(call: Call, response: Response) {
                 if (response.isSuccessful) {
-                    Log.d("TelegramBotHelper", "Location sent to chat $chatId")
+                    Log.d("TelegramBotHelper", "Live location sent to chat $chatId, username=$username")
                 } else {
-                    Log.e("TelegramBotHelper", "Error sending location: ${response.message}")
+                    Log.e("TelegramBotHelper", "Error sending live location to chat $chatId, username=$username: ${response.message}, code=${response.code}")
+                    response.body?.string()?.let { body ->
+                        Log.e("TelegramBotHelper", "Response body: $body")
+                    }
                 }
                 response.close()
             }

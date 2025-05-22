@@ -505,7 +505,8 @@ fun ConfigRow(
                                                 volumePercentage = volumePercentage,
                                                 playCount = playCount,
                                                 telegramChatId = null,
-                                                telegramGroupName = null
+                                                telegramGroupName = null,
+                                                telegramUsername = null
                                             ))
                                             soundDialogOpen = false
                                             Log.d("ConfigRow", "Sound config saved: $soundFile, $volumeType, $volumePercentage, $playCount")
@@ -522,7 +523,7 @@ fun ConfigRow(
 
                 if (telegramDialogOpen) {
                     SendTelegramConfigDialog(
-                        onAdd = { selectedChatId, groupName ->
+                        onAdd = { selectedChatId, groupName, username ->
                             taskType = "SendTelegramPosition"
                             telegramChatId = selectedChatId
                             onUpdate(config.copy(
@@ -532,10 +533,11 @@ fun ConfigRow(
                                 volumePercentage = 100,
                                 playCount = 1,
                                 telegramChatId = telegramChatId,
-                                telegramGroupName = groupName
+                                telegramGroupName = groupName,
+                                telegramUsername = username
                             ))
                             telegramDialogOpen = false
-                            Log.d("ConfigRow", "Telegram config saved: chatId=$selectedChatId, groupName=$groupName")
+                            Log.d("ConfigRow", "Telegram config saved: chatId=$selectedChatId, groupName=$groupName, username=$username")
                         },
                         onDismiss = { telegramDialogOpen = false }
                     )
@@ -552,8 +554,13 @@ fun ConfigRow(
                             Log.d("ConfigRow", "Main play button clicked for SendTelegramPosition: chatId=$telegramChatId")
                             telegramBotHelper.getCurrentLocation(
                                 onResult = { latitude, longitude ->
-                                    telegramBotHelper.sendLiveLocation(telegramChatId, latitude, longitude)
-                                    Log.d("ConfigRow", "Sent location to Telegram: lat=$latitude, lon=$longitude")
+                                    telegramBotHelper.sendLiveLocation(
+                                        chatId = telegramChatId,
+                                        latitude = latitude,
+                                        longitude = longitude,
+                                        username = config.telegramUsername // New parameter
+                                    )
+                                    Log.d("ConfigRow", "Sent location to Telegram: lat=$latitude, lon=$longitude, username=${config.telegramUsername}")
                                 },
                                 onError = { error ->
                                     Log.e("ConfigRow", "Failed to get location: $error")
