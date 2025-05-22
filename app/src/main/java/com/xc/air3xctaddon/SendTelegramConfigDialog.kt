@@ -31,7 +31,7 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun SendTelegramConfigDialog(
-    onAdd: (String) -> Unit,
+    onAdd: (String, String) -> Unit, // Updated to return chatId and groupName
     onDismiss: () -> Unit
 ) {
     var telegramChatId by remember { mutableStateOf("") }
@@ -139,7 +139,7 @@ fun SendTelegramConfigDialog(
                     groups = groups.map {
                         if (it.chatId == group.chatId) it.copy(isBotActive = true) else it
                     }
-                    onAdd(group.chatId)
+                    onAdd(group.chatId, group.title) // Updated to pass groupName
                     Log.d("ConfigRow", "Bot activated in group ${group.title}, chatId=${group.chatId}")
                 },
                 onError = { error ->
@@ -521,7 +521,7 @@ fun SendTelegramConfigDialog(
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
-                        onClick = { onAdd(telegramChatId) },
+                        onClick = { onAdd(telegramChatId, telegramGroupName) }, // Updated to pass groupName
                         enabled = selectedGroup?.isBotMember == true && selectedGroup?.isBotActive == true
                     ) {
                         Text(stringResource(id = R.string.confirm))

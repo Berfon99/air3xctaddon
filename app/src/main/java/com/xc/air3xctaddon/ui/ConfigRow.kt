@@ -268,7 +268,13 @@ fun ConfigRow(
                             .background(SoundFieldBackground)
                     ) {
                         Text(
-                            text = if (taskData.isEmpty()) stringResource(id = R.string.select_task) else taskData,
+                            text = if (taskType == "SendTelegramPosition" && config.telegramGroupName != null) {
+                                "Group: ${config.telegramGroupName}"
+                            } else if (taskType == "Sound" && taskData.isNotEmpty()) {
+                                taskData
+                            } else {
+                                stringResource(id = R.string.select_task)
+                            },
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -498,7 +504,8 @@ fun ConfigRow(
                                                 volumeType = volumeType,
                                                 volumePercentage = volumePercentage,
                                                 playCount = playCount,
-                                                telegramChatId = null
+                                                telegramChatId = null,
+                                                telegramGroupName = null
                                             ))
                                             soundDialogOpen = false
                                             Log.d("ConfigRow", "Sound config saved: $soundFile, $volumeType, $volumePercentage, $playCount")
@@ -515,20 +522,20 @@ fun ConfigRow(
 
                 if (telegramDialogOpen) {
                     SendTelegramConfigDialog(
-                        onAdd = { selectedChatId ->
+                        onAdd = { selectedChatId, groupName ->
                             taskType = "SendTelegramPosition"
-                            taskData = "Send Telegram Position"
                             telegramChatId = selectedChatId
                             onUpdate(config.copy(
                                 taskType = taskType,
-                                taskData = taskData,
+                                taskData = null,
                                 volumeType = VolumeType.SYSTEM,
                                 volumePercentage = 100,
                                 playCount = 1,
-                                telegramChatId = telegramChatId
+                                telegramChatId = telegramChatId,
+                                telegramGroupName = groupName
                             ))
                             telegramDialogOpen = false
-                            Log.d("ConfigRow", "Telegram config saved: chatId=$selectedChatId")
+                            Log.d("ConfigRow", "Telegram config saved: chatId=$selectedChatId, groupName=$groupName")
                         },
                         onDismiss = { telegramDialogOpen = false }
                     )

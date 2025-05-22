@@ -13,5 +13,6 @@ data class EventConfig(
     val volumePercentage: Int,
     val playCount: Int,
     val position: Int,
-    val telegramChatId: String? = null
+    val telegramChatId: String? = null,
+    val telegramGroupName: String? = null // New field
 )
