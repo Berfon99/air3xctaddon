@@ -631,12 +631,13 @@ fun SendTelegramConfigDialog(
                     telegramGroupName = ""
                     selectedGroup = null
                 }
-                // Auto-select first valid group if no selection
+                // Auto-select first group with bot active if no selection
                 if (telegramChatId.isEmpty() && fetchedGroups.isNotEmpty()) {
-                    val firstGroup = fetchedGroups.first()
-                    telegramChatId = firstGroup.chatId
-                    telegramGroupName = firstGroup.title
-                    selectedGroup = firstGroup
+                    val firstActiveGroup = fetchedGroups.firstOrNull { it.isBotMember && it.isBotActive }
+                        ?: fetchedGroups.first()
+                    telegramChatId = firstActiveGroup.chatId
+                    telegramGroupName = firstActiveGroup.title
+                    selectedGroup = firstActiveGroup
                 }
             },
             onError = { error ->
@@ -645,6 +646,7 @@ fun SendTelegramConfigDialog(
                 telegramChatId = ""
                 telegramGroupName = ""
                 selectedGroup = null
+                groups = emptyList()
             }
         )
     }
@@ -740,11 +742,11 @@ fun SendTelegramConfigDialog(
             title = { Text("Add Bot to Group") },
             text = {
                 Column {
-                    Text("The bot is not added to the selected group yet.")
+                    Text("The bot is not added to '${selectedGroup?.title}' yet.")
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("Would you like to open Telegram to add the bot to '${selectedGroup?.title}'?")
+                    Text("Would you like to open Telegram to add the bot to this group?")
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("After adding the bot, come back here and refresh to continue the setup.", style = MaterialTheme.typography.caption)
+                    Text("After adding the bot, return here and refresh to continue.", style = MaterialTheme.typography.caption)
                 }
             },
             confirmButton = {
@@ -879,7 +881,7 @@ fun SendTelegramConfigDialog(
                         Text("Select the group where you want to send position updates:")
                         DropdownMenuSpinner(
                             items = groups.map { SpinnerItem.Item(it.title) },
-                            selectedItem = telegramGroupName.ifEmpty { "Select Group" },
+                            selectedItem = if (telegramGroupName.isEmpty() || groups.none { it.title == telegramGroupName }) "Select Group" else telegramGroupName,
                             onItemSelected = { selectedTitle ->
                                 groups.find { it.title == selectedTitle }?.let { group ->
                                     telegramChatId = group.chatId

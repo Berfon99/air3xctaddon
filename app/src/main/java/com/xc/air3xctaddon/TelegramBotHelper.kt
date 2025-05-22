@@ -232,7 +232,7 @@ class TelegramBotHelper(
                 return@clearUpdates
             }
             fetchGroupsWithOffset(0, { rawGroups ->
-                // Validate each group with checkBotInGroup
+                // Include all groups where bot is a member
                 validateGroups(rawGroups, onResult, onError)
             }, onError)
         }
@@ -283,14 +283,14 @@ class TelegramBotHelper(
                     }
                     groupsProcessed++
                     if (groupsProcessed == rawGroups.size) {
-                        onResult(validatedGroups)
+                        onResult(validatedGroups.sortedBy { it.title })
                     }
                 },
                 onError = { error ->
                     Log.w("TelegramBotHelper", "Skipping group ${group.title}: $error")
                     groupsProcessed++
                     if (groupsProcessed == rawGroups.size) {
-                        onResult(validatedGroups)
+                        onResult(validatedGroups.sortedBy { it.title })
                     }
                 }
             )
