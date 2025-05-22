@@ -225,40 +225,13 @@ class TelegramBotHelper(
     }
 
     fun fetchGroups(onResult: (List<TelegramGroup>) -> Unit, onError: (String) -> Unit) {
-        // Clear stale updates first
-        clearUpdates { success, error ->
-            if (!success) {
-                onError(error ?: "Failed to clear updates")
-                return@clearUpdates
-            }
-            fetchGroupsWithOffset(0, { rawGroups ->
-                // Include all groups where bot is a member
-                validateGroups(rawGroups, onResult, onError)
+        fetchGroupsWithOffset(0, { rawGroups ->
+            Log.d("TelegramBotHelper", "Raw groups fetched: ${rawGroups.map { it.title }}")
+            validateGroups(rawGroups, { validatedGroups ->
+                Log.d("TelegramBotHelper", "Validated groups: ${validatedGroups.map { it.title }}")
+                onResult(validatedGroups)
             }, onError)
-        }
-    }
-
-    private fun clearUpdates(onComplete: (Boolean, String?) -> Unit) {
-        val url = "https://api.telegram.org/bot$botToken/getUpdates?offset=-1"
-        val request = Request.Builder()
-            .url(url)
-            .get()
-            .build()
-
-        client.newCall(request).enqueue(object : Callback {
-            override fun onFailure(call: Call, e: IOException) {
-                onComplete(false, "Failed to clear updates: ${e.message}")
-            }
-
-            override fun onResponse(call: Call, response: Response) {
-                response.close()
-                if (response.isSuccessful) {
-                    onComplete(true, null)
-                } else {
-                    onComplete(false, "Error clearing updates: ${response.message}")
-                }
-            }
-        })
+        }, onError)
     }
 
     private fun validateGroups(
@@ -267,6 +240,7 @@ class TelegramBotHelper(
         onError: (String) -> Unit
     ) {
         if (rawGroups.isEmpty()) {
+            Log.d("TelegramBotHelper", "No raw groups to validate")
             onResult(emptyList())
             return
         }
@@ -278,6 +252,7 @@ class TelegramBotHelper(
             checkBotInGroup(
                 chatId = group.chatId,
                 onResult = { isMember, isActive ->
+                    Log.d("TelegramBotHelper", "Validated group ${group.title}: isMember=$isMember, isActive=$isActive")
                     if (isMember) {
                         validatedGroups.add(group.copy(isBotMember = isMember, isBotActive = isActive))
                     }
@@ -287,7 +262,7 @@ class TelegramBotHelper(
                     }
                 },
                 onError = { error ->
-                    Log.w("TelegramBotHelper", "Skipping group ${group.title}: $error")
+                    Log.w("TelegramBotHelper", "Error validating group ${group.title}: $error")
                     groupsProcessed++
                     if (groupsProcessed == rawGroups.size) {
                         onResult(validatedGroups.sortedBy { it.title })
@@ -310,17 +285,20 @@ class TelegramBotHelper(
 
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
+                Log.e("TelegramBotHelper", "Failed to fetch groups: ${e.message}")
                 onError("Failed to fetch groups: ${e.message}")
             }
 
             override fun onResponse(call: Call, response: Response) {
                 if (!response.isSuccessful) {
+                    Log.e("TelegramBotHelper", "Error fetching groups: ${response.message}")
                     onError("Error fetching groups: ${response.message}")
                     response.close()
                     return
                 }
 
                 val json = response.body?.string() ?: run {
+                    Log.e("TelegramBotHelper", "Response body is null")
                     onError("Response body is null")
                     response.close()
                     return
@@ -349,6 +327,7 @@ class TelegramBotHelper(
                                 val title = chat.optString("title", "Unknown Group")
                                 groups.add(TelegramGroup(chatId, title))
                                 seenChatIds.add(chatId)
+                                Log.d("TelegramBotHelper", "Found group: $title, chatId=$chatId")
                             }
                         }
                     }
@@ -361,6 +340,7 @@ class TelegramBotHelper(
                         onResult(groups)
                     }
                 } catch (e: Exception) {
+                    Log.e("TelegramBotHelper", "Error parsing groups: ${e.message}")
                     onError("Error parsing groups: ${e.message}")
                 } finally {
                     response.close()

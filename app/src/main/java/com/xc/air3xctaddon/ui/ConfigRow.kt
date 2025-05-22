@@ -623,21 +623,23 @@ fun SendTelegramConfigDialog(
         groupError = null
         telegramBotHelper.fetchGroups(
             onResult = { fetchedGroups ->
+                Log.d("ConfigRow", "Fetched groups: ${fetchedGroups.map { it.title }}")
                 groups = fetchedGroups
                 isLoadingGroups = false
                 // Clear selection if no valid groups or if current selection is invalid
-                if (fetchedGroups.isEmpty() || telegramChatId.isNotEmpty() && fetchedGroups.none { it.chatId == telegramChatId }) {
+                if (fetchedGroups.isEmpty() || (telegramChatId.isNotEmpty() && fetchedGroups.none { it.chatId == telegramChatId })) {
                     telegramChatId = ""
                     telegramGroupName = ""
                     selectedGroup = null
                 }
-                // Auto-select first group with bot active if no selection
+                // Auto-select first active group if no selection
                 if (telegramChatId.isEmpty() && fetchedGroups.isNotEmpty()) {
                     val firstActiveGroup = fetchedGroups.firstOrNull { it.isBotMember && it.isBotActive }
                         ?: fetchedGroups.first()
                     telegramChatId = firstActiveGroup.chatId
                     telegramGroupName = firstActiveGroup.title
                     selectedGroup = firstActiveGroup
+                    Log.d("ConfigRow", "Auto-selected group: ${firstActiveGroup.title}")
                 }
             },
             onError = { error ->
@@ -647,6 +649,7 @@ fun SendTelegramConfigDialog(
                 telegramGroupName = ""
                 selectedGroup = null
                 groups = emptyList()
+                Log.e("ConfigRow", "Error fetching groups: $error")
             }
         )
     }
@@ -662,6 +665,7 @@ fun SendTelegramConfigDialog(
                     groups = groups.map {
                         if (it.chatId == group.chatId) it.copy(isBotMember = isMember, isBotActive = isActive) else it
                     }
+                    Log.d("ConfigRow", "Checked group ${group.title}: isMember=$isMember, isActive=$isActive")
                     if (!isMember) {
                         showBotSetupDialog = true
                     }
@@ -670,6 +674,7 @@ fun SendTelegramConfigDialog(
                     isCheckingBot = false
                     groupError = "Failed to check bot status: $error"
                     selectedGroup = group.copy(isBotMember = false, isBotActive = false)
+                    Log.e("ConfigRow", "Error checking bot in group ${group.title}: $error")
                 }
             )
         }
@@ -687,10 +692,12 @@ fun SendTelegramConfigDialog(
                         if (it.chatId == group.chatId) it.copy(isBotActive = true) else it
                     }
                     onAdd(group.chatId)
+                    Log.d("ConfigRow", "Bot activated in group ${group.title}, chatId=${group.chatId}")
                 },
                 onError = { error ->
                     isSendingStart = false
                     groupError = "Failed to activate bot: $error"
+                    Log.e("ConfigRow", "Error activating bot in group ${group.title}: $error")
                 }
             )
         }
@@ -716,23 +723,26 @@ fun SendTelegramConfigDialog(
         }
     }
 
-    // Reset state when dialog opens or bot setup dialog is dismissed
-    LaunchedEffect(Unit, showBotSetupDialog) {
+    // Fetch groups when dialog opens, preserve groups unless refreshing
+    LaunchedEffect(Unit) {
+        telegramBotHelper.getBotInfo(
+            onResult = { info -> botInfo = info },
+            onError = { error -> Log.e("TelegramDialog", "Failed to get bot info: $error") }
+        )
+        if (hasLocationPermission) {
+            fetchGroups()
+        } else {
+            permissionLauncher.launch(android.Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+    }
+
+    // Reset selection when bot setup dialog is dismissed
+    LaunchedEffect(showBotSetupDialog) {
         if (!showBotSetupDialog) {
             telegramChatId = ""
             telegramGroupName = ""
             selectedGroup = null
-            groups = emptyList()
-            groupError = null
-            telegramBotHelper.getBotInfo(
-                onResult = { info -> botInfo = info },
-                onError = { error -> Log.e("TelegramDialog", "Failed to get bot info: $error") }
-            )
-            if (hasLocationPermission) {
-                fetchGroups()
-            } else {
-                permissionLauncher.launch(android.Manifest.permission.ACCESS_FINE_LOCATION)
-            }
+            fetchGroups() // Refresh groups to ensure new groups appear
         }
     }
 
@@ -742,9 +752,9 @@ fun SendTelegramConfigDialog(
             title = { Text("Add Bot to Group") },
             text = {
                 Column {
-                    Text("The bot is not added to '${selectedGroup?.title}' yet.")
+                    Text("Select the Group to which you want to add the bot to.")
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("Would you like to open Telegram to add the bot to this group?")
+                    Text("Would you like to open Telegram to add the bot to an existing group?")
                     Spacer(modifier = Modifier.height(8.dp))
                     Text("After adding the bot, return here and refresh to continue.", style = MaterialTheme.typography.caption)
                 }
@@ -753,7 +763,7 @@ fun SendTelegramConfigDialog(
                 Button(
                     onClick = {
                         botInfo?.let { info ->
-                            telegramBotHelper.openTelegramToAddBot(context, info.username, selectedGroup?.title)
+                            telegramBotHelper.openTelegramToAddBot(context, info.username)
                         }
                         showBotSetupDialog = false
                     }
@@ -861,6 +871,12 @@ fun SendTelegramConfigDialog(
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
                                     Button(
+                                        onClick = { showBotSetupDialog = true },
+                                        enabled = botInfo != null
+                                    ) {
+                                        Text("Add Bot to Group")
+                                    }
+                                    Button(
                                         onClick = {
                                             botInfo?.let { info ->
                                                 telegramBotHelper.openTelegramToAddBot(context, info.username)
@@ -880,14 +896,23 @@ fun SendTelegramConfigDialog(
                     else -> {
                         Text("Select the group where you want to send position updates:")
                         DropdownMenuSpinner(
-                            items = groups.map { SpinnerItem.Item(it.title) },
+                            items = groups.map { SpinnerItem.Item(it.title) } + SpinnerItem.Item("Other..."),
                             selectedItem = if (telegramGroupName.isEmpty() || groups.none { it.title == telegramGroupName }) "Select Group" else telegramGroupName,
                             onItemSelected = { selectedTitle ->
-                                groups.find { it.title == selectedTitle }?.let { group ->
-                                    telegramChatId = group.chatId
-                                    telegramGroupName = group.title
-                                    selectedGroup = group
-                                    checkBotInSelectedGroup()
+                                if (selectedTitle == "Other...") {
+                                    telegramGroupName = ""
+                                    telegramChatId = ""
+                                    selectedGroup = null
+                                    showBotSetupDialog = true
+                                    Log.d("ConfigRow", "Selected 'Other...', opening bot setup dialog")
+                                } else {
+                                    groups.find { it.title == selectedTitle }?.let { group ->
+                                        telegramChatId = group.chatId
+                                        telegramGroupName = group.title
+                                        selectedGroup = group
+                                        checkBotInSelectedGroup()
+                                        Log.d("ConfigRow", "Selected group: ${group.title}")
+                                    }
                                 }
                             },
                             label = "Telegram Group",
