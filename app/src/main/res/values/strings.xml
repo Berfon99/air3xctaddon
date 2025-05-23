@@ -53,6 +53,7 @@
     <string name="sound_files_copy_failed">Failed to copy sound files. Some features may not work.</string>
     <string name="sound_files_not_found">No sound files found. Some features may not work.</string>
     <string name="sound_files_error">Error copying sound files.</string>
+    <string name="overlay_permission_required">Overlay permission is required to launch apps in the background</string>
 
     <!-- Notification strings -->
     <string name="notification_channel_name">Log Monitor Service</string>
@@ -123,5 +124,6 @@
     <string name="add_pilot_name">Add Pilot Name</string>
     <string name="pilot_name_label">Pilot Name</string>
     <string name="current_pilot_name">Current Pilot Name: %s</string>
+
 
 </resources>

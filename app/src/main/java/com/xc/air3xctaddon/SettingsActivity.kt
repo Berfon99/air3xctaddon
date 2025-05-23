@@ -2,12 +2,7 @@ package com.xc.air3xctaddon
 
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Bundle
-import android.os.PowerManager
-import android.provider.Settings
-import android.util.Log
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -27,7 +22,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xc.air3xctaddon.ui.theme.AIR3XCTAddonTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
@@ -56,42 +50,10 @@ class SettingsActivity : ComponentActivity() {
                             )
                         )
                     }
-                    // Request permissions for LaunchApp
-                    requestPermissionsForLaunchApp()
                 }
             }
         }
     }
-
-    private val systemAlertWindowLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-        scope.launch {
-            delay(1500) // Increased delay for permission to register
-            val canDrawOverlays = Settings.canDrawOverlays(this@SettingsActivity)
-            Log.d("SettingsActivity", "SYSTEM_ALERT_WINDOW check: canDrawOverlays=$canDrawOverlays")
-            if (canDrawOverlays) {
-                Toast.makeText(this@SettingsActivity, "Overlay permission granted", Toast.LENGTH_SHORT).show()
-            } else {
-                Toast.makeText(
-                    this@SettingsActivity,
-                    "Overlay permission denied. If the app isn't listed in Settings, try reinstalling or use ADB: 'adb shell appops set com.xc.air3xctaddon SYSTEM_ALERT_WINDOW allow'",
-                    Toast.LENGTH_LONG
-                ).show()
-            }
-        }
-    }
-
-    private val batteryOptimizationLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-        val pm = getSystemService(POWER_SERVICE) as PowerManager
-        val isIgnoring = pm.isIgnoringBatteryOptimizations(packageName)
-        Log.d("SettingsActivity", "Battery optimization check: isIgnoring=$isIgnoring")
-        if (isIgnoring) {
-            Toast.makeText(this, "Battery optimization disabled", Toast.LENGTH_SHORT).show()
-        } else {
-            Toast.makeText(this, "Battery optimization enabled. App launching may be restricted.", Toast.LENGTH_LONG).show()
-        }
-    }
-
-    private val scope = CoroutineScope(Dispatchers.Main)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -100,39 +62,15 @@ class SettingsActivity : ComponentActivity() {
                 SettingsScreen(
                     onAddTask = {
                         taskResultLauncher.launch(Intent(this, AddTaskActivity::class.java))
-                    },
-                    onRequestPermissions = { requestPermissionsForLaunchApp() }
+                    }
                 )
             }
-        }
-    }
-
-    private fun requestPermissionsForLaunchApp() {
-        if (!Settings.canDrawOverlays(this)) {
-            val intent = Intent(
-                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                Uri.parse("package:$packageName")
-            )
-            Log.d("SettingsActivity", "Requesting SYSTEM_ALERT_WINDOW for package: $packageName")
-            systemAlertWindowLauncher.launch(intent)
-        } else {
-            Log.d("SettingsActivity", "SYSTEM_ALERT_WINDOW already granted")
-        }
-        val pm = getSystemService(POWER_SERVICE) as PowerManager
-        if (!pm.isIgnoringBatteryOptimizations(packageName)) {
-            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                data = Uri.parse("package:$packageName")
-            }
-            Log.d("SettingsActivity", "Requesting battery optimization exemption for package: $packageName")
-            batteryOptimizationLauncher.launch(intent)
-        } else {
-            Log.d("SettingsActivity", "Battery optimization already disabled")
         }
     }
 }
 
 @Composable
-fun SettingsScreen(onAddTask: () -> Unit = {}, onRequestPermissions: () -> Unit = {}) {
+fun SettingsScreen(onAddTask: () -> Unit = {}) {
     val context = LocalContext.current
     val viewModel: MainViewModel = viewModel(
         factory = MainViewModelFactory(context.applicationContext as android.app.Application)
@@ -213,17 +151,7 @@ fun SettingsScreen(onAddTask: () -> Unit = {}, onRequestPermissions: () -> Unit 
                 }
             }
 
-            // 6. Grant Permissions for App Launching
-            item {
-                Button(
-                    onClick = onRequestPermissions,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Grant Permissions for App Launching")
-                }
-            }
-
-            // 7. List of Added Tasks
+            // 6. List of Added Tasks
             if (launchAppTasks.isNotEmpty()) {
                 item {
                     Text(

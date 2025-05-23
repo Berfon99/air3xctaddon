@@ -2,18 +2,32 @@ package com.xc.air3xctaddon
 
 import android.Manifest
 import android.content.Intent
-import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import com.xc.air3xctaddon.ui.MainScreen
 import com.xc.air3xctaddon.ui.theme.AIR3XCTAddonTheme
 import com.xc.air3xctaddon.utils.copySoundFilesFromAssets
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.io.File
+import android.content.pm.PackageManager
+
 
 class MainActivity : ComponentActivity() {
     companion object {
@@ -21,6 +35,27 @@ class MainActivity : ComponentActivity() {
         private const val REQUEST_NOTIFICATION_PERMISSION = 100
         private const val REQUEST_STORAGE_PERMISSION = 101
         private const val REQUEST_LOCATION_PERMISSION = 102
+    }
+
+    private val scope = CoroutineScope(Dispatchers.Main)
+    private var showOverlayDialog by mutableStateOf(false)
+
+    private val systemAlertWindowLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        scope.launch {
+            delay(1500) // Match delay from SettingsActivity/AddTaskActivity
+            val canDrawOverlays = Settings.canDrawOverlays(this@MainActivity)
+            Log.d(TAG, "SYSTEM_ALERT_WINDOW check: canDrawOverlays=$canDrawOverlays")
+            if (canDrawOverlays) {
+                Toast.makeText(this@MainActivity, "Overlay permission granted", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(
+                    this@MainActivity,
+                    "Overlay permission denied. If the app isn't listed in Settings, try reinstalling or use ADB: 'adb shell appops set com.xc.air3xctaddon SYSTEM_ALERT_WINDOW allow'",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+            startLogMonitorService() // Proceed after permission check
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -56,15 +91,43 @@ class MainActivity : ComponentActivity() {
             Log.d(TAG, "Requesting permissions: $permissionsToRequest")
             requestPermissions(
                 permissionsToRequest.toTypedArray(),
-                REQUEST_LOCATION_PERMISSION // Reuse location code, as it handles both
+                REQUEST_LOCATION_PERMISSION
             )
         } else {
-            startLogMonitorService()
+            // Check SYSTEM_ALERT_WINDOW permission
+            if (!Settings.canDrawOverlays(this)) {
+                Log.d(TAG, "SYSTEM_ALERT_WINDOW permission needed")
+                showOverlayDialog = true // Show dialog to explain and request
+            } else {
+                startLogMonitorService()
+            }
         }
 
         setContent {
             AIR3XCTAddonTheme {
                 MainScreen()
+                if (showOverlayDialog) {
+                    OverlayPermissionDialog(
+                        onConfirm = {
+                            showOverlayDialog = false
+                            val intent = Intent(
+                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                Uri.parse("package:$packageName")
+                            )
+                            Log.d(TAG, "Requesting SYSTEM_ALERT_WINDOW for package: $packageName")
+                            systemAlertWindowLauncher.launch(intent)
+                        },
+                        onDismiss = {
+                            showOverlayDialog = false
+                            Toast.makeText(
+                                this,
+                                "Overlay permission is required to launch apps in the background",
+                                Toast.LENGTH_LONG
+                            ).show()
+                            startLogMonitorService() // Proceed even if denied
+                        }
+                    )
+                }
             }
         }
     }
@@ -125,7 +188,13 @@ class MainActivity : ComponentActivity() {
                     Log.w(TAG, "POST_NOTIFICATIONS permission denied")
                     Toast.makeText(this, getString(R.string.notification_permission_required), Toast.LENGTH_LONG).show()
                 }
-                startLogMonitorService()
+                // Check SYSTEM_ALERT_WINDOW after notification permission
+                if (!Settings.canDrawOverlays(this)) {
+                    Log.d(TAG, "SYSTEM_ALERT_WINDOW permission needed")
+                    showOverlayDialog = true
+                } else {
+                    startLogMonitorService()
+                }
             }
             REQUEST_STORAGE_PERMISSION -> {
                 if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
@@ -134,6 +203,13 @@ class MainActivity : ComponentActivity() {
                 } else {
                     Log.w(TAG, "WRITE_EXTERNAL_STORAGE permission denied")
                     Toast.makeText(this, getString(R.string.storage_permission_required), Toast.LENGTH_LONG).show()
+                }
+                // Check SYSTEM_ALERT_WINDOW after storage permission
+                if (!Settings.canDrawOverlays(this)) {
+                    Log.d(TAG, "SYSTEM_ALERT_WINDOW permission needed")
+                    showOverlayDialog = true
+                } else {
+                    startLogMonitorService()
                 }
             }
             REQUEST_LOCATION_PERMISSION -> {
@@ -162,10 +238,12 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
-                if (locationGranted && notificationGranted) {
-                    startLogMonitorService()
+                // Check SYSTEM_ALERT_WINDOW after location/notification permissions
+                if (!Settings.canDrawOverlays(this)) {
+                    Log.d(TAG, "SYSTEM_ALERT_WINDOW permission needed")
+                    showOverlayDialog = true
                 } else {
-                    startLogMonitorService() // Start anyway, as service may handle partial permissions
+                    startLogMonitorService()
                 }
             }
         }
@@ -180,4 +258,30 @@ class MainActivity : ComponentActivity() {
         }
         Log.d("MainActivity", "Started LogMonitorService")
     }
+}
+
+@Composable
+fun OverlayPermissionDialog(
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Overlay Permission Required") },
+        text = {
+            Text(
+                "This app needs permission to display over other apps to launch applications in the background while keeping XCTrack active. Please enable 'Display over other apps' in Settings."
+            )
+        },
+        confirmButton = {
+            Button(onClick = onConfirm) {
+                Text("Go to Settings")
+            }
+        },
+        dismissButton = {
+            Button(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }
