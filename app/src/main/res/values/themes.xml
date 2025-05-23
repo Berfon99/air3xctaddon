@@ -1,5 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-
-    <style name="Theme.AIR3XCTAddon" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.AIR3XCTAddon" parent="android:Theme.Material.Light.NoActionBar">
+        <!-- Colors matching Compose theme -->
+        <item name="android:colorPrimary">@color/primary</item>
+        <item name="android:colorPrimaryDark">@color/primary_variant</item>
+        <item name="android:colorAccent">@color/secondary</item>
+        <!-- Splash screen -->
+        <item name="android:windowSplashScreenBackground">@color/white</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_launcher</item>
+        <item name="android:windowSplashScreenAnimationDuration">300</item>
+        <!-- Status bar -->
+        <item name="android:statusBarColor">@color/primary_variant</item>
+    </style>
 </resources>
