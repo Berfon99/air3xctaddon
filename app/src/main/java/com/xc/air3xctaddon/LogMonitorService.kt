@@ -33,6 +33,7 @@ class LogMonitorService : Service() {
     companion object {
         private const val NOTIFICATION_CHANNEL_ID = "LogMonitorServiceChannel"
         private const val NOTIFICATION_ID = 1
+        private const val ACTION_PREFIX = "org.xcontest.XCTrack.Event."
     }
 
     override fun onCreate() {
@@ -54,85 +55,100 @@ class LogMonitorService : Service() {
         eventReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
                 intent?.let {
-                    val event = it.action?.substringAfterLast(".")
+                    Log.d("LogMonitorService", "Intent received: action=${it.action}, extras=${it.extras?.keySet()?.joinToString() ?: "none"}")
+                    val event = it.action?.removePrefix(ACTION_PREFIX)
                     Log.d("LogMonitorService", getString(R.string.log_received_event, event))
-                    scope.launch {
-                        val db = AppDatabase.getDatabase(applicationContext)
-                        val configDao = db.eventConfigDao()
-                        val config = configDao.getAllConfigsSync().find { it.event == event }
-                        if (config != null) {
-                            when (config.taskType) {
-                                "Sound" -> {
-                                    Log.d("LogMonitorService", getString(R.string.log_found_config, event, config.taskData))
-                                    if (!config.taskData.isNullOrEmpty()) {
-                                        playSound(
-                                            config.taskData,
-                                            config.volumeType,
-                                            config.volumePercentage,
-                                            config.playCount
-                                        )
-                                    } else {
-                                        Log.w("LogMonitorService", "No sound file specified for event: $event")
+                    if (event != null) {
+                        scope.launch {
+                            val db = AppDatabase.getDatabase(applicationContext)
+                            val configDao = db.eventConfigDao()
+                            val config = configDao.getAllConfigsSync().find { it.event == event }
+                            if (config != null) {
+                                Log.d("LogMonitorService", getString(R.string.log_found_config, event, config.taskData))
+                                when (config.taskType) {
+                                    "Sound" -> {
+                                        if (!config.taskData.isNullOrEmpty()) {
+                                            playSound(
+                                                config.taskData,
+                                                config.volumeType,
+                                                config.volumePercentage,
+                                                config.playCount
+                                            )
+                                        } else {
+                                            Log.w("LogMonitorService", "No sound file specified for event: $event")
+                                        }
+                                    }
+                                    "SendPosition" -> {
+                                        Log.d("LogMonitorService", "Sending position for event: $event")
+                                        // TODO: Implement SendPosition logic
+                                    }
+                                    "SendTelegramPosition" -> {
+                                        if (config.telegramChatId?.isNotEmpty() == true) {
+                                            telegramBotHelper.getCurrentLocation(
+                                                onResult = { latitude, longitude ->
+                                                    telegramBotHelper.sendLocationMessage(
+                                                        chatId = config.telegramChatId,
+                                                        latitude = latitude,
+                                                        longitude = longitude,
+                                                        event = config.event
+                                                    )
+                                                },
+                                                onError = { error ->
+                                                    Log.e("LogMonitorService", "Error getting location: $error")
+                                                }
+                                            )
+                                        } else {
+                                            Log.w("LogMonitorService", "No chat ID specified for event: $event")
+                                        }
+                                    }
+                                    else -> {
+                                        Log.w("LogMonitorService", getString(R.string.log_no_config, event))
                                     }
                                 }
-                                "SendPosition" -> {
-                                    Log.d("LogMonitorService", getString(R.string.log_found_config, event, config.taskData))
-                                    // TODO: Implement SendPosition logic
-                                    Log.d("LogMonitorService", "Sending position for event: $event")
-                                }
-                                "SendTelegramPosition" -> {
-                                    Log.d("LogMonitorService", getString(R.string.log_found_config, event, config.taskData))
-                                    if (config.telegramChatId?.isNotEmpty() == true) {
-                                        telegramBotHelper.getCurrentLocation(
-                                            onResult = { latitude, longitude ->
-                                                telegramBotHelper.sendLocationMessage(
-                                                    chatId = config.telegramChatId,
-                                                    latitude = latitude,
-                                                    longitude = longitude,
-                                                    event = config.event
-                                                )
-                                            },
-                                            onError = { error ->
-                                                Log.e("LogMonitorService", "Error getting location: $error")
-                                            }
-                                        )
-                                    } else {
-                                        Log.w("LogMonitorService", "No chat ID specified for event: $event")
-                                    }
-                                }
-                                else -> {
-                                    Log.w("LogMonitorService", getString(R.string.log_no_config, event))
-                                }
+                            } else {
+                                Log.w("LogMonitorService", getString(R.string.log_no_config, event))
                             }
-                        } else {
-                            Log.w("LogMonitorService", getString(R.string.log_no_config, event))
                         }
+                    } else {
+                        Log.w("LogMonitorService", "No event name extracted from action: ${it.action}")
                     }
                 }
             }
         }
 
         filter = IntentFilter().apply {
-            addAction("org.xcontest.XCTrack.Event.TAKEOFF")
-            addAction("org.xcontest.XCTrack.Event.LANDING")
-            addAction("org.xcontest.XCTrack.Event.BATTERY50")
-            addAction("org.xcontest.XCTrack.Event.BATTERY40")
-            addAction("org.xcontest.XCTrack.Event.BATTERY30")
-            addAction("org.xcontest.XCTrack.Event.BATTERY20")
-            addAction("org.xcontest.XCTrack.Event.BATTERY10")
-            addAction("org.xcontest.XCTrack.Event.BATTERY5")
-            addAction("org.xcontest.XCTrack.Event.BATTERY_CHARGING")
-            addAction("org.xcontest.XCTrack.Event.BATTERY_DISCHARGING")
-            addAction("org.xcontest.XCTrack.Event.START_THERMALING")
-            addAction("org.xcontest.XCTrack.Event.STOP_THERMALING")
-            addAction("org.xcontest.XCTrack.Event.COMP_SSS_CROSSED")
-            addAction("org.xcontest.XCTrack.Event.COMP_TURNPOINT_CROSSED")
-            addAction("org.xcontest.XCTrack.Event.COMP_ESS_CROSSED")
-            addAction("org.xcontest.XCTrack.Event.COMP_GOAL_CROSSED")
-            addAction("org.xcontest.XCTrack.Event.SYSTEM_GPS_OK")
-            addAction("org.xcontest.XCTrack.Event.AIRSPACE_CROSSED")
-            addAction("org.xcontest.XCTrack.Event.AIRSPACE_RED_WARN")
-            addAction("org.xcontest.XCTrack.Event.AIRSPACE_ORANGE_WARN")
+            addAction("${ACTION_PREFIX}TAKEOFF")
+            addAction("${ACTION_PREFIX}LANDING")
+            addAction("${ACTION_PREFIX}BATTERY50")
+            addAction("${ACTION_PREFIX}BATTERY40")
+            addAction("${ACTION_PREFIX}BATTERY30")
+            addAction("${ACTION_PREFIX}BATTERY20")
+            addAction("${ACTION_PREFIX}BATTERY10")
+            addAction("${ACTION_PREFIX}BATTERY5")
+            addAction("${ACTION_PREFIX}BATTERY_CHARGING")
+            addAction("${ACTION_PREFIX}BATTERY_DISCHARGING")
+            addAction("${ACTION_PREFIX}START_THERMALING")
+            addAction("${ACTION_PREFIX}STOP_THERMALING")
+            addAction("${ACTION_PREFIX}COMP_SSS_CROSSED")
+            addAction("${ACTION_PREFIX}COMP_TURNPOINT_CROSSED")
+            addAction("${ACTION_PREFIX}COMP_ESS_CROSSED")
+            addAction("${ACTION_PREFIX}COMP_GOAL_CROSSED")
+            addAction("${ACTION_PREFIX}SYSTEM_GPS_OK")
+            addAction("${ACTION_PREFIX}AIRSPACE_CROSSED")
+            addAction("${ACTION_PREFIX}AIRSPACE_RED_WARN")
+            addAction("${ACTION_PREFIX}AIRSPACE_ORANGE_WARN")
+            addAction("${ACTION_PREFIX}AIRSPACE_CROSSED_SOON")
+            addAction("${ACTION_PREFIX}AIRSPACE_OBSTACLE")
+            addAction("${ACTION_PREFIX}LIVETRACK_MESSAGE")
+            addAction("${ACTION_PREFIX}LIVETRACK_ENABLED")
+            addAction("${ACTION_PREFIX}BUTTON_CLICK")
+            addAction("${ACTION_PREFIX}CALL_REJECTED")
+            addAction("${ACTION_PREFIX}COMP_TURNPOINT_PREV")
+            addAction("${ACTION_PREFIX}_LANDING_CONFIRMATION_NEEDED")
+            addAction("${ACTION_PREFIX}BT_OK")
+            addAction("${ACTION_PREFIX}BT_KO")
+            addAction("${ACTION_PREFIX}TEST")
+            addAction("com.xc.air3xctaddon.EVENT") // For testing
         }
 
         registerReceiver(
@@ -140,7 +156,7 @@ class LogMonitorService : Service() {
             filter,
             "org.xcontest.XCTrack.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION",
             null,
-            Context.RECEIVER_NOT_EXPORTED
+            Context.RECEIVER_EXPORTED
         )
         Log.d("LogMonitorService", getString(R.string.log_registered_receiver))
     }

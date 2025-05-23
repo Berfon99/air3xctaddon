@@ -1,5 +1,6 @@
 package com.xc.air3xctaddon
 
+import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -129,6 +130,11 @@ fun AddEventScreen() {
                         scope.launch {
                             viewModel.addEvent(selectedCategory, eventName)
                             Log.d("AddEventScreen", "Confirm clicked: Adding event '$eventName' to category '$selectedCategory'")
+                            // Restart LogMonitorService to register new event
+                            val intent = Intent(context, LogMonitorService::class.java)
+                            context.stopService(intent)
+                            context.startService(intent)
+                            Log.d("AddEventScreen", "Restarted LogMonitorService for new event: $eventName")
                             kotlinx.coroutines.delay(100)
                             (context as ComponentActivity).finish()
                         }
@@ -161,4 +167,3 @@ fun AddEventScreen() {
         }
     }
 }
-
