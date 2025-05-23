@@ -57,52 +57,58 @@ class LogMonitorService : Service() {
                 intent?.let {
                     Log.d("LogMonitorService", "Intent received: action=${it.action}, extras=${it.extras?.keySet()?.joinToString() ?: "none"}")
                     val event = it.action?.removePrefix(ACTION_PREFIX)
-                    Log.d("LogMonitorService", getString(R.string.log_received_event, event))
+                    val formatArgs = it.getSerializableExtra("formatArgs")
+                    Log.d("LogMonitorService", getString(R.string.log_received_event, event) + ", formatArgs: $formatArgs")
                     if (event != null) {
                         scope.launch {
                             val db = AppDatabase.getDatabase(applicationContext)
                             val configDao = db.eventConfigDao()
-                            val config = configDao.getAllConfigsSync().find { it.event == event }
-                            if (config != null) {
-                                Log.d("LogMonitorService", getString(R.string.log_found_config, event, config.taskData))
-                                when (config.taskType) {
-                                    "Sound" -> {
-                                        if (!config.taskData.isNullOrEmpty()) {
-                                            playSound(
-                                                config.taskData,
-                                                config.volumeType,
-                                                config.volumePercentage,
-                                                config.playCount
-                                            )
-                                        } else {
-                                            Log.w("LogMonitorService", "No sound file specified for event: $event")
+                            val configs = configDao.getAllConfigsSync()
+                                .filter { it.event == event }
+                                .sortedBy { it.position }
+                            if (configs.isNotEmpty()) {
+                                Log.d("LogMonitorService", "Found ${configs.size} configs for event: $event")
+                                configs.forEach { config ->
+                                    Log.d("LogMonitorService", getString(R.string.log_found_config, event, config.taskData))
+                                    when (config.taskType) {
+                                        "Sound" -> {
+                                            if (!config.taskData.isNullOrEmpty()) {
+                                                playSound(
+                                                    config.taskData,
+                                                    config.volumeType,
+                                                    config.volumePercentage,
+                                                    config.playCount
+                                                )
+                                            } else {
+                                                Log.w("LogMonitorService", "No sound file specified for event: $event")
+                                            }
                                         }
-                                    }
-                                    "SendPosition" -> {
-                                        Log.d("LogMonitorService", "Sending position for event: $event")
-                                        // TODO: Implement SendPosition logic
-                                    }
-                                    "SendTelegramPosition" -> {
-                                        if (config.telegramChatId?.isNotEmpty() == true) {
-                                            telegramBotHelper.getCurrentLocation(
-                                                onResult = { latitude, longitude ->
-                                                    telegramBotHelper.sendLocationMessage(
-                                                        chatId = config.telegramChatId,
-                                                        latitude = latitude,
-                                                        longitude = longitude,
-                                                        event = config.event
-                                                    )
-                                                },
-                                                onError = { error ->
-                                                    Log.e("LogMonitorService", "Error getting location: $error")
-                                                }
-                                            )
-                                        } else {
-                                            Log.w("LogMonitorService", "No chat ID specified for event: $event")
+                                        "SendPosition" -> {
+                                            Log.d("LogMonitorService", "Sending position for event: $event")
+                                            // TODO: Implement SendPosition logic
                                         }
-                                    }
-                                    else -> {
-                                        Log.w("LogMonitorService", getString(R.string.log_no_config, event))
+                                        "SendTelegramPosition" -> {
+                                            if (config.telegramChatId?.isNotEmpty() == true) {
+                                                telegramBotHelper.getCurrentLocation(
+                                                    onResult = { latitude, longitude ->
+                                                        telegramBotHelper.sendLocationMessage(
+                                                            chatId = config.telegramChatId,
+                                                            latitude = latitude,
+                                                            longitude = longitude,
+                                                            event = config.event
+                                                        )
+                                                    },
+                                                    onError = { error ->
+                                                        Log.e("LogMonitorService", "Error getting location: $error")
+                                                    }
+                                                )
+                                            } else {
+                                                Log.w("LogMonitorService", "No chat ID specified for event: $event")
+                                            }
+                                        }
+                                        else -> {
+                                            Log.w("LogMonitorService", getString(R.string.log_no_config, event))
+                                        }
                                     }
                                 }
                             } else {
