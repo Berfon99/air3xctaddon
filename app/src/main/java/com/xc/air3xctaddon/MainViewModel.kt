@@ -116,13 +116,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun getAvailableEvents(): List<EventItem> {
-        val usedEvents = _configs.value.map { it.event }.toSet()
-        val available = _events.value.filter { item ->
-            when (item) {
-                is EventItem.Category -> true
-                is EventItem.Event -> item.name !in usedEvents
-            }
-        }
+        val available = _events.value
         Log.d("MainViewModel", context.getString(
             R.string.log_available_events,
             available.size,

@@ -27,18 +27,7 @@ import com.xc.air3xctaddon.R
 @Composable
 fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFactory(LocalContext.current.applicationContext as android.app.Application))) {
     val configs by viewModel.configs.collectAsState()
-    val events by viewModel.events.collectAsState()
-    val availableEvents by remember(configs, events) {
-        derivedStateOf {
-            val usedEvents = configs.map { it.event }.toSet()
-            events.filter { item ->
-                when (item) {
-                    is MainViewModel.EventItem.Category -> true
-                    is MainViewModel.EventItem.Event -> item.name !in usedEvents
-                }
-            }
-        }
-    }
+    val availableEvents by viewModel.events.collectAsState()
     val context = LocalContext.current
     var showMenu by remember { mutableStateOf(false) }
 
