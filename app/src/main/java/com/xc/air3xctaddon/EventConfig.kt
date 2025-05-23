@@ -5,14 +5,14 @@ import androidx.room.PrimaryKey
 
 @Entity(tableName = "event_configs")
 data class EventConfig(
-    @PrimaryKey val id: Int,
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val event: String,
-    val taskType: String? = null,
-    val taskData: String? = null,
+    val taskType: String?,
+    val taskData: String?,
     val volumeType: VolumeType,
     val volumePercentage: Int,
     val playCount: Int,
     val position: Int,
-    val telegramChatId: String? = null,
-    val telegramGroupName: String? = null
+    val telegramChatId: String?,
+    val telegramGroupName: String?
 )

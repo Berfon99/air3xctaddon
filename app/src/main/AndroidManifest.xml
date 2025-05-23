@@ -30,6 +30,7 @@
         </activity>
         <activity android:name=".SettingsActivity" />
         <activity android:name=".AddEventActivity" />
+        <activity android:name=".AddTaskActivity" />
         <activity android:name=".AboutActivity" />
         <service
             android:name=".LogMonitorService"

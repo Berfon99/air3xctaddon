@@ -4,8 +4,6 @@ import android.content.Context
 import android.media.AudioManager
 import android.media.MediaPlayer
 import android.util.Log
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -35,6 +33,7 @@ import com.xc.air3xctaddon.ui.components.SpinnerItem
 import com.xc.air3xctaddon.ui.components.DropdownMenuSpinner
 import com.xc.air3xctaddon.ui.theme.RowBackground
 import com.xc.air3xctaddon.ui.theme.SoundFieldBackground
+import kotlinx.coroutines.runBlocking
 import java.io.File
 import com.xc.air3xctaddon.R
 
@@ -69,6 +68,18 @@ fun ConfigRow(
     var volumePercentage by remember { mutableStateOf(config.volumePercentage) }
     var playCount by remember { mutableStateOf(config.playCount) }
     var soundMenuExpanded by remember { mutableStateOf(false) }
+
+    // Load LaunchApp tasks from database
+    val launchAppTasks by produceState<List<EventConfig>>(
+        initialValue = emptyList(),
+        key1 = taskMenuExpanded
+    ) {
+        value = runBlocking {
+            val db = AppDatabase.getDatabase(context)
+            db.eventConfigDao().getAllConfigsSync()
+                .filter { it.taskType == "LaunchApp" && it.event == "TASK_CONFIG" }
+        }
+    }
 
     val soundFilesState by produceState<SoundFilesState>(
         initialValue = SoundFilesState.Loading,
@@ -269,12 +280,11 @@ fun ConfigRow(
                             .background(SoundFieldBackground)
                     ) {
                         Text(
-                            text = if (taskType == "SendTelegramPosition" && config.telegramGroupName != null) {
-                                "Group: ${config.telegramGroupName}"
-                            } else if (taskType == "Sound" && taskData.isNotEmpty()) {
-                                taskData
-                            } else {
-                                stringResource(id = R.string.select_task)
+                            text = when (taskType) {
+                                "SendTelegramPosition" -> "Group: ${config.telegramGroupName ?: taskData}"
+                                "Sound" -> if (taskData.isNotEmpty()) taskData else stringResource(id = R.string.select_task)
+                                "LaunchApp" -> "Launch: ${config.telegramGroupName ?: taskData}"
+                                else -> stringResource(id = R.string.select_task)
                             },
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -301,6 +311,26 @@ fun ConfigRow(
                                 Log.d("ConfigRow", "Selected task: SendTelegramPosition")
                             }
                         )
+                        launchAppTasks.forEach { appTask ->
+                            DropdownMenuItem(
+                                content = { Text("Launch: ${appTask.telegramGroupName}") },
+                                onClick = {
+                                    taskType = "LaunchApp"
+                                    taskData = appTask.taskData ?: ""
+                                    onUpdate(config.copy(
+                                        taskType = taskType,
+                                        taskData = taskData,
+                                        telegramGroupName = appTask.telegramGroupName,
+                                        volumeType = VolumeType.SYSTEM,
+                                        volumePercentage = 100,
+                                        playCount = 1,
+                                        telegramChatId = null
+                                    ))
+                                    taskMenuExpanded = false
+                                    Log.d("ConfigRow", "Selected task: LaunchApp, app: ${appTask.telegramGroupName}")
+                                }
+                            )
+                        }
                     }
                 }
 
@@ -565,15 +595,27 @@ fun ConfigRow(
                                     Log.e("ConfigRow", "Failed to get location: $error")
                                 }
                             )
+                        } else if (taskType == "LaunchApp" && taskData.isNotEmpty()) {
+                            Log.d("ConfigRow", "Main play button clicked for LaunchApp: package=$taskData")
+                            val launchIntent = context.packageManager.getLaunchIntentForPackage(taskData)
+                            if (launchIntent != null) {
+                                context.startActivity(launchIntent)
+                            } else {
+                                Log.e("ConfigRow", "No launch intent for package: $taskData")
+                            }
                         }
                     },
-                    enabled = (taskType == "Sound" && taskData.isNotEmpty()) || (taskType == "SendTelegramPosition" && telegramChatId.isNotEmpty()),
+                    enabled = (taskType == "Sound" && taskData.isNotEmpty()) ||
+                            (taskType == "SendTelegramPosition" && telegramChatId.isNotEmpty()) ||
+                            (taskType == "LaunchApp" && taskData.isNotEmpty()),
                     modifier = Modifier.size(36.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.PlayArrow,
                         contentDescription = stringResource(id = R.string.play),
-                        tint = if ((taskType == "Sound" && taskData.isNotEmpty()) || (taskType == "SendTelegramPosition" && telegramChatId.isNotEmpty())) MaterialTheme.colors.primary else Color.Gray
+                        tint = if ((taskType == "Sound" && taskData.isNotEmpty()) ||
+                            (taskType == "SendTelegramPosition" && telegramChatId.isNotEmpty()) ||
+                            (taskType == "LaunchApp" && taskData.isNotEmpty())) MaterialTheme.colors.primary else Color.Gray
                     )
                 }
                 IconButton(

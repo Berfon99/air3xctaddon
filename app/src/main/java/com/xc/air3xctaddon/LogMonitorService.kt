@@ -106,6 +106,20 @@ class LogMonitorService : Service() {
                                                 Log.w("LogMonitorService", "No chat ID specified for event: $event")
                                             }
                                         }
+                                        "LaunchApp" -> {
+                                            if (!config.taskData.isNullOrEmpty()) {
+                                                Log.d("LogMonitorService", "Launching app: ${config.taskData}")
+                                                val launchIntent = packageManager.getLaunchIntentForPackage(config.taskData)
+                                                if (launchIntent != null) {
+                                                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                    startActivity(launchIntent)
+                                                } else {
+                                                    Log.e("LogMonitorService", "No launch intent for package: ${config.taskData}")
+                                                }
+                                            } else {
+                                                Log.w("LogMonitorService", "No package name specified for event: $event")
+                                            }
+                                        }
                                         else -> {
                                             Log.w("LogMonitorService", getString(R.string.log_no_config, event))
                                         }

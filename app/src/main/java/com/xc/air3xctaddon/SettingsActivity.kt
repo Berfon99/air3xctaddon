@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.*
 import androidx.compose.runtime.*
@@ -14,28 +15,60 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xc.air3xctaddon.ui.theme.AIR3XCTAddonTheme
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class SettingsActivity : ComponentActivity() {
+    private val taskResultLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == RESULT_OK) {
+            result.data?.let { data ->
+                val taskType = data.getStringExtra("task_type")
+                val taskPackage = data.getStringExtra("task_package")
+                val taskName = data.getStringExtra("task_name")
+                if (taskType == "LaunchApp" && taskPackage != null && taskName != null) {
+                    CoroutineScope(Dispatchers.IO).launch {
+                        val db = AppDatabase.getDatabase(applicationContext)
+                        db.eventConfigDao().insert(
+                            EventConfig(
+                                id = 0, // Room auto-generates, 0 is ignored
+                                event = "TASK_CONFIG",
+                                taskType = "LaunchApp",
+                                taskData = taskPackage,
+                                telegramGroupName = taskName,
+                                volumeType = VolumeType.SYSTEM,
+                                volumePercentage = 100,
+                                playCount = 1,
+                                position = 0,
+                                telegramChatId = null // Not used for LaunchApp
+                            )
+                        )
+                    }
+                }
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             AIR3XCTAddonTheme {
-                SettingsScreen()
+                SettingsScreen(onAddTask = {
+                    taskResultLauncher.launch(Intent(this, AddTaskActivity::class.java))
+                })
             }
         }
     }
 }
 
 @Composable
-fun SettingsScreen() {
+fun SettingsScreen(onAddTask: () -> Unit = {}) {
     val context = LocalContext.current
     val viewModel: MainViewModel = viewModel(
         factory = MainViewModelFactory(context.applicationContext as android.app.Application)
     )
     val settingsRepository = remember { SettingsRepository(context) }
-    // Observe events to ensure UI gets updated when returning from AddEventActivity
     val events by viewModel.events.collectAsState()
-    // Observe pilot name
     var pilotName by remember { mutableStateOf(settingsRepository.getPilotName()) }
     var showPilotNameDialog by remember { mutableStateOf(false) }
 
@@ -63,11 +96,16 @@ fun SettingsScreen() {
                 Text(stringResource(R.string.add_new_event))
             }
 
-            // Display count of custom events
+            Button(
+                onClick = onAddTask,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Add a new task")
+            }
+
             val customEventCount = events.count { it is MainViewModel.EventItem.Event }
             Text(stringResource(R.string.event_count, customEventCount))
 
-            // Add Pilot Name button
             Button(
                 onClick = { showPilotNameDialog = true },
                 modifier = Modifier.fillMaxWidth()
@@ -75,12 +113,10 @@ fun SettingsScreen() {
                 Text(stringResource(R.string.add_pilot_name))
             }
 
-            // Display current pilot name
             pilotName?.let {
                 Text(stringResource(R.string.current_pilot_name, it))
             }
 
-            // Pilot Name Dialog
             if (showPilotNameDialog) {
                 TextInputDialog(
                     title = stringResource(R.string.add_pilot_name),
