@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -21,11 +22,12 @@ class AddTaskActivity : ComponentActivity() {
         setContent {
             AIR3XCTAddonTheme {
                 AddTaskScreen(
-                    onTaskAdded = { taskPackage, taskName ->
+                    onTaskAdded = { taskPackage, taskName, launchInBackground ->
                         val result = Intent().apply {
                             putExtra("task_type", "LaunchApp")
                             putExtra("task_package", taskPackage)
                             putExtra("task_name", taskName)
+                            putExtra("launch_in_background", launchInBackground)
                         }
                         setResult(RESULT_OK, result)
                         finish()
@@ -38,9 +40,11 @@ class AddTaskActivity : ComponentActivity() {
 
 @Composable
 fun AddTaskScreen(
-    onTaskAdded: (String, String) -> Unit
+    onTaskAdded: (String, String, Boolean) -> Unit
 ) {
     var showAppPicker by remember { mutableStateOf(false) }
+    var selectedApp by remember { mutableStateOf<AppInfo?>(null) }
+    var launchInBackground by remember { mutableStateOf(true) }
     val context = LocalContext.current
     val packageManager = context.packageManager
     val installedApps = remember {
@@ -67,6 +71,33 @@ fun AddTaskScreen(
         ) {
             Text("Select App to Launch")
         }
+
+        selectedApp?.let {
+            Text("Selected: ${it.name}")
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Checkbox(
+                checked = launchInBackground,
+                onCheckedChange = { launchInBackground = it }
+            )
+            Text("Launch in background (keep XCTrack in foreground)")
+        }
+
+        Button(
+            onClick = {
+                selectedApp?.let {
+                    onTaskAdded(it.packageName, it.name, launchInBackground)
+                }
+            },
+            enabled = selectedApp != null,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Confirm")
+        }
     }
 
     if (showAppPicker) {
@@ -81,7 +112,7 @@ fun AddTaskScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
-                                    onTaskAdded(app.packageName, app.name)
+                                    selectedApp = app
                                     showAppPicker = false
                                 }
                                 .padding(8.dp)

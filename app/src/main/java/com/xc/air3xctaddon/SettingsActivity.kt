@@ -32,12 +32,13 @@ class SettingsActivity : ComponentActivity() {
                 val taskType = data.getStringExtra("task_type")
                 val taskPackage = data.getStringExtra("task_package")
                 val taskName = data.getStringExtra("task_name")
+                val launchInBackground = data.getBooleanExtra("launch_in_background", true)
                 if (taskType == "LaunchApp" && taskPackage != null && taskName != null) {
                     CoroutineScope(Dispatchers.IO).launch {
                         val db = AppDatabase.getDatabase(applicationContext)
                         db.eventConfigDao().insert(
                             EventConfig(
-                                id = 0, // Room auto-generates, 0 is ignored
+                                id = 0,
                                 event = "TASK_CONFIG",
                                 taskType = "LaunchApp",
                                 taskData = taskPackage,
@@ -46,7 +47,8 @@ class SettingsActivity : ComponentActivity() {
                                 volumePercentage = 100,
                                 playCount = 1,
                                 position = 0,
-                                telegramChatId = null
+                                telegramChatId = null,
+                                launchInBackground = launchInBackground
                             )
                         )
                     }
@@ -194,7 +196,6 @@ fun SettingsScreen(onAddTask: () -> Unit = {}) {
 @Composable
 fun TaskRow(task: EventConfig, onDelete: () -> Unit) {
     val context = LocalContext.current
-    // Resolve app name from package name (taskData)
     val appName = try {
         val packageManager = context.packageManager
         val appInfo = packageManager.getApplicationInfo(task.taskData ?: "", 0)
@@ -211,7 +212,7 @@ fun TaskRow(task: EventConfig, onDelete: () -> Unit) {
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Text(
-            text = "Launch $appName",
+            text = "Launch $appName (${if (task.launchInBackground) "Background" else "Foreground"})",
             style = MaterialTheme.typography.body1,
             modifier = Modifier.weight(1f)
         )

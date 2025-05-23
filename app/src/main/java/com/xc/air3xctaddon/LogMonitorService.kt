@@ -69,7 +69,7 @@ class LogMonitorService : Service() {
                             Log.d("LogMonitorService", "Found ${configs.size} configs for event '$event': $configs")
                             if (configs.isNotEmpty()) {
                                 configs.forEach { config ->
-                                    Log.d("LogMonitorService", getString(R.string.log_found_config, event, config.taskData) + ", taskType=${config.taskType}, id=${config.id}")
+                                    Log.d("LogMonitorService", getString(R.string.log_found_config, event, config.taskData) + ", taskType=${config.taskType}, id=${config.id}, launchInBackground=${config.launchInBackground}")
                                     when (config.taskType) {
                                         "Sound" -> {
                                             if (!config.taskData.isNullOrEmpty()) {
@@ -110,14 +110,16 @@ class LogMonitorService : Service() {
                                         }
                                         "LaunchApp" -> {
                                             if (!config.taskData.isNullOrEmpty()) {
-                                                Log.d("LogMonitorService", "Preparing to launch app: ${config.taskData}, configId=${config.id}")
+                                                Log.d("LogMonitorService", "Preparing to launch app: ${config.taskData}, configId=${config.id}, launchInBackground=${config.launchInBackground}")
                                                 val launchIntent = Intent(this@LogMonitorService, LaunchActivity::class.java).apply {
                                                     putExtra("packageName", config.taskData)
+                                                    putExtra("configId", config.id)
+                                                    putExtra("launchInBackground", config.launchInBackground)
                                                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                                 }
                                                 try {
                                                     startActivity(launchIntent)
-                                                    Log.d("LogMonitorService", "Started LaunchActivity for app: ${config.taskData}, configId=${config.id}")
+                                                    Log.d("LogMonitorService", "Started LaunchActivity for app: ${config.taskData}, configId=${config.id}, launchInBackground=${config.launchInBackground}")
                                                 } catch (e: SecurityException) {
                                                     Log.e("LogMonitorService", "Failed to start LaunchActivity for app: ${config.taskData}, configId=${config.id}, error: $e")
                                                 }
@@ -173,7 +175,7 @@ class LogMonitorService : Service() {
             addAction("${ACTION_PREFIX}BT_OK")
             addAction("${ACTION_PREFIX}BT_KO")
             addAction("${ACTION_PREFIX}TEST")
-            addAction("com.xc.air3xctaddon.EVENT") // For testing
+            addAction("com.xc.air3xctaddon.EVENT")
         }
 
         registerReceiver(
