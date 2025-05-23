@@ -551,16 +551,17 @@ fun ConfigRow(
                             Log.d("ConfigRow", "Main play button clicked for sound: $taskData")
                             playSound(taskData, volumeType, volumePercentage, playCount)
                         } else if (taskType == "SendTelegramPosition" && telegramChatId.isNotEmpty()) {
-                            Log.d("ConfigRow", "Main play button clicked for SendTelegramPosition: chatId=$telegramChatId, username=${config.telegramUsername}")
+                            Log.d("ConfigRow", "Main play button clicked for SendTelegramPosition: chatId=$telegramChatId, username=${config.telegramUsername}, event=${config.event}")
                             telegramBotHelper.getCurrentLocation(
                                 onResult = { latitude, longitude ->
                                     telegramBotHelper.sendLocationMessage(
                                         chatId = telegramChatId,
                                         latitude = latitude,
                                         longitude = longitude,
-                                        username = config.telegramUsername
+                                        username = config.telegramUsername,
+                                        event = config.event
                                     )
-                                    Log.d("ConfigRow", "Sent location message to Telegram: lat=$latitude, lon=$longitude, username=${config.telegramUsername}")
+                                    Log.d("ConfigRow", "Sent location message to Telegram: lat=$latitude, lon=$longitude, username=${config.telegramUsername}, event=${config.event}")
                                 },
                                 onError = { error ->
                                     Log.e("ConfigRow", "Failed to get location: $error")
@@ -570,7 +571,7 @@ fun ConfigRow(
                     },
                     enabled = (taskType == "Sound" && taskData.isNotEmpty()) || (taskType == "SendTelegramPosition" && telegramChatId.isNotEmpty()),
                     modifier = Modifier.size(36.dp)
-                ) {
+                ){
                     Icon(
                         imageVector = Icons.Default.PlayArrow,
                         contentDescription = stringResource(id = R.string.play),

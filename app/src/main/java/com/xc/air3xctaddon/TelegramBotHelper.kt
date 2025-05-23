@@ -89,19 +89,29 @@ class TelegramBotHelper(
         chatId: String,
         latitude: Double,
         longitude: Double,
-        username: String? = null
+        username: String? = null,
+        event: String? = null
     ) {
         val url = "https://api.telegram.org/bot$botToken/sendMessage"
-        val messageText = if (!username.isNullOrEmpty()) {
-            "Position from $username: https://maps.google.com/?q=$latitude,$longitude"
-        } else {
-            "Position: https://maps.google.com/?q=$latitude,$longitude"
+        val messageText = when {
+            !username.isNullOrEmpty() && !event.isNullOrEmpty() -> {
+                "Position from $username ($event): https://maps.google.com/?q=$latitude,$longitude"
+            }
+            !username.isNullOrEmpty() -> {
+                "Position from $username: https://maps.google.com/?q=$latitude,$longitude"
+            }
+            !event.isNullOrEmpty() -> {
+                "Position ($event): https://maps.google.com/?q=$latitude,$longitude"
+            }
+            else -> {
+                "Position: https://maps.google.com/?q=$latitude,$longitude"
+            }
         }
         val json = JSONObject()
             .put("chat_id", chatId)
             .put("text", messageText)
             .toString()
-            .also { Log.d("TelegramBotHelper", "Sending location message JSON: $it, username=$username") }
+            .also { Log.d("TelegramBotHelper", "Sending location message JSON: $it, username=$username, event=$event") }
 
         val requestBody = RequestBody.create(
             "application/json; charset=utf-8".toMediaType(),
@@ -115,14 +125,14 @@ class TelegramBotHelper(
 
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
-                Log.e("TelegramBotHelper", "Failed to send location message to chat $chatId, username=$username: ${e.message}")
+                Log.e("TelegramBotHelper", "Failed to send location message to chat $chatId, username=$username, event=$event: ${e.message}")
             }
 
             override fun onResponse(call: Call, response: Response) {
                 if (response.isSuccessful) {
-                    Log.d("TelegramBotHelper", "Location message sent to chat $chatId, username=$username")
+                    Log.d("TelegramBotHelper", "Location message sent to chat $chatId, username=$username, event=$event")
                 } else {
-                    Log.e("TelegramBotHelper", "Error sending location message to chat $chatId, username=$username: ${response.message}, code=${response.code}")
+                    Log.e("TelegramBotHelper", "Error sending location message to chat $chatId, username=$username, event=$event: ${response.message}, code=${response.code}")
                     response.body?.string()?.let { body ->
                         Log.e("TelegramBotHelper", "Response body: $body")
                     }
