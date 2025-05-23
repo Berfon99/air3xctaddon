@@ -9,7 +9,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.xc.air3xctaddon.converters.Converters
 
-@Database(entities = [EventConfig::class, EventEntity::class], version = 8, exportSchema = false)
+@Database(entities = [EventConfig::class, EventEntity::class], version = 9, exportSchema = false)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun eventConfigDao(): EventConfigDao
@@ -97,6 +97,35 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // Migration 8→9: Remove telegramUsername
+        val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("""
+                    CREATE TABLE event_configs_new (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        event TEXT NOT NULL,
+                        taskType TEXT,
+                        taskData TEXT,
+                        volumeType TEXT NOT NULL,
+                        volumePercentage INTEGER NOT NULL,
+                        playCount INTEGER NOT NULL,
+                        position INTEGER NOT NULL,
+                        telegramChatId TEXT,
+                        telegramGroupName TEXT
+                    )
+                """.trimIndent())
+                database.execSQL("""
+                    INSERT INTO event_configs_new (
+                        id, event, taskType, taskData, volumeType, volumePercentage, playCount, position, telegramChatId, telegramGroupName
+                    )
+                    SELECT id, event, taskType, taskData, volumeType, volumePercentage, playCount, position, telegramChatId, telegramGroupName
+                    FROM event_configs
+                """.trimIndent())
+                database.execSQL("DROP TABLE event_configs")
+                database.execSQL("ALTER TABLE event_configs_new RENAME TO event_configs")
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -111,7 +140,8 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_4_5,
                         MIGRATION_5_6,
                         MIGRATION_6_7,
-                        MIGRATION_7_8
+                        MIGRATION_7_8,
+                        MIGRATION_8_9
                     )
                     .build()
                 INSTANCE = instance

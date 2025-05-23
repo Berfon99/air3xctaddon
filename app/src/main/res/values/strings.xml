@@ -37,7 +37,6 @@
     <string name="add_new_event">Add a new event</string>
     <string name="event_name">Event Name</string>
     <string name="event_count">Total Events: %1$d</string>
-    <string name="settings_more">Settings Activity - More to be implemented</string>
     <string name="no_items_available">No items available</string>
 
     <!-- Status messages -->
@@ -118,7 +117,11 @@
     <string name="configure_telegram_position">Configure Telegram Position</string>
     <string name="telegram_group_instructions">To select a group, send /start to @AIR3SendPositionBot in the desired group, then select it below.</string>
     <string name="select_group">Select Group</string>
-
     <string name="retry">Retry</string>
+
+    <!-- New strings for pilot name -->
+    <string name="add_pilot_name">Add Pilot Name</string>
+    <string name="pilot_name_label">Pilot Name</string>
+    <string name="current_pilot_name">Current Pilot Name: %s</string>
 
 </resources>

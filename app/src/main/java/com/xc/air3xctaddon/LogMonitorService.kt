@@ -28,6 +28,7 @@ class LogMonitorService : Service() {
     private val scope = CoroutineScope(Dispatchers.IO)
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var telegramBotHelper: TelegramBotHelper
+    private lateinit var settingsRepository: SettingsRepository
 
     companion object {
         private const val NOTIFICATION_CHANNEL_ID = "LogMonitorServiceChannel"
@@ -47,7 +48,8 @@ class LogMonitorService : Service() {
         Log.d("LogMonitorService", getString(R.string.log_started_foreground))
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
-        telegramBotHelper = TelegramBotHelper(BuildConfig.TELEGRAM_BOT_TOKEN, fusedLocationClient)
+        settingsRepository = SettingsRepository(this)
+        telegramBotHelper = TelegramBotHelper(BuildConfig.TELEGRAM_BOT_TOKEN, fusedLocationClient, settingsRepository)
 
         eventReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
@@ -80,13 +82,14 @@ class LogMonitorService : Service() {
                                 }
                                 "SendTelegramPosition" -> {
                                     Log.d("LogMonitorService", getString(R.string.log_found_config, event, config.taskData))
-                                    if (config.telegramChatId?.isNotEmpty() == true) { // Fixed: Line 78
+                                    if (config.telegramChatId?.isNotEmpty() == true) {
                                         telegramBotHelper.getCurrentLocation(
                                             onResult = { latitude, longitude ->
-                                                telegramBotHelper.sendLiveLocation(
-                                                    config.telegramChatId, // Fixed: Line 81
-                                                    latitude,
-                                                    longitude
+                                                telegramBotHelper.sendLocationMessage(
+                                                    chatId = config.telegramChatId,
+                                                    latitude = latitude,
+                                                    longitude = longitude,
+                                                    event = config.event
                                                 )
                                             },
                                             onError = { error ->

@@ -32,8 +32,12 @@ fun SettingsScreen() {
     val viewModel: MainViewModel = viewModel(
         factory = MainViewModelFactory(context.applicationContext as android.app.Application)
     )
+    val settingsRepository = remember { SettingsRepository(context) }
     // Observe events to ensure UI gets updated when returning from AddEventActivity
     val events by viewModel.events.collectAsState()
+    // Observe pilot name
+    var pilotName by remember { mutableStateOf(settingsRepository.getPilotName()) }
+    var showPilotNameDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -59,11 +63,75 @@ fun SettingsScreen() {
                 Text(stringResource(R.string.add_new_event))
             }
 
-            // Display count of custom events (optional)
+            // Display count of custom events
             val customEventCount = events.count { it is MainViewModel.EventItem.Event }
             Text(stringResource(R.string.event_count, customEventCount))
 
-            Text(stringResource(R.string.settings_more))
+            // Add Pilot Name button
+            Button(
+                onClick = { showPilotNameDialog = true },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(stringResource(R.string.add_pilot_name))
+            }
+
+            // Display current pilot name
+            pilotName?.let {
+                Text(stringResource(R.string.current_pilot_name, it))
+            }
+
+            // Pilot Name Dialog
+            if (showPilotNameDialog) {
+                TextInputDialog(
+                    title = stringResource(R.string.add_pilot_name),
+                    label = stringResource(R.string.pilot_name_label),
+                    initialValue = pilotName ?: "",
+                    onConfirm = { newPilotName ->
+                        if (newPilotName.isNotBlank()) {
+                            settingsRepository.savePilotName(newPilotName)
+                            pilotName = newPilotName
+                        }
+                        showPilotNameDialog = false
+                    },
+                    onDismiss = { showPilotNameDialog = false }
+                )
+            }
         }
     }
+}
+
+@Composable
+fun TextInputDialog(
+    title: String,
+    label: String,
+    initialValue: String,
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var text by remember { mutableStateOf(initialValue) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            TextField(
+                value = text,
+                onValueChange = { text = it },
+                label = { Text(label) },
+                singleLine = true
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = { onConfirm(text.trim()) },
+                enabled = text.trim().isNotEmpty()
+            ) {
+                Text(stringResource(android.R.string.ok))
+            }
+        },
+        dismissButton = {
+            Button(onClick = onDismiss) {
+                Text(stringResource(android.R.string.cancel))
+            }
+        }
+    )
 }

@@ -5,7 +5,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
@@ -17,11 +16,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.google.android.gms.location.LocationServices
 import com.xc.air3xctaddon.BuildConfig
+import com.xc.air3xctaddon.SettingsRepository
 import com.xc.air3xctaddon.TelegramBotHelper
 import com.xc.air3xctaddon.TelegramGroup
 import com.xc.air3xctaddon.TelegramBotInfo
@@ -33,12 +32,11 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun SendTelegramConfigDialog(
-    onAdd: (String, String, String?) -> Unit, // Updated: (chatId, groupName, telegramUsername)
+    onAdd: (String, String) -> Unit,
     onDismiss: () -> Unit
 ) {
     var telegramChatId by remember { mutableStateOf("") }
     var telegramGroupName by remember { mutableStateOf("") }
-    var telegramUsername by remember { mutableStateOf("") } // New field
     var isLoadingGroups by remember { mutableStateOf(true) }
     var isCheckingBot by remember { mutableStateOf(false) }
     var isSendingStart by remember { mutableStateOf(false) }
@@ -53,7 +51,8 @@ fun SendTelegramConfigDialog(
 
     val context = LocalContext.current
     val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
-    val telegramBotHelper = remember { TelegramBotHelper(BuildConfig.TELEGRAM_BOT_TOKEN, fusedLocationClient) }
+    val settingsRepository = remember { SettingsRepository(context) }
+    val telegramBotHelper = remember { TelegramBotHelper(BuildConfig.TELEGRAM_BOT_TOKEN, fusedLocationClient, settingsRepository) }
     val coroutineScope = rememberCoroutineScope()
 
     suspend fun fetchGroups(retryCount: Int = 0, maxRetries: Int = 2) {
@@ -142,8 +141,8 @@ fun SendTelegramConfigDialog(
                     groups = groups.map {
                         if (it.chatId == group.chatId) it.copy(isBotActive = true) else it
                     }
-                    onAdd(group.chatId, group.title, telegramUsername) // Updated
-                    Log.d("ConfigRow", "Bot activated in group ${group.title}, chatId=${group.chatId}, username=$telegramUsername")
+                    onAdd(group.chatId, group.title)
+                    Log.d("ConfigRow", "Bot activated in group ${group.title}, chatId=${group.chatId}")
                 },
                 onError = { error ->
                     isSendingStart = false
@@ -276,24 +275,6 @@ fun SendTelegramConfigDialog(
                             tint = MaterialTheme.colors.primary
                         )
                     }
-                }
-
-                // New: Telegram Username Input
-                TextField(
-                    value = telegramUsername,
-                    onValueChange = { telegramUsername = it.trim() },
-                    label = { Text("Your Telegram Username (e.g., @PilotName)") },
-                    modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
-                    singleLine = true,
-                    isError = telegramUsername.isNotEmpty() && !telegramUsername.startsWith("@")
-                )
-                if (telegramUsername.isNotEmpty() && !telegramUsername.startsWith("@")) {
-                    Text(
-                        text = "Username must start with @",
-                        color = MaterialTheme.colors.error,
-                        style = MaterialTheme.typography.caption
-                    )
                 }
 
                 when {
@@ -542,8 +523,8 @@ fun SendTelegramConfigDialog(
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
-                        onClick = { onAdd(telegramChatId, telegramGroupName, telegramUsername) }, // Updated
-                        enabled = selectedGroup?.isBotMember == true && selectedGroup?.isBotActive == true && (telegramUsername.isEmpty() || telegramUsername.startsWith("@"))
+                        onClick = { onAdd(telegramChatId, telegramGroupName) },
+                        enabled = selectedGroup?.isBotMember == true && selectedGroup?.isBotActive == true
                     ) {
                         Text(stringResource(id = R.string.confirm))
                     }

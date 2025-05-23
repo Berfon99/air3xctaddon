@@ -150,7 +150,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         volumeType: VolumeType,
         volumePercentage: Int,
         playCount: Int,
-        telegramChatId: String? = null
+        telegramChatId: String? = null,
+        telegramGroupName: String? = null
     ) {
         viewModelScope.launch {
             val maxPosition = _configs.value.maxByOrNull { it.position }?.position ?: -1
@@ -163,17 +164,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 volumePercentage = volumePercentage,
                 playCount = playCount,
                 position = maxPosition + 1,
-                telegramChatId = telegramChatId
+                telegramChatId = telegramChatId,
+                telegramGroupName = telegramGroupName
             )
             configDao.insert(newConfig)
-            Log.d("MainViewModel", "Added config: event=$event, taskType=$taskType, taskData=$taskData, telegramChatId=$telegramChatId")
+            Log.d("MainViewModel", "Added config: event=$event, taskType=$taskType, taskData=$taskData, telegramChatId=$telegramChatId, telegramGroupName=$telegramGroupName")
         }
     }
 
     fun updateConfig(config: EventConfig) {
         viewModelScope.launch {
             configDao.update(config)
-            Log.d("MainViewModel", "Updated config: id=${config.id}, event=${config.event}, taskType=${config.taskType}, taskData=${config.taskData}, telegramChatId=${config.telegramChatId}")
+            Log.d("MainViewModel", "Updated config: id=${config.id}, event=${config.event}, taskType=${config.taskType}, taskData=${config.taskData}, telegramChatId=${config.telegramChatId}, telegramGroupName=${config.telegramGroupName}")
         }
     }
 

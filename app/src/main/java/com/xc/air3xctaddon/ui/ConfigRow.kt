@@ -61,7 +61,8 @@ fun ConfigRow(
     var telegramDialogOpen by remember { mutableStateOf(false) }
     var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
     val context = LocalContext.current
-    val telegramBotHelper = remember { TelegramBotHelper(BuildConfig.TELEGRAM_BOT_TOKEN, LocationServices.getFusedLocationProviderClient(context)) }
+    val settingsRepository = remember { SettingsRepository(context) }
+    val telegramBotHelper = remember { TelegramBotHelper(BuildConfig.TELEGRAM_BOT_TOKEN, LocationServices.getFusedLocationProviderClient(context), settingsRepository) }
 
     var soundFile by remember { mutableStateOf(if (taskType == "Sound") taskData else "") }
     var volumeType by remember { mutableStateOf(config.volumeType) }
@@ -505,8 +506,7 @@ fun ConfigRow(
                                                 volumePercentage = volumePercentage,
                                                 playCount = playCount,
                                                 telegramChatId = null,
-                                                telegramGroupName = null,
-                                                telegramUsername = null
+                                                telegramGroupName = null
                                             ))
                                             soundDialogOpen = false
                                             Log.d("ConfigRow", "Sound config saved: $soundFile, $volumeType, $volumePercentage, $playCount")
@@ -523,21 +523,20 @@ fun ConfigRow(
 
                 if (telegramDialogOpen) {
                     SendTelegramConfigDialog(
-                        onAdd = { selectedChatId, groupName, username ->
+                        onAdd = { chatId, groupName ->
                             taskType = "SendTelegramPosition"
-                            telegramChatId = selectedChatId
+                            telegramChatId = chatId
                             onUpdate(config.copy(
                                 taskType = taskType,
-                                taskData = null,
+                                taskData = groupName,
                                 volumeType = VolumeType.SYSTEM,
                                 volumePercentage = 100,
                                 playCount = 1,
-                                telegramChatId = telegramChatId,
-                                telegramGroupName = groupName,
-                                telegramUsername = username
+                                telegramChatId = chatId,
+                                telegramGroupName = groupName
                             ))
                             telegramDialogOpen = false
-                            Log.d("ConfigRow", "Telegram config saved: chatId=$selectedChatId, groupName=$groupName, username=$username")
+                            Log.d("ConfigRow", "Telegram config saved: chatId=$chatId, groupName=$groupName")
                         },
                         onDismiss = { telegramDialogOpen = false }
                     )
@@ -551,17 +550,16 @@ fun ConfigRow(
                             Log.d("ConfigRow", "Main play button clicked for sound: $taskData")
                             playSound(taskData, volumeType, volumePercentage, playCount)
                         } else if (taskType == "SendTelegramPosition" && telegramChatId.isNotEmpty()) {
-                            Log.d("ConfigRow", "Main play button clicked for SendTelegramPosition: chatId=$telegramChatId, username=${config.telegramUsername}, event=${config.event}")
+                            Log.d("ConfigRow", "Main play button clicked for SendTelegramPosition: chatId=$telegramChatId, event=${config.event}")
                             telegramBotHelper.getCurrentLocation(
                                 onResult = { latitude, longitude ->
                                     telegramBotHelper.sendLocationMessage(
                                         chatId = telegramChatId,
                                         latitude = latitude,
                                         longitude = longitude,
-                                        username = config.telegramUsername,
                                         event = config.event
                                     )
-                                    Log.d("ConfigRow", "Sent location message to Telegram: lat=$latitude, lon=$longitude, username=${config.telegramUsername}, event=${config.event}")
+                                    Log.d("ConfigRow", "Sent location message to Telegram: lat=$latitude, lon=$longitude, event=${config.event}")
                                 },
                                 onError = { error ->
                                     Log.e("ConfigRow", "Failed to get location: $error")
@@ -571,7 +569,7 @@ fun ConfigRow(
                     },
                     enabled = (taskType == "Sound" && taskData.isNotEmpty()) || (taskType == "SendTelegramPosition" && telegramChatId.isNotEmpty()),
                     modifier = Modifier.size(36.dp)
-                ){
+                ) {
                     Icon(
                         imageVector = Icons.Default.PlayArrow,
                         contentDescription = stringResource(id = R.string.play),
