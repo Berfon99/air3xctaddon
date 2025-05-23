@@ -11,6 +11,8 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
         android:allowBackup="true"
@@ -32,10 +34,15 @@
         <activity android:name=".AddEventActivity" />
         <activity android:name=".AddTaskActivity" />
         <activity android:name=".AboutActivity" />
+        <activity
+            android:name=".LaunchActivity"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:exported="false" />
         <service
             android:name=".LogMonitorService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="location" />
+
     </application>
 </manifest>

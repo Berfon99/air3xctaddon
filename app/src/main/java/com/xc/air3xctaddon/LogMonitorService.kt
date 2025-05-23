@@ -3,7 +3,6 @@ package com.xc.air3xctaddon
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.app.PendingIntent
 import android.app.Service
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -34,7 +33,6 @@ class LogMonitorService : Service() {
     companion object {
         private const val NOTIFICATION_CHANNEL_ID = "LogMonitorServiceChannel"
         private const val NOTIFICATION_ID = 1
-        private const val LAUNCH_APP_NOTIFICATION_ID = 2
         private const val ACTION_PREFIX = "org.xcontest.XCTrack.Event."
     }
 
@@ -113,27 +111,15 @@ class LogMonitorService : Service() {
                                         "LaunchApp" -> {
                                             if (!config.taskData.isNullOrEmpty()) {
                                                 Log.d("LogMonitorService", "Preparing to launch app: ${config.taskData}, configId=${config.id}")
-                                                val launchIntent = packageManager.getLaunchIntentForPackage(config.taskData)
-                                                if (launchIntent != null) {
-                                                    val pendingIntent = PendingIntent.getActivity(
-                                                        this@LogMonitorService,
-                                                        config.id,
-                                                        launchIntent,
-                                                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                                                    )
-                                                    val appName = config.telegramGroupName ?: config.taskData
-                                                    val launchNotification = NotificationCompat.Builder(this@LogMonitorService, NOTIFICATION_CHANNEL_ID)
-                                                        .setContentTitle("Launch $appName")
-                                                        .setContentText("Event $event triggered. Tap to launch $appName.")
-                                                        .setSmallIcon(R.drawable.ic_launcher)
-                                                        .setContentIntent(pendingIntent)
-                                                        .setAutoCancel(true)
-                                                        .build()
-                                                    val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                                                    notificationManager.notify(LAUNCH_APP_NOTIFICATION_ID + config.id, launchNotification)
-                                                    Log.d("LogMonitorService", "Notification sent to launch app: ${config.taskData} for event: $event, configId=${config.id}")
-                                                } else {
-                                                    Log.e("LogMonitorService", "No launch intent found for package: ${config.taskData}, configId=${config.id}")
+                                                val launchIntent = Intent(this@LogMonitorService, LaunchActivity::class.java).apply {
+                                                    putExtra("packageName", config.taskData)
+                                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                }
+                                                try {
+                                                    startActivity(launchIntent)
+                                                    Log.d("LogMonitorService", "Started LaunchActivity for app: ${config.taskData}, configId=${config.id}")
+                                                } catch (e: SecurityException) {
+                                                    Log.e("LogMonitorService", "Failed to start LaunchActivity for app: ${config.taskData}, configId=${config.id}, error: $e")
                                                 }
                                             } else {
                                                 Log.w("LogMonitorService", "No package name specified for event: $event, configId=${config.id}")
@@ -171,7 +157,7 @@ class LogMonitorService : Service() {
             addAction("${ACTION_PREFIX}COMP_SSS_CROSSED")
             addAction("${ACTION_PREFIX}COMP_TURNPOINT_CROSSED")
             addAction("${ACTION_PREFIX}COMP_ESS_CROSSED")
-            addAction("${ACTION_PREFIX}COMP_GOAL_CCROSSED")
+            addAction("${ACTION_PREFIX}COMP_GOAL_CROSSED")
             addAction("${ACTION_PREFIX}SYSTEM_GPS_OK")
             addAction("${ACTION_PREFIX}AIRSPACE_CROSSED")
             addAction("${ACTION_PREFIX}AIRSPACE_RED_WARN")
@@ -205,7 +191,7 @@ class LogMonitorService : Service() {
             val channel = NotificationChannel(
                 NOTIFICATION_CHANNEL_ID,
                 getString(R.string.notification_channel_name),
-                NotificationManager.IMPORTANCE_DEFAULT
+                NotificationManager.IMPORTANCE_LOW
             ).apply {
                 description = getString(R.string.notification_channel_description)
             }
