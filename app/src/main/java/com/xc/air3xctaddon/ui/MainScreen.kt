@@ -36,7 +36,10 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
     val rowHeight: Dp = 48.dp
     val rowHeightPx: Float = LocalDensity.current.run { rowHeight.toPx() }
 
-    Log.d("MainScreen", "Configs: $configs, AvailableEvents: $availableEvents")
+    // Filter out TASK_CONFIG entries for display
+    val filteredConfigs = configs.filter { it.event != "TASK_CONFIG" }
+
+    Log.d("MainScreen", "Filtered Configs: $filteredConfigs, AvailableEvents: $availableEvents")
 
     Scaffold(
         topBar = {
@@ -83,7 +86,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
                     .heightIn(max = 1000.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                itemsIndexed(configs, key = { _, config -> config.id }) { index, config ->
+                itemsIndexed(filteredConfigs, key = { _, config -> config.id }) { index, config ->
                     ConfigRow(
                         config = config,
                         availableEvents = availableEvents,
@@ -92,7 +95,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
                         onDrag = { _, dragAmount ->
                             dragOffset += dragAmount
                             val offsetRows = (dragOffset / rowHeightPx).toInt()
-                            val targetIndex = (index + offsetRows).coerceIn(0, configs.size - 1)
+                            val targetIndex = (index + offsetRows).coerceIn(0, filteredConfigs.size - 1)
                             if (targetIndex != index && draggedIndex == index) {
                                 viewModel.reorderConfigs(index, targetIndex)
                                 draggedIndex = targetIndex

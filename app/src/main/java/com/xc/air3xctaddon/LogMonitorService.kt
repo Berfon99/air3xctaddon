@@ -3,6 +3,7 @@ package com.xc.air3xctaddon
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -33,6 +34,7 @@ class LogMonitorService : Service() {
     companion object {
         private const val NOTIFICATION_CHANNEL_ID = "LogMonitorServiceChannel"
         private const val NOTIFICATION_ID = 1
+        private const val LAUNCH_APP_NOTIFICATION_ID = 2
         private const val ACTION_PREFIX = "org.xcontest.XCTrack.Event."
     }
 
@@ -64,12 +66,12 @@ class LogMonitorService : Service() {
                             val db = AppDatabase.getDatabase(applicationContext)
                             val configDao = db.eventConfigDao()
                             val configs = configDao.getAllConfigsSync()
-                                .filter { it.event == event }
+                                .filter { it.event.equals(event, ignoreCase = true) }
                                 .sortedBy { it.position }
+                            Log.d("LogMonitorService", "Found ${configs.size} configs for event '$event': $configs")
                             if (configs.isNotEmpty()) {
-                                Log.d("LogMonitorService", "Found ${configs.size} configs for event: $event")
                                 configs.forEach { config ->
-                                    Log.d("LogMonitorService", getString(R.string.log_found_config, event, config.taskData))
+                                    Log.d("LogMonitorService", getString(R.string.log_found_config, event, config.taskData) + ", taskType=${config.taskType}, id=${config.id}")
                                     when (config.taskType) {
                                         "Sound" -> {
                                             if (!config.taskData.isNullOrEmpty()) {
@@ -80,15 +82,16 @@ class LogMonitorService : Service() {
                                                     config.playCount
                                                 )
                                             } else {
-                                                Log.w("LogMonitorService", "No sound file specified for event: $event")
+                                                Log.w("LogMonitorService", "No sound file specified for event: $event, configId=${config.id}")
                                             }
                                         }
                                         "SendPosition" -> {
-                                            Log.d("LogMonitorService", "Sending position for event: $event")
+                                            Log.d("LogMonitorService", "Sending position for event: $event, configId=${config.id}")
                                             // TODO: Implement SendPosition logic
                                         }
                                         "SendTelegramPosition" -> {
                                             if (config.telegramChatId?.isNotEmpty() == true) {
+                                                Log.d("LogMonitorService", "Sending Telegram position to chatId: ${config.telegramChatId}, configId=${config.id}")
                                                 telegramBotHelper.getCurrentLocation(
                                                     onResult = { latitude, longitude ->
                                                         telegramBotHelper.sendLocationMessage(
@@ -97,36 +100,52 @@ class LogMonitorService : Service() {
                                                             longitude = longitude,
                                                             event = config.event
                                                         )
+                                                        Log.d("LogMonitorService", "Sent Telegram position for event: $event, lat=$latitude, lon=$longitude")
                                                     },
                                                     onError = { error ->
-                                                        Log.e("LogMonitorService", "Error getting location: $error")
+                                                        Log.e("LogMonitorService", "Error getting location for event: $event, configId=${config.id}, error: $error")
                                                     }
                                                 )
                                             } else {
-                                                Log.w("LogMonitorService", "No chat ID specified for event: $event")
+                                                Log.w("LogMonitorService", "No chat ID specified for event: $event, configId=${config.id}")
                                             }
                                         }
                                         "LaunchApp" -> {
                                             if (!config.taskData.isNullOrEmpty()) {
-                                                Log.d("LogMonitorService", "Launching app: ${config.taskData}")
+                                                Log.d("LogMonitorService", "Preparing to launch app: ${config.taskData}, configId=${config.id}")
                                                 val launchIntent = packageManager.getLaunchIntentForPackage(config.taskData)
                                                 if (launchIntent != null) {
-                                                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                                    startActivity(launchIntent)
+                                                    val pendingIntent = PendingIntent.getActivity(
+                                                        this@LogMonitorService,
+                                                        config.id,
+                                                        launchIntent,
+                                                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                                                    )
+                                                    val appName = config.telegramGroupName ?: config.taskData
+                                                    val launchNotification = NotificationCompat.Builder(this@LogMonitorService, NOTIFICATION_CHANNEL_ID)
+                                                        .setContentTitle("Launch $appName")
+                                                        .setContentText("Event $event triggered. Tap to launch $appName.")
+                                                        .setSmallIcon(R.drawable.ic_launcher)
+                                                        .setContentIntent(pendingIntent)
+                                                        .setAutoCancel(true)
+                                                        .build()
+                                                    val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                                                    notificationManager.notify(LAUNCH_APP_NOTIFICATION_ID + config.id, launchNotification)
+                                                    Log.d("LogMonitorService", "Notification sent to launch app: ${config.taskData} for event: $event, configId=${config.id}")
                                                 } else {
-                                                    Log.e("LogMonitorService", "No launch intent for package: ${config.taskData}")
+                                                    Log.e("LogMonitorService", "No launch intent found for package: ${config.taskData}, configId=${config.id}")
                                                 }
                                             } else {
-                                                Log.w("LogMonitorService", "No package name specified for event: $event")
+                                                Log.w("LogMonitorService", "No package name specified for event: $event, configId=${config.id}")
                                             }
                                         }
                                         else -> {
-                                            Log.w("LogMonitorService", getString(R.string.log_no_config, event))
+                                            Log.w("LogMonitorService", "Unknown or null taskType: ${config.taskType} for event: $event, configId=${config.id}")
                                         }
                                     }
                                 }
                             } else {
-                                Log.w("LogMonitorService", getString(R.string.log_no_config, event))
+                                Log.w("LogMonitorService", "No configs found for event: $event")
                             }
                         }
                     } else {
@@ -152,7 +171,7 @@ class LogMonitorService : Service() {
             addAction("${ACTION_PREFIX}COMP_SSS_CROSSED")
             addAction("${ACTION_PREFIX}COMP_TURNPOINT_CROSSED")
             addAction("${ACTION_PREFIX}COMP_ESS_CROSSED")
-            addAction("${ACTION_PREFIX}COMP_GOAL_CROSSED")
+            addAction("${ACTION_PREFIX}COMP_GOAL_CCROSSED")
             addAction("${ACTION_PREFIX}SYSTEM_GPS_OK")
             addAction("${ACTION_PREFIX}AIRSPACE_CROSSED")
             addAction("${ACTION_PREFIX}AIRSPACE_RED_WARN")
@@ -186,7 +205,7 @@ class LogMonitorService : Service() {
             val channel = NotificationChannel(
                 NOTIFICATION_CHANNEL_ID,
                 getString(R.string.notification_channel_name),
-                NotificationManager.IMPORTANCE_LOW
+                NotificationManager.IMPORTANCE_DEFAULT
             ).apply {
                 description = getString(R.string.notification_channel_description)
             }
