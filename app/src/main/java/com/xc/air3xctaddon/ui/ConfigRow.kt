@@ -279,9 +279,14 @@ fun ConfigRow(
                     ) {
                         Text(
                             text = when (taskType) {
-                                "SendTelegramPosition" -> "Group: ${telegramGroupName ?: taskData}"
+                                "SendTelegramPosition" -> "Send Telegram Position: ${telegramGroupName ?: taskData}"
                                 "Sound" -> if (taskData.isNotEmpty()) taskData else stringResource(id = R.string.select_task)
-                                "LaunchApp" -> "Launch: ${telegramGroupName ?: taskData}"
+                                "LaunchApp" -> {
+                                    // Find the corresponding task to get the background flag
+                                    val correspondingTask = launchAppTasks.find { it.taskData == taskData }
+                                    val backgroundText = if (correspondingTask?.launchInBackground == true) "Background" else "Foreground"
+                                    "Launch: ${telegramGroupName ?: taskData} ($backgroundText)"
+                                }
                                 else -> stringResource(id = R.string.select_task)
                             },
                             maxLines = 1,
@@ -302,7 +307,7 @@ fun ConfigRow(
                             }
                         )
                         DropdownMenuItem(
-                            content = { Text("SendTelegramPosition") },
+                            content = { Text("Send Telegram Position") },
                             onClick = {
                                 taskMenuExpanded = false
                                 telegramDialogOpen = true
@@ -310,8 +315,9 @@ fun ConfigRow(
                             }
                         )
                         launchAppTasks.forEach { appTask ->
+                            val backgroundText = if (appTask.launchInBackground) "Background" else "Foreground"
                             DropdownMenuItem(
-                                content = { Text("Launch: ${appTask.taskName}") },
+                                content = { Text("Launch: ${appTask.taskName} ($backgroundText)") },
                                 onClick = {
                                     taskType = "LaunchApp"
                                     taskData = appTask.taskData
