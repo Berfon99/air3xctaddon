@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- App information -->
-    <string name="app_name">AIR3 XCT Addon</string>
-    <string name="copyright">© 2025 Bertrand Fontaine</string>
+    <string name="app_name">AIR³ XCT Addon</string>
+    <string name="copyright">© 2025 Bertrand Fontaine - AIR³</string>
     <string name="app_version">Version</string>
 
     <!-- Main navigation -->

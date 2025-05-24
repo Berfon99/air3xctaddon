@@ -16,8 +16,8 @@ android {
         applicationId = "com.xc.air3xctaddon"
         minSdk = 33
         targetSdk = 34
-        versionCode = 100
-        versionName = "1.0.0" // Initialisation
+        versionCode = 101
+        versionName = "1.0.1" // Sound, Send telegram positin, Task launch app working
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
@@ -40,8 +40,9 @@ android {
     }
 
     buildTypes {
-        release {
-            isMinifyEnabled = false
+        getByName("release") {
+            isMinifyEnabled = true // Enables code shrinking
+            isShrinkResources = true // Enables resource shrinking (see below)
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -127,16 +128,61 @@ tasks.register<DefaultTask>("generateVersionHistory") {
     description = "Generates a version history file from the versionName and its comment."
 
     doLast {
-        val versionName = android.defaultConfig.versionName ?: throw GradleException("versionName not found")
-        val comment = android.defaultConfig.versionName?.substringAfter("//")?.trim() ?: "No comment"
-        val currentVersionLine = "$versionName - $comment\n"
+        // Debug: Check what files exist
+        println("Project directory: ${project.projectDir}")
+        println("Looking for build files...")
 
-        val versionHistoryFile = project.file("version_history.txt").apply { createNewFile() }
-        val lastVersionFile = project.file("last_version.txt").apply { createNewFile() }
+        val buildFileKts = project.file("build.gradle.kts")
+        val buildFileGroovy = project.file("build.gradle")
 
-        if (currentVersionLine.trim() != lastVersionFile.readText().trim()) {
-            versionHistoryFile.appendText(currentVersionLine)
-            lastVersionFile.writeText(currentVersionLine)
+        println("build.gradle.kts exists: ${buildFileKts.exists()}")
+        println("build.gradle exists: ${buildFileGroovy.exists()}")
+
+        val buildFile = when {
+            buildFileKts.exists() -> buildFileKts
+            buildFileGroovy.exists() -> buildFileGroovy
+            else -> throw GradleException("Neither build.gradle nor build.gradle.kts found")
+        }
+        val versionHistoryFile = project.file("version_history.txt")
+        val lastVersionFile = project.file("last_version.txt")
+
+        if (!versionHistoryFile.exists()) {
+            versionHistoryFile.createNewFile()
+        }
+        if (!lastVersionFile.exists()) {
+            lastVersionFile.createNewFile()
+        }
+
+        val lines = buildFile.readLines()
+        var versionNameLine: String? = null
+        for (line in lines) {
+            if (line.trimStart().startsWith("versionName")) {
+                versionNameLine = line
+                break
+            }
+        }
+
+        if (versionNameLine != null) {
+            val versionName = versionNameLine.substringAfter('"').substringBefore('"')
+            val comment = if (versionNameLine.contains("//")) {
+                versionNameLine.substringAfter("//").trim()
+            } else {
+                "No comment"
+            }
+            val currentVersionLine = "$versionName - $comment\n"
+
+            val lastVersion = if (lastVersionFile.exists() && lastVersionFile.length() > 0) {
+                lastVersionFile.readText().trim()
+            } else {
+                ""
+            }
+
+            if (currentVersionLine.trim() != lastVersion) {
+                versionHistoryFile.appendText(currentVersionLine)
+                lastVersionFile.writeText(currentVersionLine)
+            }
+        } else {
+            println("versionName not found in build.gradle.kts")
         }
     }
 }

@@ -1,1 +1,1 @@
-1.0.0 - Initialisation
+1.0.1 - Sound, Send telegram positin, Task launch app working
