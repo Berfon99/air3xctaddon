@@ -44,7 +44,7 @@ class LaunchActivity : ComponentActivity() {
                     }
 
                     if (launchInBackground) {
-                        // Background launch: Launch app and restore XCTrack
+                        // Background launch: Launch app and immediately restore XCTrack
                         launchIntent.addFlags(
                             Intent.FLAG_ACTIVITY_NEW_TASK or
                                     Intent.FLAG_ACTIVITY_NO_USER_ACTION or
@@ -52,39 +52,38 @@ class LaunchActivity : ComponentActivity() {
                         )
                         startActivity(launchIntent)
                         Log.d("LaunchActivity", "Launched app in background: $packageName")
-
-                        // Small delay to ensure the app starts before bringing XCTrack back
-                        Handler(Looper.getMainLooper()).postDelayed({
-                            // Restore XCTrack to foreground
-                            val xcTrackIntent = packageManager.getLaunchIntentForPackage("org.xcontest.XCTrack")
-                            if (xcTrackIntent != null) {
-                                xcTrackIntent.addFlags(
-                                    Intent.FLAG_ACTIVITY_NEW_TASK or
-                                            Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                                            Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or
-                                            Intent.FLAG_ACTIVITY_NO_ANIMATION
-                                )
-                                startActivity(xcTrackIntent)
-                                Log.d("LaunchActivity", "Restored XCTrack to foreground")
-                            } else {
-                                Log.w("LaunchActivity", "No launch intent found for org.xcontest.XCTrack")
-                            }
-                            finish()
-                        }, 200) // 200ms delay to ensure proper sequencing
+                        // Restore XCTrack
+                        val xcTrackIntent = packageManager.getLaunchIntentForPackage("org.xcontest.XCTrack")
+                        if (xcTrackIntent != null) {
+                            xcTrackIntent.addFlags(
+                                Intent.FLAG_ACTIVITY_NEW_TASK or
+                                        Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                                        Intent.FLAG_ACTIVITY_NO_ANIMATION
+                            )
+                            startActivity(xcTrackIntent)
+                            Log.d("LaunchActivity", "Restored XCTrack to foreground")
+                        } else {
+                            Log.w("LaunchActivity", "No launch intent found for org.xcontest.XCTrack")
+                        }
+                        finish()
                     } else {
-                        // Foreground launch: Launch app normally and bring it to front
+                        // Foreground launch: Launch app with foreground flags
                         launchIntent.addFlags(
                             Intent.FLAG_ACTIVITY_NEW_TASK or
                                     Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                                    Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                                    Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or
+                                    Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED
                         )
-                        // Remove any flags that would prevent the app from coming to foreground
-                        launchIntent.removeFlags(Intent.FLAG_ACTIVITY_NO_USER_ACTION)
-                        launchIntent.removeFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
-
-                        startActivity(launchIntent)
-                        Log.d("LaunchActivity", "Launched app in foreground: $packageName")
-                        finish()
+                        // Ensure no background flags interfere
+                        launchIntent.removeFlags(Intent.FLAG_ACTIVITY_NO_USER_ACTION or Intent.FLAG_ACTIVITY_NO_ANIMATION)
+                        Log.d("LaunchActivity", "Intent flags for foreground launch: ${launchIntent.flags.toString(16)}")
+                        // Slight delay to stabilize task on MediaTek
+                        Handler(Looper.getMainLooper()).postDelayed({
+                            startActivity(launchIntent)
+                            Log.d("LaunchActivity", "Launched app in foreground: $packageName")
+                            // Finish and remove task to clean up
+                            finishAndRemoveTask()
+                        }, 50)
                     }
                 } else {
                     Log.e("LaunchActivity", "No launch intent found for package: $packageName")

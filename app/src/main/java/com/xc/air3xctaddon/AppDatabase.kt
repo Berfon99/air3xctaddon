@@ -9,11 +9,12 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.xc.air3xctaddon.converters.Converters
 
-@Database(entities = [EventConfig::class, EventEntity::class], version = 10, exportSchema = false)
+@Database(entities = [EventConfig::class, EventEntity::class, Task::class], version = 11, exportSchema = false)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun eventConfigDao(): EventConfigDao
     abstract fun eventDao(): EventDao
+    abstract fun taskDao(): TaskDao
 
     companion object {
         @Volatile
@@ -135,6 +136,21 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // Migration 10→11: Add tasks table
+        val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("""
+                    CREATE TABLE tasks (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        taskType TEXT NOT NULL,
+                        taskData TEXT NOT NULL,
+                        taskName TEXT NOT NULL,
+                        launchInBackground INTEGER NOT NULL
+                    )
+                """.trimIndent())
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -151,7 +167,8 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_6_7,
                         MIGRATION_7_8,
                         MIGRATION_8_9,
-                        MIGRATION_9_10
+                        MIGRATION_9_10,
+                        MIGRATION_10_11
                     )
                     .build()
                 INSTANCE = instance

@@ -44,7 +44,7 @@ fun AddTaskScreen(
 ) {
     var showAppPicker by remember { mutableStateOf(false) }
     var selectedApp by remember { mutableStateOf<AppInfo?>(null) }
-    var launchInBackground by remember { mutableStateOf(true) }
+    var launchInBackground by remember { mutableStateOf(false) } // Changed default to false
     val context = LocalContext.current
     val packageManager = context.packageManager
     val installedApps = remember {

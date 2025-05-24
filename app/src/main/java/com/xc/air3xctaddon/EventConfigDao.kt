@@ -30,7 +30,7 @@ interface EventConfigDao {
 
     @Insert
     suspend fun insert(config: EventConfig) {
-        Log.d("EventConfigDao", "Inserting config: event=${config.event}, taskType=${config.taskType}, taskData=${config.taskData}")
+        Log.d("EventConfigDao", "Inserting config: event=${config.event}, taskType=${config.taskType}, taskData=${config.taskData}, launchInBackground=${config.launchInBackground}")
         insertInternal(config)
     }
 
@@ -63,4 +63,13 @@ interface EventConfigDao {
 
     @Query("UPDATE event_configs SET position = :position WHERE id = :id")
     suspend fun updatePositionInternal(id: Int, position: Int)
+
+    @Query("DELETE FROM event_configs WHERE taskType = 'LaunchApp'")
+    suspend fun deleteAll() {
+        Log.d("EventConfigDao", "Deleting all LaunchApp configs")
+        deleteAllInternal()
+    }
+
+    @Query("DELETE FROM event_configs WHERE taskType = 'LaunchApp'")
+    suspend fun deleteAllInternal()
 }

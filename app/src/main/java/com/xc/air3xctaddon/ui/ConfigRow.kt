@@ -33,7 +33,7 @@ import com.xc.air3xctaddon.ui.components.SpinnerItem
 import com.xc.air3xctaddon.ui.components.DropdownMenuSpinner
 import com.xc.air3xctaddon.ui.theme.RowBackground
 import com.xc.air3xctaddon.ui.theme.SoundFieldBackground
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.collectLatest
 import java.io.File
 import com.xc.air3xctaddon.R
 
@@ -54,6 +54,7 @@ fun ConfigRow(
     var taskType by remember { mutableStateOf(config.taskType ?: "") }
     var taskData by remember { mutableStateOf(config.taskData ?: "") }
     var telegramChatId by remember { mutableStateOf(config.telegramChatId ?: "") }
+    var telegramGroupName by remember { mutableStateOf(config.telegramGroupName ?: "") }
     var eventMenuExpanded by remember { mutableStateOf(false) }
     var taskMenuExpanded by remember { mutableStateOf(false) }
     var soundDialogOpen by remember { mutableStateOf(false) }
@@ -69,16 +70,13 @@ fun ConfigRow(
     var playCount by remember { mutableStateOf(config.playCount) }
     var soundMenuExpanded by remember { mutableStateOf(false) }
 
-    // Load LaunchApp tasks from database
-    val launchAppTasks by produceState<List<EventConfig>>(
-        initialValue = emptyList(),
-        key1 = taskMenuExpanded
-    ) {
-        value = runBlocking {
-            val db = AppDatabase.getDatabase(context)
-            db.eventConfigDao().getAllConfigsSync()
-                .filter { it.taskType == "LaunchApp" && it.event == "TASK_CONFIG" }
-        }
+    // Load LaunchApp tasks from tasks table
+    val launchAppTasks by AppDatabase.getDatabase(context).taskDao()
+        .getAllTasks()
+        .collectAsState(initial = emptyList())
+
+    LaunchedEffect(launchAppTasks) {
+        Log.d("ConfigRow", "launchAppTasks updated: ${launchAppTasks.map { "id=${it.id}, taskType=${it.taskType}, taskData=${it.taskData}, taskName=${it.taskName}, launchInBackground=${it.launchInBackground}" }}")
     }
 
     val soundFilesState by produceState<SoundFilesState>(
@@ -281,9 +279,9 @@ fun ConfigRow(
                     ) {
                         Text(
                             text = when (taskType) {
-                                "SendTelegramPosition" -> "Group: ${config.telegramGroupName ?: taskData}"
+                                "SendTelegramPosition" -> "Group: ${telegramGroupName ?: taskData}"
                                 "Sound" -> if (taskData.isNotEmpty()) taskData else stringResource(id = R.string.select_task)
-                                "LaunchApp" -> "Launch: ${config.telegramGroupName ?: taskData}"
+                                "LaunchApp" -> "Launch: ${telegramGroupName ?: taskData}"
                                 else -> stringResource(id = R.string.select_task)
                             },
                             maxLines = 1,
@@ -313,21 +311,23 @@ fun ConfigRow(
                         )
                         launchAppTasks.forEach { appTask ->
                             DropdownMenuItem(
-                                content = { Text("Launch: ${appTask.telegramGroupName}") },
+                                content = { Text("Launch: ${appTask.taskName}") },
                                 onClick = {
                                     taskType = "LaunchApp"
-                                    taskData = appTask.taskData ?: ""
+                                    taskData = appTask.taskData
+                                    telegramGroupName = appTask.taskName
                                     onUpdate(config.copy(
                                         taskType = taskType,
                                         taskData = taskData,
-                                        telegramGroupName = appTask.telegramGroupName,
+                                        telegramGroupName = appTask.taskName,
                                         volumeType = VolumeType.SYSTEM,
                                         volumePercentage = 100,
                                         playCount = 1,
-                                        telegramChatId = null
+                                        telegramChatId = null,
+                                        launchInBackground = appTask.launchInBackground
                                     ))
                                     taskMenuExpanded = false
-                                    Log.d("ConfigRow", "Selected task: LaunchApp, app: ${appTask.telegramGroupName}")
+                                    Log.d("ConfigRow", "Selected task: LaunchApp, app: ${appTask.taskName}, launchInBackground=${appTask.launchInBackground}")
                                 }
                             )
                         }
@@ -556,6 +556,7 @@ fun ConfigRow(
                         onAdd = { chatId, groupName ->
                             taskType = "SendTelegramPosition"
                             telegramChatId = chatId
+                            telegramGroupName = groupName
                             onUpdate(config.copy(
                                 taskType = taskType,
                                 taskData = groupName,

@@ -63,10 +63,13 @@ class LogMonitorService : Service() {
                         scope.launch {
                             val db = AppDatabase.getDatabase(applicationContext)
                             val configDao = db.eventConfigDao()
+                            val launchAppConfigs = configDao.getAllConfigsSync()
+                                .filter { it.taskType == "LaunchApp" }
+                            Log.d("LogMonitorService", "LaunchApp configs in database: ${launchAppConfigs.map { "id=${it.id}, event=${it.event}, taskData=${it.taskData}, launchInBackground=${it.launchInBackground}" }}")
                             val configs = configDao.getAllConfigsSync()
                                 .filter { it.event.equals(event, ignoreCase = true) }
                                 .sortedBy { it.position }
-                            Log.d("LogMonitorService", "Found ${configs.size} configs for event '$event': $configs")
+                            Log.d("LogMonitorService", "Found ${configs.size} configs for event '$event': ${configs.map { "id=${it.id}, taskData=${it.taskData}, launchInBackground=${it.launchInBackground}" }}")
                             if (configs.isNotEmpty()) {
                                 configs.forEach { config ->
                                     Log.d("LogMonitorService", getString(R.string.log_found_config, event, config.taskData) + ", taskType=${config.taskType}, id=${config.id}, launchInBackground=${config.launchInBackground}")
