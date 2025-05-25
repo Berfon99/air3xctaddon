@@ -11,23 +11,22 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.ContextCompat
-import com.xc.air3xctaddon.ui.MainScreen
-import com.xc.air3xctaddon.ui.theme.AIR3XCTAddonTheme
-import com.xc.air3xctaddon.utils.copySoundFilesFromAssets
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import com.xc.air3xctaddon.ui.MainScreen
+import com.xc.air3xctaddon.ui.theme.AIR3XCTAddonTheme
+import com.xc.air3xctaddon.utils.copySoundFilesFromAssets
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
 import android.content.pm.PackageManager
-
 
 class MainActivity : ComponentActivity() {
     companion object {
@@ -39,6 +38,7 @@ class MainActivity : ComponentActivity() {
 
     private val scope = CoroutineScope(Dispatchers.Main)
     private var showOverlayDialog by mutableStateOf(false)
+    private var showBrandErrorDialog by mutableStateOf(false)
 
     private val systemAlertWindowLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         scope.launch {
@@ -60,6 +60,23 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Check if the device brand is AIR³
+        if (Build.BRAND != "AIR3") {
+            showBrandErrorDialog = true
+            setContent {
+                AIR3XCTAddonTheme {
+                    if (showBrandErrorDialog) {
+                        BrandErrorDialog(
+                            onConfirm = {
+                                finishAffinity() // Close the entire application
+                            }
+                        )
+                    }
+                }
+            }
+            return
+        }
 
         // Check storage permissions and copy files
         if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P &&
@@ -283,5 +300,22 @@ fun OverlayPermissionDialog(
                 Text("Cancel")
             }
         }
+    )
+}
+
+@Composable
+fun BrandErrorDialog(
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = { /* Non-cancelable */ },
+        title = { Text("Error") },
+        text = { Text("This app is only compatible with AIR³ devices.") },
+        confirmButton = {
+            Button(onClick = onConfirm) {
+                Text("OK")
+            }
+        },
+        dismissButton = null // Makes dialog non-cancelable
     )
 }
