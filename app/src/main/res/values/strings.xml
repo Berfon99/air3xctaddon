@@ -125,5 +125,6 @@
     <string name="pilot_name_label">Pilot Name</string>
     <string name="current_pilot_name">Current Pilot Name: %s</string>
 
+    <string name="brand_limit_message">This app has no limitations with AIR³ devices. Other devices are limited to one action.</string>
 
 </resources>

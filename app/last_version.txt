@@ -1,1 +1,1 @@
-1.0.1 - Sound, Send telegram positin, Task launch app working
+1.0.2 - SCheck AIR³

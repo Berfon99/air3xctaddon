@@ -22,6 +22,13 @@ import androidx.compose.ui.unit.Dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xc.air3xctaddon.*
 import com.xc.air3xctaddon.R
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+
+// Define preference key
+private val IS_AIR3_DEVICE = booleanPreferencesKey("is_air3_device")
 
 @OptIn(ExperimentalMaterialApi::class)
 @Composable
@@ -30,6 +37,13 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
     val availableEvents by viewModel.events.collectAsState()
     val context = LocalContext.current
     var showMenu by remember { mutableStateOf(false) }
+    var showBrandLimitDialog by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+
+    // Initialize DataStoreSingleton
+    LaunchedEffect(Unit) {
+        DataStoreSingleton.initialize(context.applicationContext)
+    }
 
     var draggedIndex by remember { mutableStateOf<Int?>(null) }
     var dragOffset by remember { mutableStateOf(0f) }
@@ -70,7 +84,8 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
                     }
                 }
             )
-        }
+        },
+        modifier = Modifier.fillMaxSize()
     ) { padding ->
         Column(
             modifier = Modifier
@@ -127,7 +142,6 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
                             addCategory(Intent.CATEGORY_HOME)
                             flags = Intent.FLAG_ACTIVITY_NEW_TASK
                         })
-                        Log.d("MainScreen", "Close app clicked")
                     },
                     modifier = Modifier
                         .weight(0.25f)
@@ -142,24 +156,38 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
                         color = Color.White
                     )
                 }
-
                 if (availableEvents.isNotEmpty()) {
                     Button(
                         onClick = {
-                            val selectedEvent = availableEvents.firstOrNull { item -> item is MainViewModel.EventItem.Event } as? MainViewModel.EventItem.Event
-                            if (selectedEvent != null) {
-                                Log.d("MainScreen", "Add button clicked, adding config: event=${selectedEvent.name}, taskType='', taskData=''")
-                                viewModel.addConfig(
-                                    event = selectedEvent.name,
-                                    taskType = "",
-                                    taskData = "",
-                                    volumeType = VolumeType.SYSTEM,
-                                    volumePercentage = 100,
-                                    playCount = 1,
-                                    telegramChatId = null
-                                )
-                            } else {
-                                Log.w("MainScreen", "Add button clicked, but no EventItem.Event found in availableEvents")
+                            // Check AIR³ status and row count
+                            coroutineScope.launch {
+                                val isAir3 = DataStoreSingleton.getDataStore().data
+                                    .map { preferences ->
+                                        preferences[IS_AIR3_DEVICE] ?: true
+                                    }
+                                    .first()
+                                if (isAir3 || filteredConfigs.size < 1) {
+                                    // Add config if AIR³ or no rows
+                                    val selectedEvent = availableEvents.firstOrNull { item -> item is MainViewModel.EventItem.Event } as? MainViewModel.EventItem.Event
+                                    if (selectedEvent != null) {
+                                        Log.d("MainScreen", "Add button clicked, adding config: event=${selectedEvent.name}, taskType='', taskData=''")
+                                        viewModel.addConfig(
+                                            event = selectedEvent.name,
+                                            taskType = "",
+                                            taskData = "",
+                                            volumeType = VolumeType.SYSTEM,
+                                            volumePercentage = 100,
+                                            playCount = 1,
+                                            telegramChatId = null
+                                        )
+                                    } else {
+                                        Log.w("MainScreen", "Add button clicked, but no EventItem.Event found in availableEvents")
+                                    }
+                                } else {
+                                    // Show dialog for non-AIR³ with 1+ rows
+                                    showBrandLimitDialog = true
+                                    Log.d("MainScreen", "Non-AIR³ device with ${filteredConfigs.size} rows, showing limitation dialog")
+                                }
                             }
                         },
                         modifier = Modifier.size(56.dp),
@@ -178,4 +206,27 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
             }
         }
     }
+    // Brand limitation dialog
+    if (showBrandLimitDialog) {
+        BrandLimitDialog(
+            onConfirm = { showBrandLimitDialog = false }
+        )
+    }
+}
+
+@Composable
+fun BrandLimitDialog(
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = { /* Non-cancelable */ },
+        title = { Text("Device Compatibility") },
+        text = { Text("This app has no limitations with AIR³ devices. Other devices are limited to one action.") },
+        confirmButton = {
+            Button(onClick = onConfirm) {
+                Text("OK")
+            }
+        },
+        dismissButton = null // Makes dialog non-cancelable
+    )
 }

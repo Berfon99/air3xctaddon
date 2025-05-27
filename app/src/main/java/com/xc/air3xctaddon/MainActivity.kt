@@ -1,6 +1,7 @@
 package com.xc.air3xctaddon
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -27,6 +28,11 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
 import android.content.pm.PackageManager
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.edit
+
+// Define preference key
+private val IS_AIR3_DEVICE = booleanPreferencesKey("is_air3_device")
 
 class MainActivity : ComponentActivity() {
     companion object {
@@ -38,7 +44,6 @@ class MainActivity : ComponentActivity() {
 
     private val scope = CoroutineScope(Dispatchers.Main)
     private var showOverlayDialog by mutableStateOf(false)
-    private var showBrandErrorDialog by mutableStateOf(false)
 
     private val systemAlertWindowLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         scope.launch {
@@ -61,21 +66,15 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Check if the device brand is AIR³
-        if (Build.BRAND != "AIR3") {
-            showBrandErrorDialog = true
-            setContent {
-                AIR3XCTAddonTheme {
-                    if (showBrandErrorDialog) {
-                        BrandErrorDialog(
-                            onConfirm = {
-                                finishAffinity() // Close the entire application
-                            }
-                        )
-                    }
-                }
+        // Initialize DataStoreSingleton
+        DataStoreSingleton.initialize(applicationContext)
+
+        // Save AIR³ status to DataStore
+        scope.launch {
+            DataStoreSingleton.getDataStore().edit { preferences ->
+                preferences[IS_AIR3_DEVICE] = Build.BRAND == "AIR3"
             }
-            return
+            Log.d(TAG, "Saved AIR³ device status to DataStore: ${Build.BRAND == "AIR3"}")
         }
 
         // Check storage permissions and copy files
@@ -156,14 +155,14 @@ class MainActivity : ComponentActivity() {
 
             if (!success) {
                 Log.e(TAG, "Failed to copy sound files")
-                Toast.makeText(this, getString(R.string.sound_files_copy_failed), Toast.LENGTH_LONG).show()
+                Toast.makeText(this, R.string.sound_files_copy_failed, Toast.LENGTH_LONG).show()
                 return
             }
 
             val files = externalSoundsDir.listFiles()?.filter { it.isFile && it.canRead() }
             if (files == null || files.isEmpty()) {
                 Log.e(TAG, "No files found in ${externalSoundsDir.absolutePath}")
-                Toast.makeText(this, getString(R.string.sound_files_not_found), Toast.LENGTH_LONG).show()
+                Toast.makeText(this, R.string.sound_files_not_found, Toast.LENGTH_LONG).show()
                 return
             }
 
@@ -173,7 +172,7 @@ class MainActivity : ComponentActivity() {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error setting up sound files", e)
-            Toast.makeText(this, getString(R.string.sound_files_error), Toast.LENGTH_LONG).show()
+            Toast.makeText(this, R.string.sound_files_error, Toast.LENGTH_LONG).show()
         }
     }
 
@@ -203,7 +202,7 @@ class MainActivity : ComponentActivity() {
                     Log.d(TAG, "POST_NOTIFICATIONS permission granted")
                 } else {
                     Log.w(TAG, "POST_NOTIFICATIONS permission denied")
-                    Toast.makeText(this, getString(R.string.notification_permission_required), Toast.LENGTH_LONG).show()
+                    Toast.makeText(this, R.string.notification_permission_required, Toast.LENGTH_LONG).show()
                 }
                 // Check SYSTEM_ALERT_WINDOW after notification permission
                 if (!Settings.canDrawOverlays(this)) {
@@ -219,7 +218,7 @@ class MainActivity : ComponentActivity() {
                     copyAndVerifySoundFiles()
                 } else {
                     Log.w(TAG, "WRITE_EXTERNAL_STORAGE permission denied")
-                    Toast.makeText(this, getString(R.string.storage_permission_required), Toast.LENGTH_LONG).show()
+                    Toast.makeText(this, R.string.storage_permission_required, Toast.LENGTH_LONG).show()
                 }
                 // Check SYSTEM_ALERT_WINDOW after storage permission
                 if (!Settings.canDrawOverlays(this)) {
@@ -249,7 +248,7 @@ class MainActivity : ComponentActivity() {
                                 notificationGranted = true
                             } else {
                                 Log.w(TAG, "POST_NOTIFICATIONS permission denied")
-                                Toast.makeText(this, getString(R.string.notification_permission_required), Toast.LENGTH_LONG).show()
+                                Toast.makeText(this, R.string.notification_permission_required, Toast.LENGTH_LONG).show()
                                 notificationGranted = false
                             }
                         }
@@ -300,22 +299,5 @@ fun OverlayPermissionDialog(
                 Text("Cancel")
             }
         }
-    )
-}
-
-@Composable
-fun BrandErrorDialog(
-    onConfirm: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = { /* Non-cancelable */ },
-        title = { Text("Error") },
-        text = { Text("This app is only compatible with AIR³ devices.") },
-        confirmButton = {
-            Button(onClick = onConfirm) {
-                Text("OK")
-            }
-        },
-        dismissButton = null // Makes dialog non-cancelable
     )
 }
