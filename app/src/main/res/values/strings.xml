@@ -126,5 +126,6 @@
     <string name="current_pilot_name">Current Pilot Name: %s</string>
 
     <string name="brand_limit_message">This app has no limitations with AIR³ devices. Other devices are limited to one action.</string>
+    <string name="zello_not_installed">Please install Zello to use PTT task</string>
 
 </resources>

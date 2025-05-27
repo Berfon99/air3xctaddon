@@ -37,7 +37,7 @@ fun ConfigRow(
     availableEvents: List<MainViewModel.EventItem>,
     onUpdate: (EventConfig) -> Unit,
     onDelete: () -> Unit,
-    onDrag: (Int, Int) -> Unit,
+    onDrag: (Int, Float) -> Unit,
     index: Int,
     isDragging: Boolean,
     onDragStart: () -> Unit,
@@ -74,7 +74,10 @@ fun ConfigRow(
         .collectAsState(initial = emptyList<Task>())
 
     LaunchedEffect(launchAppTasks) {
-        Log.d("ConfigRow", "launchAppTasks updated: ${launchAppTasks.map { "id=${it.id}, taskType=${it.taskType}, taskData=${it.taskData}, taskName=${it.taskName}, launchInBackground=${it.launchInBackground}" }}")
+        Log.d("ConfigRow", "launchAppTasks updated: ${launchAppTasks.size} tasks")
+        launchAppTasks.forEach { task ->
+            Log.d("ConfigRow", "Task: id=${task.id}, type=${task.taskType}, data=${task.taskData}, name=${task.taskName}, background=${task.launchInBackground}")
+        }
     }
 
     fun playSound(fileName: String, volumeType: VolumeType, volumePercentage: Int, playCount: Int) {
@@ -176,7 +179,7 @@ fun ConfigRow(
                             onDragEnd = { onDragEnd() },
                             onDrag = { change, dragAmount ->
                                 change.consume()
-                                onDrag(index, dragAmount.y.toInt())
+                                onDrag(index, dragAmount.y)
                             }
                         )
                     }
@@ -225,6 +228,23 @@ fun ConfigRow(
                             launchInBackground = appTask.launchInBackground
                         ))
                         Log.d("ConfigRow", "Selected task: LaunchApp, app: ${appTask.taskName}, launchInBackground=${appTask.launchInBackground}")
+                    },
+                    onZelloPttSelected = {
+                        taskType = "ZELLO_PTT"
+                        taskData = ""
+                        telegramGroupName = "" // Fix: Use empty string instead of null
+                        telegramChatId = ""   // Fix: Use empty string instead of null
+                        onUpdate(config.copy(
+                            taskType = taskType,
+                            taskData = taskData,
+                            telegramGroupName = null,
+                            telegramChatId = null,
+                            volumeType = VolumeType.SYSTEM,
+                            volumePercentage = 100,
+                            playCount = 1,
+                            launchInBackground = true
+                        ))
+                        Log.d("ConfigRow", "Selected task: ZELLO_PTT")
                     },
                     modifier = Modifier.weight(1f)
                 )

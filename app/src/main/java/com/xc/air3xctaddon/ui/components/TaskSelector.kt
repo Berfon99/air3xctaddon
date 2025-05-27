@@ -23,6 +23,7 @@ fun TaskSelector(
     onSoundDialogOpen: () -> Unit,
     onTelegramDialogOpen: () -> Unit,
     onLaunchAppSelected: (Task) -> Unit,
+    onZelloPttSelected: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var taskMenuExpanded by remember { mutableStateOf(false) }
@@ -43,11 +44,11 @@ fun TaskSelector(
                     "SendTelegramPosition" -> "Send Telegram Position: ${telegramGroupName ?: taskData}"
                     "Sound" -> if (taskData.isNotEmpty()) taskData else stringResource(id = R.string.select_task)
                     "LaunchApp" -> {
-                        // Find the corresponding task to get the background flag
                         val correspondingTask = launchAppTasks.find { it.taskData == taskData }
                         val backgroundText = if (correspondingTask?.launchInBackground == true) "Background" else "Foreground"
                         "Launch: ${telegramGroupName ?: taskData} ($backgroundText)"
                     }
+                    "ZELLO_PTT" -> "Zello PTT"
                     else -> stringResource(id = R.string.select_task)
                 },
                 maxLines = 1,
@@ -75,6 +76,14 @@ fun TaskSelector(
                     Log.d("TaskSelector", "Selected task: SendTelegramPosition")
                 }
             )
+            DropdownMenuItem(
+                content = { Text("Zello PTT") },
+                onClick = {
+                    taskMenuExpanded = false
+                    onZelloPttSelected()
+                    Log.d("TaskSelector", "Selected task: ZELLO_PTT")
+                }
+            )
             launchAppTasks.forEach { appTask ->
                 val backgroundText = if (appTask.launchInBackground) "Background" else "Foreground"
                 DropdownMenuItem(
@@ -82,6 +91,7 @@ fun TaskSelector(
                     onClick = {
                         onLaunchAppSelected(appTask)
                         taskMenuExpanded = false
+                        Log.d("TaskSelector", "Selected task: LaunchApp, taskName=${appTask.taskName}")
                     }
                 )
             }

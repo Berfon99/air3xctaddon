@@ -2,6 +2,7 @@ package com.xc.air3xctaddon.ui
 
 import android.content.Intent
 import android.util.Log
+import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -40,7 +41,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
     var showBrandLimitDialog by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
 
-    // Initialize DataStoreSingleton
+    // Initialize DataStore
     LaunchedEffect(Unit) {
         DataStoreSingleton.initialize(context.applicationContext)
     }
@@ -167,7 +168,13 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
                                     }
                                     .first()
                                 if (isAir3 || filteredConfigs.size < 1) {
-                                    // Add config if AIR³ or no rows
+                                    // Check if Zello is installed
+                                    val zelloInstalled = context.packageManager.getLaunchIntentForPackage("com.loudtalks") != null
+                                    if (!zelloInstalled) {
+                                        Log.w("MainScreen", "Zello not installed")
+                                        Toast.makeText(context, R.string.zello_not_installed, Toast.LENGTH_LONG).show()
+                                        return@launch
+                                    }
                                     val selectedEvent = availableEvents.firstOrNull { item -> item is MainViewModel.EventItem.Event } as? MainViewModel.EventItem.Event
                                     if (selectedEvent != null) {
                                         Log.d("MainScreen", "Add button clicked, adding config: event=${selectedEvent.name}, taskType='', taskData=''")
@@ -184,7 +191,6 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
                                         Log.w("MainScreen", "Add button clicked, but no EventItem.Event found in availableEvents")
                                     }
                                 } else {
-                                    // Show dialog for non-AIR³ with 1+ rows
                                     showBrandLimitDialog = true
                                     Log.d("MainScreen", "Non-AIR³ device with ${filteredConfigs.size} rows, showing limitation dialog")
                                 }
@@ -206,27 +212,19 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
             }
         }
     }
+
     // Brand limitation dialog
     if (showBrandLimitDialog) {
-        BrandLimitDialog(
-            onConfirm = { showBrandLimitDialog = false }
+        AlertDialog(
+            onDismissRequest = { /* Non-dismissable */ },
+            title = { Text("Device Compatibility") },
+            text = { Text("This app has no restrictions with AIR³ devices. Other devices are restricted to one action.") },
+            confirmButton = {
+                Button(onClick = { showBrandLimitDialog = false }) {
+                    Text("OK")
+                }
+            },
+            dismissButton = null // Makes dialog non-dismissable
         )
     }
-}
-
-@Composable
-fun BrandLimitDialog(
-    onConfirm: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = { /* Non-cancelable */ },
-        title = { Text("Device Compatibility") },
-        text = { Text("This app has no limitations with AIR³ devices. Other devices are limited to one action.") },
-        confirmButton = {
-            Button(onClick = onConfirm) {
-                Text("OK")
-            }
-        },
-        dismissButton = null // Makes dialog non-cancelable
-    )
 }

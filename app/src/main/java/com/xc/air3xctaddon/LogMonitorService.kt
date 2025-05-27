@@ -29,6 +29,8 @@ class LogMonitorService : Service() {
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var telegramBotHelper: TelegramBotHelper
     private lateinit var settingsRepository: SettingsRepository
+    // Track PTT state per event (true = PTT down sent, false = PTT up sent or initial)
+    private val pttState = mutableMapOf<String, Boolean>()
 
     companion object {
         private const val NOTIFICATION_CHANNEL_ID = "LogMonitorServiceChannel"
@@ -128,6 +130,22 @@ class LogMonitorService : Service() {
                                                 }
                                             } else {
                                                 Log.w("LogMonitorService", "No package name specified for event: $event, configId=${config.id}")
+                                            }
+                                        }
+                                        "ZELLO_PTT" -> {
+                                            try {
+                                                // Get current PTT state for this event (default to false = up)
+                                                val isPttDown = pttState[event] ?: false
+                                                val intentAction = if (isPttDown) "com.zello.ptt.up" else "com.zello.ptt.down"
+                                                val zelloIntent = Intent(intentAction).apply {
+                                                    putExtra("com.zello.stayHidden", true)
+                                                }
+                                                sendBroadcast(zelloIntent)
+                                                Log.d("LogMonitorService", "Sent Zello intent: $intentAction for event: $event, configId=${config.id}")
+                                                // Toggle PTT state
+                                                pttState[event] = !isPttDown
+                                            } catch (e: Exception) {
+                                                Log.e("LogMonitorService", "Failed to send Zello PTT intent for event: $event, configId=${config.id}", e)
                                             }
                                         }
                                         else -> {
