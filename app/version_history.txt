@@ -2,3 +2,4 @@
 1.0.1 - Sound, Send telegram position, Task launch app working
 1.0.2 - SCheck AIR³
 1.0.3 - Check AIR³ and allow one action for non AIR³ devices
+1.0.4 - With Zello PTT task

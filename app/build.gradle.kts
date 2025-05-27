@@ -16,8 +16,8 @@ android {
         applicationId = "com.xc.air3xctaddon"
         minSdk = 33
         targetSdk = 34
-        versionCode = 103
-        versionName = "1.0.3" // Check AIR³ and allow one action for non AIR³ devices
+        versionCode = 104
+        versionName = "1.0.4" // With Zello PTT task
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
