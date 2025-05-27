@@ -16,8 +16,8 @@ android {
         applicationId = "com.xc.air3xctaddon"
         minSdk = 33
         targetSdk = 34
-        versionCode = 102
-        versionName = "1.0.2" // Check AIR³
+        versionCode = 103
+        versionName = "1.0.3" // Check AIR³ and allow one action for non AIR³ devices
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true

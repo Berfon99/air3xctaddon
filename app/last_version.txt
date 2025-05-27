@@ -1,1 +1,1 @@
-1.0.2 - SCheck AIR³
+1.0.3 - Check AIR³ and allow one action for non AIR³ devices
