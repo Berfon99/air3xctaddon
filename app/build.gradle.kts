@@ -16,8 +16,8 @@ android {
         applicationId = "com.xc.air3xctaddon"
         minSdk = 33
         targetSdk = 34
-        versionCode = 104
-        versionName = "1.0.4" // With Zello PTT task
+        versionCode = 105
+        versionName = "1.0.5" // Build Release ok and solving icons
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true

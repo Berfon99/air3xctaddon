@@ -5,6 +5,16 @@
 # For more details, see
 #   http://developer.android.com/guide/developing/tools/proguard.html
 
+# Preserve org.json classes
+-keep class org.json.** { *; }
+-keep interface org.json.** { *; }
+
+# Preserve TelegramGroup and its fields
+-keep class com.xc.air3xctaddon.TelegramGroup { *; }
+-keepclassmembers class com.xc.air3xctaddon.TelegramGroup {
+    <fields>;
+}
+
 # If your project uses WebView with JS, uncomment the following
 # and specify the fully qualified class name to the JavaScript interface
 # class:

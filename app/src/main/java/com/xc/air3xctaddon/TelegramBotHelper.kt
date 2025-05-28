@@ -411,7 +411,7 @@ class TelegramBotHelper(
                         if (update.has("message")) {
                             val message = update.getJSONObject("message")
                             val chat = message.getJSONObject("chat")
-                            val chatId = chat.getString("id")
+                            val chatId = chat.getLong("id").toString()
                             val chatType = chat.getString("type")
                             if ((chatType == "group" || chatType == "supergroup") && chatId !in seenChatIds) {
                                 val title = chat.optString("title", "Unknown Group")
