@@ -7,7 +7,7 @@
         <item name="android:colorAccent">@color/secondary</item>
         <!-- Splash screen -->
         <item name="android:windowSplashScreenBackground">@color/white</item>
-        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_launcher</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
         <item name="android:windowSplashScreenAnimationDuration">300</item>
         <!-- Status bar -->
         <item name="android:statusBarColor">@color/primary_variant</item>

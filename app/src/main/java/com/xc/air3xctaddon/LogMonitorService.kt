@@ -43,7 +43,7 @@ class LogMonitorService : Service() {
         val notification = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
             .setContentTitle(getString(R.string.notification_title))
             .setContentText(getString(R.string.notification_text))
-            .setSmallIcon(R.drawable.ic_launcher)
+            .setSmallIcon(R.mipmap.ic_launcher)
             .build()
         startForeground(NOTIFICATION_ID, notification)
         Log.d("LogMonitorService", getString(R.string.log_started_foreground))
