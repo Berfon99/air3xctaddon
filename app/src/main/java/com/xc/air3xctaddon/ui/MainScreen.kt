@@ -54,7 +54,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
     // Filter out TASK_CONFIG entries for display
     val filteredConfigs = configs.filter { it.event != "TASK_CONFIG" }
 
-    Log.d("MainScreen", "Filtered Configs: $filteredConfigs, AvailableEvents: $availableEvents")
+    Log.d("MainScreen", context.getString(R.string.log_filtered_configs, filteredConfigs.toString(), availableEvents.toString()))
 
     Scaffold(
         topBar = {
@@ -171,13 +171,13 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
                                     // Check if Zello is installed
                                     val zelloInstalled = context.packageManager.getLaunchIntentForPackage("com.loudtalks") != null
                                     if (!zelloInstalled) {
-                                        Log.w("MainScreen", "Zello not installed")
+                                        Log.w("MainScreen", context.getString(R.string.zello_not_installed))
                                         Toast.makeText(context, R.string.zello_not_installed, Toast.LENGTH_LONG).show()
                                         return@launch
                                     }
                                     val selectedEvent = availableEvents.firstOrNull { item -> item is MainViewModel.EventItem.Event } as? MainViewModel.EventItem.Event
                                     if (selectedEvent != null) {
-                                        Log.d("MainScreen", "Add button clicked, adding config: event=${selectedEvent.name}, taskType='', taskData=''")
+                                        Log.d("MainScreen", context.getString(R.string.log_add_config_clicked, selectedEvent.name, "", ""))
                                         viewModel.addConfig(
                                             event = selectedEvent.name,
                                             taskType = "",
@@ -188,11 +188,11 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
                                             telegramChatId = null
                                         )
                                     } else {
-                                        Log.w("MainScreen", "Add button clicked, but no EventItem.Event found in availableEvents")
+                                        Log.w("MainScreen", context.getString(R.string.log_no_event_item))
                                     }
                                 } else {
                                     showBrandLimitDialog = true
-                                    Log.d("MainScreen", "Non-AIR³ device with ${filteredConfigs.size} rows, showing limitation dialog")
+                                    Log.d("MainScreen", context.getString(R.string.log_non_air3_limit, filteredConfigs.size))
                                 }
                             }
                         },
@@ -217,11 +217,11 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
     if (showBrandLimitDialog) {
         AlertDialog(
             onDismissRequest = { /* Non-dismissable */ },
-            title = { Text("Device Compatibility") },
-            text = { Text("This app has no restrictions with AIR³ devices. Other devices are restricted to one action.") },
+            title = { Text(stringResource(R.string.device_compatibility_title)) },
+            text = { Text(stringResource(R.string.brand_limit_restriction)) },
             confirmButton = {
                 Button(onClick = { showBrandLimitDialog = false }) {
-                    Text("OK")
+                    Text(stringResource(R.string.ok_button))
                 }
             },
             dismissButton = null // Makes dialog non-dismissable

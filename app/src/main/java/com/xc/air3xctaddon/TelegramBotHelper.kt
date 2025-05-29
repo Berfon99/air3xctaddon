@@ -30,6 +30,7 @@ data class TelegramBotInfo(
 )
 
 class TelegramBotHelper(
+    private val context: Context,
     private val botToken: String,
     private val fusedLocationClient: FusedLocationProviderClient,
     private val settingsRepository: SettingsRepository
@@ -42,7 +43,7 @@ class TelegramBotHelper(
         longitude: Double,
         livePeriod: Int = 3600
     ) {
-        val url = "https://api.telegram.org/bot$botToken/sendLocation"
+        val url = context.getString(R.string.telegram_api_base_url) + botToken + context.getString(R.string.telegram_send_location_endpoint)
         val pilotName = settingsRepository.getPilotName()
         val json = JSONObject()
             .put("chat_id", chatId)
@@ -51,14 +52,14 @@ class TelegramBotHelper(
             .put("live_period", livePeriod)
             .apply {
                 if (!pilotName.isNullOrEmpty()) {
-                    put("caption", "Position from $pilotName")
+                    put("caption", context.getString(R.string.telegram_position_from_pilot, pilotName))
                 }
             }
             .toString()
-            .also { Log.d("TelegramBotHelper", "Sending live location JSON: $it, pilotName=$pilotName") }
+            .also { Log.d("TelegramBotHelper", context.getString(R.string.log_sending_live_location_json, it, pilotName ?: "")) }
 
         val requestBody = RequestBody.create(
-            "application/json; charset=utf-8".toMediaType(),
+            context.getString(R.string.telegram_content_type).toMediaType(),
             json
         )
 
@@ -69,16 +70,16 @@ class TelegramBotHelper(
 
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
-                Log.e("TelegramBotHelper", "Failed to send live location to chat $chatId, pilotName=$pilotName: ${e.message}")
+                Log.e("TelegramBotHelper", context.getString(R.string.log_failed_send_live_location, chatId, pilotName ?: "", e.message ?: ""))
             }
 
             override fun onResponse(call: Call, response: Response) {
                 if (response.isSuccessful) {
-                    Log.d("TelegramBotHelper", "Live location sent to chat $chatId, pilotName=$pilotName")
+                    Log.d("TelegramBotHelper", context.getString(R.string.log_live_location_sent, chatId, pilotName ?: ""))
                 } else {
-                    Log.e("TelegramBotHelper", "Error sending live location to chat $chatId, pilotName=$pilotName: ${response.message}, code=${response.code}")
+                    Log.e("TelegramBotHelper", context.getString(R.string.log_error_sending_live_location, chatId, pilotName ?: "", response.message, response.code))
                     response.body?.string()?.let { body ->
-                        Log.e("TelegramBotHelper", "Response body: $body")
+                        Log.e("TelegramBotHelper", context.getString(R.string.log_response_body, body))
                     }
                 }
                 response.close()
@@ -92,30 +93,31 @@ class TelegramBotHelper(
         longitude: Double,
         event: String? = null
     ) {
-        val url = "https://api.telegram.org/bot$botToken/sendMessage"
+        val url = context.getString(R.string.telegram_api_base_url) + botToken + context.getString(R.string.telegram_send_message_endpoint)
         val pilotName = settingsRepository.getPilotName()
+        val mapsLink = context.getString(R.string.telegram_maps_link_format, latitude, longitude)
         val messageText = when {
             !pilotName.isNullOrEmpty() && !event.isNullOrEmpty() -> {
-                "Position from $pilotName ($event): https://maps.google.com/?q=$latitude,$longitude"
+                context.getString(R.string.telegram_position_from_pilot_event, pilotName, event, mapsLink)
             }
             !pilotName.isNullOrEmpty() -> {
-                "Position from $pilotName: https://maps.google.com/?q=$latitude,$longitude"
+                context.getString(R.string.telegram_position_from_pilot, pilotName) + ": " + mapsLink
             }
             !event.isNullOrEmpty() -> {
-                "Position ($event): https://maps.google.com/?q=$latitude,$longitude"
+                context.getString(R.string.telegram_position_event, event, mapsLink)
             }
             else -> {
-                "Position: https://maps.google.com/?q=$latitude,$longitude"
+                context.getString(R.string.telegram_position_only, mapsLink)
             }
         }
         val json = JSONObject()
             .put("chat_id", chatId)
             .put("text", messageText)
             .toString()
-            .also { Log.d("TelegramBotHelper", "Sending location message JSON: $it, pilotName=$pilotName, event=$event") }
+            .also { Log.d("TelegramBotHelper", context.getString(R.string.log_sending_location_message_json, it, pilotName ?: "", event ?: "")) }
 
         val requestBody = RequestBody.create(
-            "application/json; charset=utf-8".toMediaType(),
+            context.getString(R.string.telegram_content_type).toMediaType(),
             json
         )
 
@@ -126,16 +128,16 @@ class TelegramBotHelper(
 
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
-                Log.e("TelegramBotHelper", "Failed to send location message to chat $chatId, pilotName=$pilotName, event=$event: ${e.message}")
+                Log.e("TelegramBotHelper", context.getString(R.string.log_failed_send_location_message, chatId, pilotName ?: "", event ?: "", e.message ?: ""))
             }
 
             override fun onResponse(call: Call, response: Response) {
                 if (response.isSuccessful) {
-                    Log.d("TelegramBotHelper", "Location message sent to chat $chatId, pilotName=$pilotName, event=$event")
+                    Log.d("TelegramBotHelper", context.getString(R.string.log_location_message_sent, chatId, pilotName ?: "", event ?: ""))
                 } else {
-                    Log.e("TelegramBotHelper", "Error sending location message to chat $chatId, pilotName=$pilotName, event=$event: ${response.message}, code=${response.code}")
+                    Log.e("TelegramBotHelper", context.getString(R.string.log_error_sending_location_message, chatId, pilotName ?: "", event ?: "", response.message, response.code))
                     response.body?.string()?.let { body ->
-                        Log.e("TelegramBotHelper", "Response body: $body")
+                        Log.e("TelegramBotHelper", context.getString(R.string.log_response_body, body))
                     }
                 }
                 response.close()
@@ -150,19 +152,19 @@ class TelegramBotHelper(
                     if (location != null) {
                         onResult(location.latitude, location.longitude)
                     } else {
-                        onError("Location is null")
+                        onError(context.getString(R.string.error_location_null))
                     }
                 }
                 .addOnFailureListener { e ->
-                    onError("Failed to get location: ${e.message}")
+                    onError(context.getString(R.string.error_failed_get_location, e.message ?: ""))
                 }
         } catch (e: SecurityException) {
-            onError("Location permission not granted")
+            onError(context.getString(R.string.error_location_permission_not_granted))
         }
     }
 
     fun getBotInfo(onResult: (TelegramBotInfo) -> Unit, onError: (String) -> Unit) {
-        val url = "https://api.telegram.org/bot$botToken/getMe"
+        val url = context.getString(R.string.telegram_api_base_url) + botToken + context.getString(R.string.telegram_get_me_endpoint)
         val request = Request.Builder()
             .url(url)
             .get()
@@ -170,21 +172,21 @@ class TelegramBotHelper(
 
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
-                Log.e("TelegramBotHelper", "Failed to get bot info: ${e.message}")
-                onError("Failed to get bot info: ${e.message}")
+                Log.e("TelegramBotHelper", context.getString(R.string.log_failed_get_bot_info, e.message ?: ""))
+                onError(context.getString(R.string.failed_to_get_bot_info, e.message ?: ""))
             }
 
             override fun onResponse(call: Call, response: Response) {
                 if (!response.isSuccessful) {
-                    Log.e("TelegramBotHelper", "Error getting bot info: ${response.message}")
-                    onError("Error getting bot info: ${response.message}")
+                    Log.e("TelegramBotHelper", context.getString(R.string.log_error_getting_bot_info, response.message))
+                    onError(context.getString(R.string.failed_to_get_bot_info, response.message))
                     response.close()
                     return
                 }
 
                 val json = response.body?.string() ?: run {
-                    Log.e("TelegramBotHelper", "Response body is null")
-                    onError("Response body is null")
+                    Log.e("TelegramBotHelper", context.getString(R.string.error_response_body_null))
+                    onError(context.getString(R.string.error_response_body_null))
                     response.close()
                     return
                 }
@@ -195,11 +197,11 @@ class TelegramBotHelper(
                     val username = result.getString("username")
                     val firstName = result.getString("first_name")
                     val id = result.getLong("id")
-                    Log.d("TelegramBotHelper", "Bot info fetched: username=$username, id=$id")
+                    Log.d("TelegramBotHelper", context.getString(R.string.log_bot_info_fetched, username, id))
                     onResult(TelegramBotInfo(username, firstName, id))
                 } catch (e: Exception) {
-                    Log.e("TelegramBotHelper", "Error parsing bot info: ${e.message}")
-                    onError("Error parsing bot info: ${e.message}")
+                    Log.e("TelegramBotHelper", context.getString(R.string.log_error_parsing_bot_info, e.message ?: ""))
+                    onError(context.getString(R.string.failed_to_get_bot_info, e.message ?: ""))
                 } finally {
                     response.close()
                 }
@@ -210,7 +212,7 @@ class TelegramBotHelper(
     fun checkBotInGroup(chatId: String, onResult: (Boolean, Boolean) -> Unit, onError: (String) -> Unit) {
         getBotInfo(
             onResult = { botInfo ->
-                val url = "https://api.telegram.org/bot$botToken/getChatMember?chat_id=$chatId&user_id=${botInfo.id}"
+                val url = context.getString(R.string.telegram_api_base_url) + botToken + context.getString(R.string.telegram_get_chat_member_endpoint) + "?chat_id=$chatId&user_id=${botInfo.id}"
                 val request = Request.Builder()
                     .url(url)
                     .get()
@@ -218,8 +220,8 @@ class TelegramBotHelper(
 
                 client.newCall(request).enqueue(object : Callback {
                     override fun onFailure(call: Call, e: IOException) {
-                        Log.e("TelegramBotHelper", "Failed to check bot status for chat $chatId: ${e.message}")
-                        onError("Failed to check bot status: ${e.message}")
+                        Log.e("TelegramBotHelper", context.getString(R.string.log_failed_check_bot_status, chatId, e.message ?: ""))
+                        onError(context.getString(R.string.failed_to_check_bot_status, e.message ?: ""))
                     }
 
                     override fun onResponse(call: Call, response: Response) {
@@ -227,7 +229,7 @@ class TelegramBotHelper(
                         response.close()
 
                         if (!response.isSuccessful) {
-                            Log.d("TelegramBotHelper", "Bot not in group $chatId: ${response.message} (code=${response.code})")
+                            Log.d("TelegramBotHelper", context.getString(R.string.log_bot_not_in_group, chatId, response.message, response.code))
                             onResult(false, false)
                             return
                         }
@@ -237,36 +239,41 @@ class TelegramBotHelper(
                             if (jsonObject.getBoolean("ok")) {
                                 val result = jsonObject.getJSONObject("result")
                                 val status = result.getString("status")
-                                val isMember = status in listOf("member", "administrator", "creator")
-                                Log.d("TelegramBotHelper", "Bot status in chat $chatId: isMember=$isMember, status=$status")
+                                val validStatuses = listOf(
+                                    context.getString(R.string.telegram_member_status),
+                                    context.getString(R.string.telegram_admin_status),
+                                    context.getString(R.string.telegram_creator_status)
+                                )
+                                val isMember = status in validStatuses
+                                Log.d("TelegramBotHelper", context.getString(R.string.log_bot_status_in_chat, chatId, isMember, status))
                                 onResult(isMember, isMember)
                             } else {
-                                Log.d("TelegramBotHelper", "Bot not in group $chatId: Response not ok, json=$json")
+                                Log.d("TelegramBotHelper", context.getString(R.string.log_bot_not_in_group_response_not_ok, chatId, json))
                                 onResult(false, false)
                             }
                         } catch (e: Exception) {
-                            Log.e("TelegramBotHelper", "Error parsing bot status for chat $chatId: ${e.message}, json=$json")
+                            Log.e("TelegramBotHelper", context.getString(R.string.log_error_parsing_bot_status, chatId, e.message ?: "", json))
                             onResult(false, false)
                         }
                     }
                 })
             },
             onError = { error ->
-                Log.e("TelegramBotHelper", "Failed to get bot info for checkBotInGroup: $error")
-                onError("Failed to get bot info: $error")
+                Log.e("TelegramBotHelper", context.getString(R.string.log_failed_get_bot_info_for_check, error))
+                onError(context.getString(R.string.failed_to_get_bot_info, error))
             }
         )
     }
 
     fun sendStartCommand(chatId: String, onResult: () -> Unit, onError: (String) -> Unit) {
-        val url = "https://api.telegram.org/bot$botToken/sendMessage"
+        val url = context.getString(R.string.telegram_api_base_url) + botToken + context.getString(R.string.telegram_send_message_endpoint)
         val json = JSONObject()
             .put("chat_id", chatId)
-            .put("text", "/start")
+            .put("text", context.getString(R.string.telegram_start_command))
             .toString()
 
         val requestBody = RequestBody.create(
-            "application/json; charset=utf-8".toMediaType(),
+            context.getString(R.string.telegram_content_type).toMediaType(),
             json
         )
 
@@ -277,17 +284,17 @@ class TelegramBotHelper(
 
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
-                Log.e("TelegramBotHelper", "Failed to send start command: ${e.message}")
-                onError("Failed to send start command: ${e.message}")
+                Log.e("TelegramBotHelper", context.getString(R.string.log_failed_send_start_command, e.message ?: ""))
+                onError(context.getString(R.string.failed_to_activate_bot, e.message ?: ""))
             }
 
             override fun onResponse(call: Call, response: Response) {
                 if (response.isSuccessful) {
-                    Log.d("TelegramBotHelper", "Start command sent to chat $chatId")
+                    Log.d("TelegramBotHelper", context.getString(R.string.log_start_command_sent, chatId))
                     onResult()
                 } else {
-                    Log.e("TelegramBotHelper", "Error sending start command: ${response.message}")
-                    onError("Error sending start command: ${response.message}")
+                    Log.e("TelegramBotHelper", context.getString(R.string.log_error_sending_start_command, response.message))
+                    onError(context.getString(R.string.failed_to_activate_bot, response.message))
                 }
                 response.close()
             }
@@ -295,15 +302,16 @@ class TelegramBotHelper(
     }
 
     fun openTelegramToAddBot(context: Context, botUsername: String, groupTitle: String? = null) {
-        val deepLink = "https://t.me/${botUsername.removePrefix("@")}?startgroup=true"
-        Log.d("TelegramBotHelper", "Opening Telegram with deep link: $deepLink")
+        val cleanUsername = botUsername.removePrefix("@")
+        val deepLink = context.getString(R.string.telegram_deeplink_format, cleanUsername)
+        Log.d("TelegramBotHelper", context.getString(R.string.log_opening_telegram_deeplink, deepLink))
         try {
             val intent = Intent(Intent.ACTION_VIEW, Uri.parse(deepLink))
-            intent.setPackage("org.telegram.messenger")
+            intent.setPackage(context.getString(R.string.telegram_package_name))
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(intent)
         } catch (e: Exception) {
-            Log.e("TelegramBotHelper", "Failed to open Telegram: ${e.message}")
+            Log.e("TelegramBotHelper", context.getString(R.string.error_failed_open_telegram, e.message ?: ""))
             val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse(deepLink))
             webIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(webIntent)
@@ -315,9 +323,9 @@ class TelegramBotHelper(
         CoroutineScope(Dispatchers.IO).launch {
             delay(2000L) // Wait 2s for Telegram to process
             fetchGroupsWithOffset(0, { rawGroups ->
-                Log.d("TelegramBotHelper", "Raw groups fetched: ${rawGroups.map { it.title }}")
+                Log.d("TelegramBotHelper", context.getString(R.string.log_raw_groups_fetched, rawGroups.map { it.title }.toString()))
                 validateGroups(rawGroups, { validatedGroups ->
-                    Log.d("TelegramBotHelper", "Validated groups: ${validatedGroups.map { it.title }}")
+                    Log.d("TelegramBotHelper", context.getString(R.string.log_validated_groups, validatedGroups.map { it.title }.toString()))
                     onResult(validatedGroups)
                 }, onError)
             }, onError)
@@ -330,7 +338,7 @@ class TelegramBotHelper(
         onError: (String) -> Unit
     ) {
         if (rawGroups.isEmpty()) {
-            Log.d("TelegramBotHelper", "No raw groups to validate")
+            Log.d("TelegramBotHelper", context.getString(R.string.log_no_raw_groups_validate))
             onResult(emptyList())
             return
         }
@@ -342,7 +350,7 @@ class TelegramBotHelper(
             checkBotInGroup(
                 chatId = group.chatId,
                 onResult = { isMember, isActive ->
-                    Log.d("TelegramBotHelper", "Validated group ${group.title}: isMember=$isMember, isActive=$isActive")
+                    Log.d("TelegramBotHelper", context.getString(R.string.log_validated_group, group.title, isMember, isActive))
                     if (isMember) {
                         validatedGroups.add(group.copy(isBotMember = isMember, isBotActive = isActive))
                     }
@@ -352,7 +360,7 @@ class TelegramBotHelper(
                     }
                 },
                 onError = { error ->
-                    Log.w("TelegramBotHelper", "Error validating group ${group.title}: $error")
+                    Log.w("TelegramBotHelper", context.getString(R.string.log_error_validating_group, group.title, error))
                     groupsProcessed++
                     if (groupsProcessed == rawGroups.size) {
                         onResult(validatedGroups.sortedBy { it.title })
@@ -367,7 +375,7 @@ class TelegramBotHelper(
         onResult: (List<TelegramGroup>) -> Unit,
         onError: (String) -> Unit
     ) {
-        val url = "https://api.telegram.org/bot$botToken/getUpdates?offset=$offset"
+        val url = context.getString(R.string.telegram_api_base_url) + botToken + context.getString(R.string.telegram_get_updates_endpoint) + "?offset=$offset"
         val request = Request.Builder()
             .url(url)
             .get()
@@ -375,26 +383,26 @@ class TelegramBotHelper(
 
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
-                Log.e("TelegramBotHelper", "Failed to fetch groups: ${e.message}")
-                onError("Failed to fetch groups: ${e.message}")
+                Log.e("TelegramBotHelper", context.getString(R.string.log_failed_fetch_groups, e.message ?: ""))
+                onError(context.getString(R.string.failed_to_fetch_groups_error, e.message ?: ""))
             }
 
             override fun onResponse(call: Call, response: Response) {
                 if (!response.isSuccessful) {
-                    Log.e("TelegramBotHelper", "Error fetching groups: ${response.message}")
-                    onError("Error fetching groups: ${response.message}")
+                    Log.e("TelegramBotHelper", context.getString(R.string.log_error_fetching_groups, response.message))
+                    onError(context.getString(R.string.failed_to_fetch_groups_error, response.message))
                     response.close()
                     return
                 }
 
                 val json = response.body?.string() ?: run {
-                    Log.e("TelegramBotHelper", "Response body is null")
-                    onError("Response body is null")
+                    Log.e("TelegramBotHelper", context.getString(R.string.error_response_body_null))
+                    onError(context.getString(R.string.error_response_body_null))
                     response.close()
                     return
                 }
 
-                Log.d("TelegramBotHelper", "getUpdates response: $json")
+                Log.d("TelegramBotHelper", context.getString(R.string.log_getupdates_response, json))
 
                 try {
                     val jsonObject = JSONObject(json)
@@ -413,11 +421,15 @@ class TelegramBotHelper(
                             val chat = message.getJSONObject("chat")
                             val chatId = chat.getLong("id").toString()
                             val chatType = chat.getString("type")
-                            if ((chatType == "group" || chatType == "supergroup") && chatId !in seenChatIds) {
-                                val title = chat.optString("title", "Unknown Group")
+                            val validGroupTypes = listOf(
+                                context.getString(R.string.telegram_group_type),
+                                context.getString(R.string.telegram_supergroup_type)
+                            )
+                            if (chatType in validGroupTypes && chatId !in seenChatIds) {
+                                val title = chat.optString("title", context.getString(R.string.unknown_group))
                                 groups.add(TelegramGroup(chatId, title))
                                 seenChatIds.add(chatId)
-                                Log.d("TelegramBotHelper", "Found group: $title, chatId=$chatId")
+                                Log.d("TelegramBotHelper", context.getString(R.string.log_found_group, title, chatId))
                             }
                         }
                     }
@@ -430,8 +442,8 @@ class TelegramBotHelper(
                         onResult(groups)
                     }
                 } catch (e: Exception) {
-                    Log.e("TelegramBotHelper", "Error parsing groups: ${e.message}")
-                    onError("Error parsing groups: ${e.message}")
+                    Log.e("TelegramBotHelper", context.getString(R.string.log_error_parsing_groups, e.message ?: ""))
+                    onError(context.getString(R.string.failed_to_fetch_groups_error, e.message ?: ""))
                 } finally {
                     response.close()
                 }

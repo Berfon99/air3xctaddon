@@ -17,6 +17,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.xc.air3xctaddon.ui.MainScreen
@@ -49,13 +50,13 @@ class MainActivity : ComponentActivity() {
         scope.launch {
             delay(1500) // Match delay from SettingsActivity/AddTaskActivity
             val canDrawOverlays = Settings.canDrawOverlays(this@MainActivity)
-            Log.d(TAG, "SYSTEM_ALERT_WINDOW check: canDrawOverlays=$canDrawOverlays")
+            Log.d(TAG, getString(R.string.log_system_alert_window_check, canDrawOverlays))
             if (canDrawOverlays) {
-                Toast.makeText(this@MainActivity, "Overlay permission granted", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@MainActivity, getString(R.string.overlay_permission_granted), Toast.LENGTH_SHORT).show()
             } else {
                 Toast.makeText(
                     this@MainActivity,
-                    "Overlay permission denied. If the app isn't listed in Settings, try reinstalling or use ADB: 'adb shell appops set com.xc.air3xctaddon SYSTEM_ALERT_WINDOW allow'",
+                    getString(R.string.overlay_permission_denied),
                     Toast.LENGTH_LONG
                 ).show()
             }
@@ -72,16 +73,16 @@ class MainActivity : ComponentActivity() {
         // Save AIR³ status to DataStore
         scope.launch {
             DataStoreSingleton.getDataStore().edit { preferences ->
-                preferences[IS_AIR3_DEVICE] = Build.BRAND == "AIR3"
+                preferences[IS_AIR3_DEVICE] = Build.BRAND == getString(R.string.brand_air3)
             }
-            Log.d(TAG, "Saved AIR³ device status to DataStore: ${Build.BRAND == "AIR3"}")
+            Log.d(TAG, getString(R.string.log_saved_air3_status, Build.BRAND == getString(R.string.brand_air3)))
         }
 
         // Check storage permissions and copy files
         if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED
         ) {
-            Log.d(TAG, "Requesting WRITE_EXTERNAL_STORAGE permission")
+            Log.d(TAG, getString(R.string.log_requesting_storage_permission))
             requestPermissions(
                 arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE),
                 REQUEST_STORAGE_PERMISSION
@@ -94,17 +95,17 @@ class MainActivity : ComponentActivity() {
         val permissionsToRequest = mutableListOf<String>()
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             permissionsToRequest.add(Manifest.permission.ACCESS_FINE_LOCATION)
-            Log.d(TAG, "ACCESS_FINE_LOCATION permission needed")
+            Log.d(TAG, getString(R.string.log_location_permission_needed))
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) {
             permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
-            Log.d(TAG, "POST_NOTIFICATIONS permission needed")
+            Log.d(TAG, getString(R.string.log_notification_permission_needed))
         }
 
         if (permissionsToRequest.isNotEmpty()) {
-            Log.d(TAG, "Requesting permissions: $permissionsToRequest")
+            Log.d(TAG, getString(R.string.log_requesting_permissions, permissionsToRequest.toString()))
             requestPermissions(
                 permissionsToRequest.toTypedArray(),
                 REQUEST_LOCATION_PERMISSION
@@ -112,7 +113,7 @@ class MainActivity : ComponentActivity() {
         } else {
             // Check SYSTEM_ALERT_WINDOW permission
             if (!Settings.canDrawOverlays(this)) {
-                Log.d(TAG, "SYSTEM_ALERT_WINDOW permission needed")
+                Log.d(TAG, getString(R.string.log_system_alert_window_needed))
                 showOverlayDialog = true // Show dialog to explain and request
             } else {
                 startLogMonitorService()
@@ -130,14 +131,14 @@ class MainActivity : ComponentActivity() {
                                 Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                                 Uri.parse("package:$packageName")
                             )
-                            Log.d(TAG, "Requesting SYSTEM_ALERT_WINDOW for package: $packageName")
+                            Log.d(TAG, getString(R.string.log_requesting_system_alert_window, packageName))
                             systemAlertWindowLauncher.launch(intent)
                         },
                         onDismiss = {
                             showOverlayDialog = false
                             Toast.makeText(
                                 this,
-                                "Overlay permission is required to launch apps in the background",
+                                getString(R.string.overlay_permission_required),
                                 Toast.LENGTH_LONG
                             ).show()
                             startLogMonitorService() // Proceed even if denied
@@ -151,27 +152,27 @@ class MainActivity : ComponentActivity() {
     private fun copyAndVerifySoundFiles() {
         try {
             val externalSoundsDir = File(getExternalFilesDir(null), "Sounds")
-            val success = assets.copySoundFilesFromAssets(externalSoundsDir)
+            val success = assets.copySoundFilesFromAssets(this@MainActivity, externalSoundsDir)
 
             if (!success) {
-                Log.e(TAG, "Failed to copy sound files")
+                Log.e(TAG, getString(R.string.log_failed_copy_sound_files))
                 Toast.makeText(this, R.string.sound_files_copy_failed, Toast.LENGTH_LONG).show()
                 return
             }
 
             val files = externalSoundsDir.listFiles()?.filter { it.isFile && it.canRead() }
             if (files == null || files.isEmpty()) {
-                Log.e(TAG, "No files found in ${externalSoundsDir.absolutePath}")
+                Log.e(TAG, getString(R.string.log_no_sound_files_found, externalSoundsDir.absolutePath))
                 Toast.makeText(this, R.string.sound_files_not_found, Toast.LENGTH_LONG).show()
                 return
             }
 
-            Log.d(TAG, "External sound directory (${externalSoundsDir.absolutePath}) contains: ${files.size} files")
+            Log.d(TAG, getString(R.string.log_sound_directory_contents, externalSoundsDir.absolutePath, files.size))
             files.forEach {
-                Log.d(TAG, "  - ${it.name} (${it.length()} bytes, readable: ${it.canRead()}, exists: ${it.exists()})")
+                Log.d(TAG, getString(R.string.log_sound_file_details, it.name, it.length(), it.canRead(), it.exists()))
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error setting up sound files", e)
+            Log.e(TAG, getString(R.string.log_error_setting_up_sound_files), e)
             Toast.makeText(this, R.string.sound_files_error, Toast.LENGTH_LONG).show()
         }
     }
@@ -180,7 +181,7 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) {
-            Log.d(TAG, "Requesting POST_NOTIFICATIONS permission")
+            Log.d(TAG, getString(R.string.log_requesting_notification_permission))
             requestPermissions(
                 arrayOf(Manifest.permission.POST_NOTIFICATIONS),
                 REQUEST_NOTIFICATION_PERMISSION
@@ -199,14 +200,14 @@ class MainActivity : ComponentActivity() {
         when (requestCode) {
             REQUEST_NOTIFICATION_PERMISSION -> {
                 if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    Log.d(TAG, "POST_NOTIFICATIONS permission granted")
+                    Log.d(TAG, getString(R.string.log_notification_permission_granted))
                 } else {
-                    Log.w(TAG, "POST_NOTIFICATIONS permission denied")
+                    Log.w(TAG, getString(R.string.log_notification_permission_denied))
                     Toast.makeText(this, R.string.notification_permission_required, Toast.LENGTH_LONG).show()
                 }
                 // Check SYSTEM_ALERT_WINDOW after notification permission
                 if (!Settings.canDrawOverlays(this)) {
-                    Log.d(TAG, "SYSTEM_ALERT_WINDOW permission needed")
+                    Log.d(TAG, getString(R.string.log_system_alert_window_needed))
                     showOverlayDialog = true
                 } else {
                     startLogMonitorService()
@@ -214,15 +215,15 @@ class MainActivity : ComponentActivity() {
             }
             REQUEST_STORAGE_PERMISSION -> {
                 if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    Log.d(TAG, "WRITE_EXTERNAL_STORAGE permission granted")
+                    Log.d(TAG, getString(R.string.log_storage_permission_granted))
                     copyAndVerifySoundFiles()
                 } else {
-                    Log.w(TAG, "WRITE_EXTERNAL_STORAGE permission denied")
+                    Log.w(TAG, getString(R.string.log_storage_permission_denied))
                     Toast.makeText(this, R.string.storage_permission_required, Toast.LENGTH_LONG).show()
                 }
                 // Check SYSTEM_ALERT_WINDOW after storage permission
                 if (!Settings.canDrawOverlays(this)) {
-                    Log.d(TAG, "SYSTEM_ALERT_WINDOW permission needed")
+                    Log.d(TAG, getString(R.string.log_system_alert_window_needed))
                     showOverlayDialog = true
                 } else {
                     startLogMonitorService()
@@ -235,19 +236,19 @@ class MainActivity : ComponentActivity() {
                     when (permissions[i]) {
                         Manifest.permission.ACCESS_FINE_LOCATION -> {
                             if (grantResults[i] == PackageManager.PERMISSION_GRANTED) {
-                                Log.d(TAG, "ACCESS_FINE_LOCATION permission granted")
+                                Log.d(TAG, getString(R.string.log_location_permission_granted))
                                 locationGranted = true
                             } else {
-                                Log.w(TAG, "ACCESS_FINE_LOCATION permission denied")
-                                Toast.makeText(this, "Location permission required for Telegram position", Toast.LENGTH_LONG).show()
+                                Log.w(TAG, getString(R.string.log_location_permission_denied))
+                                Toast.makeText(this, getString(R.string.toast_location_permission_required), Toast.LENGTH_LONG).show()
                             }
                         }
                         Manifest.permission.POST_NOTIFICATIONS -> {
                             if (grantResults[i] == PackageManager.PERMISSION_GRANTED) {
-                                Log.d(TAG, "POST_NOTIFICATIONS permission granted")
+                                Log.d(TAG, getString(R.string.log_notification_permission_granted))
                                 notificationGranted = true
                             } else {
-                                Log.w(TAG, "POST_NOTIFICATIONS permission denied")
+                                Log.w(TAG, getString(R.string.log_notification_permission_denied))
                                 Toast.makeText(this, R.string.notification_permission_required, Toast.LENGTH_LONG).show()
                                 notificationGranted = false
                             }
@@ -256,7 +257,7 @@ class MainActivity : ComponentActivity() {
                 }
                 // Check SYSTEM_ALERT_WINDOW after location/notification permissions
                 if (!Settings.canDrawOverlays(this)) {
-                    Log.d(TAG, "SYSTEM_ALERT_WINDOW permission needed")
+                    Log.d(TAG, getString(R.string.log_system_alert_window_needed))
                     showOverlayDialog = true
                 } else {
                     startLogMonitorService()
@@ -272,7 +273,7 @@ class MainActivity : ComponentActivity() {
         } else {
             startService(intent)
         }
-        Log.d("MainActivity", "Started LogMonitorService")
+        Log.d(TAG, getString(R.string.log_started_log_monitor_service))
     }
 }
 
@@ -283,20 +284,20 @@ fun OverlayPermissionDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Overlay Permission Required") },
+        title = { Text(stringResource(R.string.overlay_permission_required)) },
         text = {
             Text(
-                "This app needs permission to display over other apps to launch applications in the background while keeping XCTrack active. Please enable 'Display over other apps' in Settings."
+                stringResource(R.string.overlay_permission_description)
             )
         },
         confirmButton = {
             Button(onClick = onConfirm) {
-                Text("Go to Settings")
+                Text(stringResource(R.string.go_to_settings))
             }
         },
         dismissButton = {
             Button(onClick = onDismiss) {
-                Text("Cancel")
+                Text(stringResource(R.string.cancel))
             }
         }
     )

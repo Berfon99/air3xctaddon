@@ -87,21 +87,21 @@ class LaunchActivity : ComponentActivity() {
                     }
                 } else {
                     Log.e("LaunchActivity", "No launch intent found for package: $packageName")
-                    Toast.makeText(this, "Cannot launch app: $packageName", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this, getString(R.string.cannot_launch_app, packageName), Toast.LENGTH_LONG).show()
                     finish()
                 }
             } catch (e: PackageManager.NameNotFoundException) {
                 Log.e("LaunchActivity", "Package not found: $packageName, error: ${e.message}")
-                Toast.makeText(this, "App not found: $packageName", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, getString(R.string.app_not_found, packageName), Toast.LENGTH_LONG).show()
                 finish()
             } catch (e: Exception) {
                 Log.e("LaunchActivity", "Failed to launch app: $packageName, error: ${e.message}")
-                Toast.makeText(this, "Failed to launch app: ${e.message}", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, getString(R.string.failed_to_launch_app, e.message), Toast.LENGTH_LONG).show()
                 finish()
             }
         } else {
             Log.e("LaunchActivity", "No packageName provided")
-            Toast.makeText(this, "No app specified to launch", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, getString(R.string.no_app_specified_to_launch), Toast.LENGTH_LONG).show()
             finish()
         }
     }

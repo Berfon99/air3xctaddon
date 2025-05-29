@@ -182,7 +182,7 @@ fun SoundConfigDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Volume:",
+                        text = stringResource(id = R.string.volume_label),
                         style = MaterialTheme.typography.body1,
                         modifier = Modifier.width(80.dp)
                     )
@@ -216,6 +216,7 @@ fun SoundConfigDialog(
                             Log.d("SoundConfigDialog", "Volume selected: $selected")
                         },
                         label = "",
+                        context = context,
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -228,7 +229,7 @@ fun SoundConfigDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Count:",
+                        text = stringResource(id = R.string.count_label),
                         style = MaterialTheme.typography.body1,
                         modifier = Modifier.width(80.dp)
                     )
@@ -240,6 +241,7 @@ fun SoundConfigDialog(
                             Log.d("SoundConfigDialog", "Play count selected: $selected")
                         },
                         label = "",
+                        context = context,
                         modifier = Modifier.width(100.dp)
                     )
                 }

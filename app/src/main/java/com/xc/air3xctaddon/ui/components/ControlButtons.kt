@@ -44,13 +44,13 @@ fun ControlButtons(
                 when (taskType) {
                     "Sound" -> {
                         if (taskData.isNotEmpty()) {
-                            Log.d("ControlButtons", "Main play button clicked for sound: $taskData")
+                            Log.d("ControlButtons", context.getString(R.string.log_play_sound_clicked, taskData))
                             onPlaySound()
                         }
                     }
                     "SendTelegramPosition" -> {
                         if (telegramChatId.isNotEmpty()) {
-                            Log.d("ControlButtons", "Main play button clicked for SendTelegramPosition: chatId=$telegramChatId, event=${config.event}")
+                            Log.d("ControlButtons", context.getString(R.string.log_play_telegram_clicked, telegramChatId, config.event))
                             telegramBotHelper.getCurrentLocation(
                                 onResult = { latitude, longitude ->
                                     telegramBotHelper.sendLocationMessage(
@@ -59,22 +59,22 @@ fun ControlButtons(
                                         longitude = longitude,
                                         event = config.event
                                     )
-                                    Log.d("ControlButtons", "Sent location message to Telegram: lat=$latitude, lon=$longitude, event=${config.event}")
+                                    Log.d("ControlButtons", context.getString(R.string.log_sent_telegram_location, latitude, longitude, config.event))
                                 },
                                 onError = { error ->
-                                    Log.e("ControlButtons", "Failed to get location: $error")
+                                    Log.e("ControlButtons", context.getString(R.string.log_failed_get_location, error))
                                 }
                             )
                         }
                     }
                     "LaunchApp" -> {
                         if (taskData.isNotEmpty()) {
-                            Log.d("ControlButtons", "Main play button clicked for LaunchApp: package=$taskData")
+                            Log.d("ControlButtons", context.getString(R.string.log_play_launch_app_clicked, taskData))
                             val launchIntent = context.packageManager.getLaunchIntentForPackage(taskData)
                             if (launchIntent != null) {
                                 context.startActivity(launchIntent)
                             } else {
-                                Log.e("ControlButtons", "No launch intent for package: $taskData")
+                                Log.e("ControlButtons", context.getString(R.string.log_no_launch_intent, taskData))
                             }
                         }
                     }
@@ -84,9 +84,9 @@ fun ControlButtons(
                                 putExtra("com.zello.stayHidden", true)
                             }
                             context.sendBroadcast(zelloIntent)
-                            Log.d("ControlButtons", "Main play button clicked for ZELLO_PTT: sent com.zello.ptt.up")
+                            Log.d("ControlButtons", context.getString(R.string.log_play_zello_ptt_clicked))
                         } catch (e: Exception) {
-                            Log.e("ControlButtons", "Failed to send Zello PTT intent", e)
+                            Log.e("ControlButtons", context.getString(R.string.log_failed_zello_intent), e)
                         }
                     }
                 }
@@ -110,7 +110,7 @@ fun ControlButtons(
         IconButton(
             onClick = {
                 if (taskType == "Sound") {
-                    Log.d("ControlButtons", "Main stop button clicked for sound: $taskData")
+                    Log.d("ControlButtons", context.getString(R.string.log_stop_sound_clicked, taskData))
                     onStopSound()
                 }
             },
@@ -126,7 +126,7 @@ fun ControlButtons(
 
         IconButton(
             onClick = {
-                Log.d("ControlButtons", "Delete button clicked")
+                Log.d("ControlButtons", context.getString(R.string.log_delete_clicked))
                 onDelete()
             }
         ) {

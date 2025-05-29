@@ -13,6 +13,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.xc.air3xctaddon.ui.theme.AIR3XCTAddonTheme
 
@@ -44,7 +45,7 @@ fun AddTaskScreen(
 ) {
     var showAppPicker by remember { mutableStateOf(false) }
     var selectedApp by remember { mutableStateOf<AppInfo?>(null) }
-    var launchInBackground by remember { mutableStateOf(false) } // Changed default to false
+    var launchInBackground by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val packageManager = context.packageManager
     val installedApps = remember {
@@ -61,7 +62,7 @@ fun AddTaskScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text(
-            text = "Add Task",
+            text = stringResource(R.string.add_task),
             style = MaterialTheme.typography.headlineSmall
         )
 
@@ -69,11 +70,11 @@ fun AddTaskScreen(
             onClick = { showAppPicker = true },
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Select App to Launch")
+            Text(stringResource(R.string.select_app_to_launch))
         }
 
         selectedApp?.let {
-            Text("Selected: ${it.name}")
+            Text(stringResource(R.string.selected_app, it.name))
         }
 
         Row(
@@ -84,7 +85,7 @@ fun AddTaskScreen(
                 checked = launchInBackground,
                 onCheckedChange = { launchInBackground = it }
             )
-            Text("Launch in background (keep XCTrack in foreground)")
+            Text(stringResource(R.string.launch_in_background))
         }
 
         Button(
@@ -96,14 +97,14 @@ fun AddTaskScreen(
             enabled = selectedApp != null,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Confirm")
+            Text(stringResource(R.string.confirm))
         }
     }
 
     if (showAppPicker) {
         AlertDialog(
             onDismissRequest = { showAppPicker = false },
-            title = { Text("Select App") },
+            title = { Text(stringResource(R.string.select_app)) },
             text = {
                 LazyColumn {
                     items(installedApps) { app ->
@@ -122,7 +123,7 @@ fun AddTaskScreen(
             },
             confirmButton = {
                 Button(onClick = { showAppPicker = false }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         )

@@ -41,14 +41,15 @@ fun TaskSelector(
         ) {
             Text(
                 text = when (taskType) {
-                    "SendTelegramPosition" -> "Send Telegram Position: ${telegramGroupName ?: taskData}"
+                    "SendTelegramPosition" -> stringResource(id = R.string.task_send_telegram_position, telegramGroupName ?: taskData)
                     "Sound" -> if (taskData.isNotEmpty()) taskData else stringResource(id = R.string.select_task)
                     "LaunchApp" -> {
                         val correspondingTask = launchAppTasks.find { it.taskData == taskData }
-                        val backgroundText = if (correspondingTask?.launchInBackground == true) "Background" else "Foreground"
-                        "Launch: ${telegramGroupName ?: taskData} ($backgroundText)"
+                        val backgroundText = if (correspondingTask?.launchInBackground == true)
+                            stringResource(id = R.string.background) else stringResource(id = R.string.foreground)
+                        stringResource(id = R.string.task_launch_app, telegramGroupName ?: taskData, backgroundText)
                     }
-                    "ZELLO_PTT" -> "Zello PTT"
+                    "ZELLO_PTT" -> stringResource(id = R.string.task_zello_ptt)
                     else -> stringResource(id = R.string.select_task)
                 },
                 maxLines = 1,
@@ -61,7 +62,7 @@ fun TaskSelector(
             modifier = Modifier.fillMaxWidth()
         ) {
             DropdownMenuItem(
-                content = { Text("Sound") },
+                content = { Text(stringResource(id = R.string.task_sound)) },
                 onClick = {
                     taskMenuExpanded = false
                     onSoundDialogOpen()
@@ -69,7 +70,7 @@ fun TaskSelector(
                 }
             )
             DropdownMenuItem(
-                content = { Text("Send Telegram Position") },
+                content = { Text(stringResource(id = R.string.task_send_telegram_position_item)) },
                 onClick = {
                     taskMenuExpanded = false
                     onTelegramDialogOpen()
@@ -77,7 +78,7 @@ fun TaskSelector(
                 }
             )
             DropdownMenuItem(
-                content = { Text("Zello PTT") },
+                content = { Text(stringResource(id = R.string.task_zello_ptt)) },
                 onClick = {
                     taskMenuExpanded = false
                     onZelloPttSelected()
@@ -85,9 +86,10 @@ fun TaskSelector(
                 }
             )
             launchAppTasks.forEach { appTask ->
-                val backgroundText = if (appTask.launchInBackground) "Background" else "Foreground"
+                val backgroundText = if (appTask.launchInBackground)
+                    stringResource(id = R.string.background) else stringResource(id = R.string.foreground)
                 DropdownMenuItem(
-                    content = { Text("Launch: ${appTask.taskName} ($backgroundText)") },
+                    content = { Text(stringResource(id = R.string.task_launch_app_item, appTask.taskName, backgroundText)) },
                     onClick = {
                         onLaunchAppSelected(appTask)
                         taskMenuExpanded = false

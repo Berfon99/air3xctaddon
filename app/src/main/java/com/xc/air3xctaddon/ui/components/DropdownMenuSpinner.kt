@@ -1,5 +1,6 @@
 package com.xc.air3xctaddon.ui.components
 
+import android.content.Context
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -40,12 +41,13 @@ fun DropdownMenuSpinner(
     selectedItem: String,
     onItemSelected: (String) -> Unit,
     label: String,
+    context: Context,
     modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf(selectedItem) }
 
-    Log.d("DropdownMenuSpinner", "Rendering DropdownMenuSpinner with Items: $items, Selected: $selected, Expanded: $expanded")
+    Log.d("DropdownMenuSpinner", context.getString(R.string.log_dropdown_rendering, items.toString(), selected, expanded))
 
     Box(
         modifier = modifier
@@ -60,7 +62,7 @@ fun DropdownMenuSpinner(
                 .padding(8.dp)
                 .clickable {
                     expanded = true
-                    Log.d("DropdownMenuSpinner", "Text clicked, expanded set to true")
+                    Log.d("DropdownMenuSpinner", context.getString(R.string.log_dropdown_text_clicked))
                 },
             fontSize = 14.sp,
             textAlign = TextAlign.Start
@@ -69,7 +71,7 @@ fun DropdownMenuSpinner(
             expanded = expanded,
             onDismissRequest = {
                 expanded = false
-                Log.d("DropdownMenuSpinner", "Dropdown dismissed, expanded set to false")
+                Log.d("DropdownMenuSpinner", context.getString(R.string.log_dropdown_dismissed))
             },
             modifier = Modifier
                 .width(800.dp)
@@ -80,7 +82,7 @@ fun DropdownMenuSpinner(
                     content = { Text(stringResource(R.string.no_items_available)) },
                     onClick = {
                         expanded = false
-                        Log.d("DropdownMenuSpinner", "No items available clicked")
+                        Log.d("DropdownMenuSpinner", context.getString(R.string.log_dropdown_no_items_clicked))
                     }
                 )
             } else {
@@ -111,7 +113,7 @@ fun DropdownMenuSpinner(
                                         selected = item.name
                                         onItemSelected(item.name)
                                         expanded = false
-                                        Log.d("DropdownMenuSpinner", "Item selected: ${item.name}")
+                                        Log.d("DropdownMenuSpinner", context.getString(R.string.log_dropdown_item_selected, item.name))
                                     }
                                 )
                             }

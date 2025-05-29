@@ -169,7 +169,7 @@ fun SettingsScreen(onAddTask: () -> Unit = {}, onClearTasks: () -> Unit = {}) {
                     onClick = onAddTask, // Call the lambda provided by the Activity
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Add a new task")
+                    Text(stringResource(R.string.add_new_task))
                 }
             }
 
@@ -180,7 +180,7 @@ fun SettingsScreen(onAddTask: () -> Unit = {}, onClearTasks: () -> Unit = {}) {
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(backgroundColor = MaterialTheme.colors.error)
                 ) {
-                    Text("Clear All Tasks")
+                    Text(stringResource(R.string.clear_all_tasks))
                 }
             }
 
@@ -188,7 +188,7 @@ fun SettingsScreen(onAddTask: () -> Unit = {}, onClearTasks: () -> Unit = {}) {
             if (launchAppTasks.isNotEmpty()) {
                 item {
                     Text(
-                        text = "Configured Tasks",
+                        text = stringResource(R.string.configured_tasks),
                         style = MaterialTheme.typography.h6
                     )
                 }
@@ -244,14 +244,18 @@ fun TaskRow(task: Task, onDelete: () -> Unit) {
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Text(
-            text = "Launch $appName (${if (task.launchInBackground) "Background" else "Foreground"})",
+            text = if (task.launchInBackground) {
+                stringResource(R.string.launch_app_background, appName)
+            } else {
+                stringResource(R.string.launch_app_foreground, appName)
+            },
             style = MaterialTheme.typography.body1,
             modifier = Modifier.weight(1f)
         )
         IconButton(onClick = onDelete) {
             Icon(
                 imageVector = Icons.Default.Delete,
-                contentDescription = "Delete Task",
+                contentDescription = stringResource(R.string.delete_task),
                 tint = MaterialTheme.colors.error
             )
         }
