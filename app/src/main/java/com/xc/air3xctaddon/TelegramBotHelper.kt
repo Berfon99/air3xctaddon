@@ -16,9 +16,10 @@ import okhttp3.MediaType.Companion.toMediaType
 import org.json.JSONObject
 import java.io.IOException
 
-data class TelegramGroup(
+data class TelegramChat(
     val chatId: String,
     val title: String,
+    val isGroup: Boolean,
     val isBotMember: Boolean = false,
     val isBotActive: Boolean = false
 )
@@ -318,52 +319,51 @@ class TelegramBotHelper(
         }
     }
 
-    fun fetchGroups(onResult: (List<TelegramGroup>) -> Unit, onError: (String) -> Unit) {
-        // Add delay to ensure Telegram processes new group
+    fun fetchRecentChats(onResult: (List<TelegramChat>) -> Unit, onError: (String) -> Unit) {
         CoroutineScope(Dispatchers.IO).launch {
-            delay(2000L) // Wait 2s for Telegram to process
-            fetchGroupsWithOffset(0, { rawGroups ->
-                Log.d("TelegramBotHelper", context.getString(R.string.log_raw_groups_fetched, rawGroups.map { it.title }.toString()))
-                validateGroups(rawGroups, { validatedGroups ->
-                    Log.d("TelegramBotHelper", context.getString(R.string.log_validated_groups, validatedGroups.map { it.title }.toString()))
-                    onResult(validatedGroups)
+            delay(2000L)
+            fetchChatsWithOffset(0, { rawChats ->
+                Log.d("TelegramBotHelper", context.getString(R.string.log_raw_chats_fetched, rawChats.map { it.title }.toString()))
+                validateChats(rawChats, { validatedChats ->
+                    Log.d("TelegramBotHelper", context.getString(R.string.log_validated_chats, validatedChats.map { it.title }.toString()))
+                    onResult(validatedChats)
                 }, onError)
             }, onError)
         }
     }
 
-    private fun validateGroups(
-        rawGroups: List<TelegramGroup>,
-        onResult: (List<TelegramGroup>) -> Unit,
+    private fun validateChats(
+        rawChats: List<TelegramChat>,
+        onResult: (List<TelegramChat>) -> Unit,
         onError: (String) -> Unit
     ) {
-        if (rawGroups.isEmpty()) {
-            Log.d("TelegramBotHelper", context.getString(R.string.log_no_raw_groups_validate))
+        if (rawChats.isEmpty()) {
+            Log.d("TelegramBotHelper", context.getString(R.string.log_no_raw_chats_validate))
             onResult(emptyList())
             return
         }
 
-        val validatedGroups = mutableListOf<TelegramGroup>()
-        var groupsProcessed = 0
+        val validatedChats = mutableListOf<TelegramChat>()
+        var chatsProcessed = 0
 
-        rawGroups.forEach { group ->
+        rawChats.forEach { chat ->
             checkBotInGroup(
-                chatId = group.chatId,
+                chatId = chat.chatId,
                 onResult = { isMember, isActive ->
-                    Log.d("TelegramBotHelper", context.getString(R.string.log_validated_group, group.title, isMember, isActive))
+                    Log.d("TelegramBotHelper", context.getString(R.string.log_validated_chat, chat.title, isMember, isActive))
                     if (isMember) {
-                        validatedGroups.add(group.copy(isBotMember = isMember, isBotActive = isActive))
+                        validatedChats.add(chat.copy(isBotMember = isMember, isBotActive = isActive))
                     }
-                    groupsProcessed++
-                    if (groupsProcessed == rawGroups.size) {
-                        onResult(validatedGroups.sortedBy { it.title })
+                    chatsProcessed++
+                    if (chatsProcessed == rawChats.size) {
+                        onResult(validatedChats.sortedBy { it.title })
                     }
                 },
                 onError = { error ->
-                    Log.w("TelegramBotHelper", context.getString(R.string.log_error_validating_group, group.title, error))
-                    groupsProcessed++
-                    if (groupsProcessed == rawGroups.size) {
-                        onResult(validatedGroups.sortedBy { it.title })
+                    Log.w("TelegramBotHelper", context.getString(R.string.log_error_validating_chat, chat.title, error))
+                    chatsProcessed++
+                    if (chatsProcessed == rawChats.size) {
+                        onResult(validatedChats.sortedBy { it.title })
                     }
                 }
             )
@@ -416,9 +416,9 @@ class TelegramBotHelper(
         })
     }
 
-    private fun fetchGroupsWithOffset(
+    private fun fetchChatsWithOffset(
         offset: Int,
-        onResult: (List<TelegramGroup>) -> Unit,
+        onResult: (List<TelegramChat>) -> Unit,
         onError: (String) -> Unit
     ) {
         val url = context.getString(R.string.telegram_api_base_url) + botToken + context.getString(R.string.telegram_get_updates_endpoint) + "?offset=$offset"
@@ -429,13 +429,13 @@ class TelegramBotHelper(
 
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
-                Log.e("TelegramBotHelper", context.getString(R.string.log_failed_fetch_groups, e.message ?: ""))
+                Log.e("TelegramBotHelper", context.getString(R.string.log_failed_fetch_chats, e.message ?: ""))
                 onError(context.getString(R.string.failed_to_fetch_groups_error, e.message ?: ""))
             }
 
             override fun onResponse(call: Call, response: Response) {
                 if (!response.isSuccessful) {
-                    Log.e("TelegramBotHelper", context.getString(R.string.log_error_fetching_groups, response.message))
+                    Log.e("TelegramBotHelper", context.getString(R.string.log_error_fetching_chats, response.message))
                     onError(context.getString(R.string.failed_to_fetch_groups_error, response.message))
                     response.close()
                     return
@@ -453,7 +453,7 @@ class TelegramBotHelper(
                 try {
                     val jsonObject = JSONObject(json)
                     val updates = jsonObject.getJSONArray("result")
-                    val groups = mutableListOf<TelegramGroup>()
+                    val chats = mutableListOf<TelegramChat>()
                     val seenChatIds = mutableSetOf<String>()
                     var maxUpdateId = offset
 
@@ -467,28 +467,35 @@ class TelegramBotHelper(
                             val chat = message.getJSONObject("chat")
                             val chatId = chat.getLong("id").toString()
                             val chatType = chat.getString("type")
-                            val validGroupTypes = listOf(
-                                context.getString(R.string.telegram_group_type),
-                                context.getString(R.string.telegram_supergroup_type)
-                            )
-                            if (chatType in validGroupTypes && chatId !in seenChatIds) {
-                                val title = chat.optString("title", context.getString(R.string.unknown_group))
-                                groups.add(TelegramGroup(chatId, title))
+                            if (chatId !in seenChatIds) {
+                                val isGroup = chatType in listOf(
+                                    context.getString(R.string.telegram_group_type),
+                                    context.getString(R.string.telegram_supergroup_type)
+                                )
+                                val title = if (isGroup) {
+                                    chat.optString("title", context.getString(R.string.unknown_group))
+                                } else {
+                                    val firstName = chat.optString("first_name", "")
+                                    val lastName = chat.optString("last_name", "")
+                                    (firstName + " " + lastName).trim().takeIf { it.isNotEmpty() }
+                                        ?: context.getString(R.string.unknown_user)
+                                }
+                                chats.add(TelegramChat(chatId, title, isGroup))
                                 seenChatIds.add(chatId)
-                                Log.d("TelegramBotHelper", context.getString(R.string.log_found_group, title, chatId))
+                                Log.d("TelegramBotHelper", context.getString(R.string.log_found_chat, title, chatId, chatType))
                             }
                         }
                     }
 
                     if (updates.length() == 100) {
-                        fetchGroupsWithOffset(maxUpdateId + 1, { newGroups ->
-                            onResult(groups + newGroups)
+                        fetchChatsWithOffset(maxUpdateId + 1, { newChats ->
+                            onResult(chats + newChats)
                         }, onError)
                     } else {
-                        onResult(groups)
+                        onResult(chats)
                     }
                 } catch (e: Exception) {
-                    Log.e("TelegramBotHelper", context.getString(R.string.log_error_parsing_groups, e.message ?: ""))
+                    Log.e("TelegramBotHelper", context.getString(R.string.log_error_parsing_chats, e.message ?: ""))
                     onError(context.getString(R.string.failed_to_fetch_groups_error, e.message ?: ""))
                 } finally {
                     response.close()

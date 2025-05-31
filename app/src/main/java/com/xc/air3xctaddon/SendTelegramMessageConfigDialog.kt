@@ -29,7 +29,7 @@ import com.xc.air3xctaddon.SettingsRepository
 import com.xc.air3xctaddon.Task
 import com.xc.air3xctaddon.TelegramBotHelper
 import com.xc.air3xctaddon.TelegramBotInfo
-import com.xc.air3xctaddon.TelegramGroup
+import com.xc.air3xctaddon.TelegramChat
 import com.xc.air3xctaddon.ui.components.DropdownMenuSpinner
 import com.xc.air3xctaddon.ui.components.SpinnerItem
 import kotlinx.coroutines.delay
@@ -41,25 +41,24 @@ fun SendTelegramMessageConfigDialog(
     onDismiss: () -> Unit
 ) {
     var telegramChatId by remember { mutableStateOf("") }
-    var telegramGroupName by remember { mutableStateOf("") }
-    var isLoadingGroups by remember { mutableStateOf(true) }
+    var telegramChatName by remember { mutableStateOf("") }
+    var isLoadingChats by remember { mutableStateOf(true) }
     var isCheckingBot by remember { mutableStateOf(false) }
     var isSendingStart by remember { mutableStateOf(false) }
-    var groupError by remember { mutableStateOf<String?>(null) }
-    var groups by remember { mutableStateOf<List<TelegramGroup>>(emptyList()) }
+    var chatError by remember { mutableStateOf<String?>(null) }
+    var chats by remember { mutableStateOf<List<TelegramChat>>(emptyList()) }
     var hasLocationPermission by remember { mutableStateOf(false) }
     var hasNetworkPermission by remember { mutableStateOf(false) }
     var botInfo by remember { mutableStateOf<TelegramBotInfo?>(null) }
-    var selectedGroup by remember { mutableStateOf<TelegramGroup?>(null) }
+    var selectedChat by remember { mutableStateOf<TelegramChat?>(null) }
     var showBotSetupDialog by remember { mutableStateOf(false) }
-    var isAddingNewGroup by remember { mutableStateOf(false) }
+    var isAddingNewChat by remember { mutableStateOf(false) }
     var showMessageDialog by remember { mutableStateOf(false) }
     var selectedMessageTitle by remember { mutableStateOf("") }
     var selectedMessageContent by remember { mutableStateOf("") }
 
-    // Extract string resources at the composable level
     val otherOptionText = stringResource(R.string.other_option)
-    val selectGroupOptionText = stringResource(R.string.select_group_option)
+    val selectChatOptionText = stringResource(R.string.select_chat_option)
 
     val context = LocalContext.current
     val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
@@ -75,98 +74,98 @@ fun SendTelegramMessageConfigDialog(
     val coroutineScope = rememberCoroutineScope()
     val taskDao = AppDatabase.getDatabase(context).taskDao()
 
-    fun checkBotInSelectedGroup() {
-        selectedGroup?.let { group ->
+    fun checkBotInSelectedChat() {
+        selectedChat?.let { chat ->
             isCheckingBot = true
             telegramBotHelper.checkBotInGroup(
-                chatId = group.chatId,
+                chatId = chat.chatId,
                 onResult = { isMember, isActive ->
                     isCheckingBot = false
-                    selectedGroup = group.copy(isBotMember = isMember, isBotActive = isActive)
-                    groups = groups.map {
-                        if (it.chatId == group.chatId) it.copy(isBotMember = isMember, isBotActive = isActive) else it
+                    selectedChat = chat.copy(isBotMember = isMember, isBotActive = isActive)
+                    chats = chats.map {
+                        if (it.chatId == chat.chatId) it.copy(isBotMember = isMember, isBotActive = isActive) else it
                     }
-                    Log.d("SendTelegramMessageConfigDialog", "Checked group ${group.title}: isMember=$isMember, isActive=$isActive")
+                    Log.d("SendTelegramMessageConfigDialog", "Checked chat ${chat.title}: isMember=$isMember, isActive=$isActive")
                     if (!isMember) {
                         showBotSetupDialog = true
                     }
                 },
                 onError = { error ->
                     isCheckingBot = false
-                    groupError = context.getString(R.string.failed_to_check_bot_status, error)
-                    selectedGroup = group.copy(isBotMember = false, isBotActive = false)
-                    Log.e("SendTelegramMessageConfigDialog", "Error checking bot in group ${group.title}: $error")
+                    chatError = context.getString(R.string.failed_to_check_bot_status, error)
+                    selectedChat = chat.copy(isBotMember = false, isBotActive = false)
+                    Log.e("SendTelegramMessageConfigDialog", "Error checking bot in chat ${chat.title}: $error")
                 }
             )
         }
     }
 
-    suspend fun fetchGroups(retryCount: Int = 0, maxRetries: Int = 2) {
-        Log.d("SendTelegramMessageConfigDialog", "fetchGroups called: retryCount=$retryCount, maxRetries=$maxRetries")
+    suspend fun fetchChats(retryCount: Int = 0, maxRetries: Int = 2) {
+        Log.d("SendTelegramMessageConfigDialog", "fetchChats called: retryCount=$retryCount, maxRetries=$maxRetries")
         if (retryCount > maxRetries) {
-            isLoadingGroups = false
-            groupError = context.getString(R.string.failed_to_fetch_groups_retries, maxRetries)
-            Log.e("SendTelegramMessageConfigDialog", "Max retries reached for fetchGroups")
+            isLoadingChats = false
+            chatError = context.getString(R.string.failed_to_fetch_groups_retries, maxRetries)
+            Log.e("SendTelegramMessageConfigDialog", "Max retries reached for fetchChats")
             return
         }
-        isLoadingGroups = true
-        groupError = null
-        telegramBotHelper.fetchGroups(
-            onResult = { fetchedGroups ->
-                Log.d("SendTelegramMessageConfigDialog", "Fetched groups: ${fetchedGroups.map { it.title }}")
-                groups = fetchedGroups
-                isLoadingGroups = false
-                if (fetchedGroups.isEmpty() || (telegramChatId.isNotEmpty() && fetchedGroups.none { it.chatId == telegramChatId })) {
+        isLoadingChats = true
+        chatError = null
+        telegramBotHelper.fetchRecentChats(
+            onResult = { fetchedChats ->
+                Log.d("SendTelegramMessageConfigDialog", "Fetched chats: ${fetchedChats.map { it.title }}")
+                chats = fetchedChats
+                isLoadingChats = false
+                if (fetchedChats.isEmpty() || (telegramChatId.isNotEmpty() && fetchedChats.none { it.chatId == telegramChatId })) {
                     telegramChatId = ""
-                    telegramGroupName = ""
-                    selectedGroup = null
+                    telegramChatName = ""
+                    selectedChat = null
                 }
-                if (isAddingNewGroup && fetchedGroups.isNotEmpty()) {
-                    val targetGroup = fetchedGroups.maxByOrNull { it.chatId.toLongOrNull() ?: Long.MIN_VALUE }
-                    targetGroup?.let { group ->
-                        telegramChatId = group.chatId
-                        telegramGroupName = group.title
-                        selectedGroup = group
-                        isAddingNewGroup = false
-                        Log.d("SendTelegramMessageConfigDialog", "Selected new group: ${group.title}")
+                if (isAddingNewChat && fetchedChats.isNotEmpty()) {
+                    val targetChat = fetchedChats.maxByOrNull { it.chatId.toLongOrNull() ?: Long.MIN_VALUE }
+                    targetChat?.let { chat ->
+                        telegramChatId = chat.chatId
+                        telegramChatName = chat.title
+                        selectedChat = chat
+                        isAddingNewChat = false
+                        Log.d("SendTelegramMessageConfigDialog", "Selected new chat: ${chat.title}")
                         coroutineScope.launch {
-                            checkBotInSelectedGroup()
+                            checkBotInSelectedChat()
                         }
                     }
                 }
             },
             onError = { error ->
-                Log.w("SendTelegramMessageConfigDialog", "Fetch groups error (retry $retryCount/$maxRetries): $error")
+                Log.w("SendTelegramMessageConfigDialog", "Fetch chats error (retry $retryCount/$maxRetries): $error")
                 if (retryCount < maxRetries) {
                     coroutineScope.launch {
                         delay(1000L * (retryCount + 1))
-                        fetchGroups(retryCount + 1, maxRetries)
+                        fetchChats(retryCount + 1, maxRetries)
                     }
                 } else {
-                    isLoadingGroups = false
-                    groupError = context.getString(R.string.failed_to_fetch_groups_error, error)
+                    isLoadingChats = false
+                    chatError = context.getString(R.string.failed_to_fetch_groups_error, error)
                 }
             }
         )
     }
 
     fun sendStartCommand() {
-        selectedGroup?.let { group ->
+        selectedChat?.let { chat ->
             isSendingStart = true
             telegramBotHelper.sendStartCommand(
-                chatId = group.chatId,
+                chatId = chat.chatId,
                 onResult = {
                     isSendingStart = false
-                    selectedGroup = group.copy(isBotActive = true)
-                    groups = groups.map {
-                        if (it.chatId == group.chatId) it.copy(isBotActive = true) else it
+                    selectedChat = chat.copy(isBotActive = true)
+                    chats = chats.map {
+                        if (it.chatId == chat.chatId) it.copy(isBotActive = true) else it
                     }
-                    Log.d("SendTelegramMessageConfigDialog", "Bot activated in group ${group.title}")
+                    Log.d("SendTelegramMessageConfigDialog", "Bot activated in chat ${chat.title}")
                 },
                 onError = { error ->
                     isSendingStart = false
-                    groupError = context.getString(R.string.failed_to_activate_bot, error)
-                    Log.e("SendTelegramMessageConfigDialog", "Error activating bot in group ${group.title}: $error")
+                    chatError = context.getString(R.string.failed_to_activate_bot, error)
+                    Log.e("SendTelegramMessageConfigDialog", "Error activating bot in chat ${chat.title}: $error")
                 }
             )
         }
@@ -178,7 +177,7 @@ fun SendTelegramMessageConfigDialog(
         hasLocationPermission = permissions[android.Manifest.permission.ACCESS_FINE_LOCATION] == true
         hasNetworkPermission = permissions[android.Manifest.permission.ACCESS_NETWORK_STATE] == true
         if (!hasLocationPermission) {
-            groupError = context.getString(R.string.location_permission_denied)
+            chatError = context.getString(R.string.location_permission_denied)
         }
         if (!hasNetworkPermission) {
             Log.w("SendTelegramMessageConfigDialog", context.getString(R.string.log_network_permission_denied))
@@ -186,19 +185,18 @@ fun SendTelegramMessageConfigDialog(
         if (hasLocationPermission) {
             coroutineScope.launch {
                 Log.d("SendTelegramMessageConfigDialog", context.getString(R.string.log_permission_granted))
-                fetchGroups()
+                fetchChats()
             }
         }
     }
 
-    // Monitor lifecycle to detect app resume
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME && isAddingNewGroup) {
+            if (event == Lifecycle.Event.ON_RESUME && isAddingNewChat) {
                 coroutineScope.launch {
-                    Log.d("SendTelegramMessageConfigDialog", "App resumed, fetching groups")
-                    fetchGroups()
+                    Log.d("SendTelegramMessageConfigDialog", "App resumed, fetching chats")
+                    fetchChats()
                 }
             }
         }
@@ -208,10 +206,10 @@ fun SendTelegramMessageConfigDialog(
         }
     }
 
-    LaunchedEffect(selectedGroup?.chatId) {
-        selectedGroup?.let { group ->
-            if (group.chatId.isNotEmpty()) {
-                checkBotInSelectedGroup()
+    LaunchedEffect(selectedChat?.chatId) {
+        selectedChat?.let { chat ->
+            if (chat.chatId.isNotEmpty()) {
+                checkBotInSelectedChat()
             }
         }
     }
@@ -221,8 +219,8 @@ fun SendTelegramMessageConfigDialog(
             onResult = { info -> botInfo = info },
             onError = { error ->
                 Log.e("SendTelegramMessageConfigDialog", "Failed to get bot info: $error")
-                groupError = context.getString(R.string.failed_to_get_bot_info, error)
-                isLoadingGroups = false
+                chatError = context.getString(R.string.failed_to_get_bot_info, error)
+                isLoadingChats = false
             }
         )
         permissionLauncher.launch(arrayOf(
@@ -259,7 +257,7 @@ fun SendTelegramMessageConfigDialog(
                         onClick = {
                             coroutineScope.launch {
                                 Log.d("SendTelegramMessageConfigDialog", context.getString(R.string.log_manual_refresh))
-                                fetchGroups()
+                                fetchChats()
                             }
                         },
                         enabled = true
@@ -273,31 +271,31 @@ fun SendTelegramMessageConfigDialog(
                 }
 
                 when {
-                    isLoadingGroups -> {
+                    isLoadingChats -> {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             CircularProgressIndicator(modifier = Modifier.size(16.dp))
-                            Text(stringResource(R.string.searching_for_available_groups))
+                            Text(stringResource(R.string.searching_for_available_chats))
                         }
                     }
-                    groupError != null -> {
+                    chatError != null -> {
                         Card(
                             backgroundColor = MaterialTheme.colors.error.copy(alpha = 0.1f),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(modifier = Modifier.padding(12.dp)) {
                                 Text(
-                                    text = groupError ?: stringResource(R.string.error_loading_groups),
+                                    text = chatError ?: stringResource(R.string.error_loading_chats),
                                     color = MaterialTheme.colors.error
                                 )
                                 Button(
                                     onClick = {
-                                        groupError = null
+                                        chatError = null
                                         coroutineScope.launch {
                                             Log.d("SendTelegramMessageConfigDialog", context.getString(R.string.log_retry_fetch))
-                                            fetchGroups()
+                                            fetchChats()
                                         }
                                     },
                                     modifier = Modifier.padding(top = 8.dp)
@@ -307,14 +305,14 @@ fun SendTelegramMessageConfigDialog(
                             }
                         }
                     }
-                    groups.isEmpty() -> {
+                    chats.isEmpty() -> {
                         Card(
                             backgroundColor = MaterialTheme.colors.primary.copy(alpha = 0.1f),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(modifier = Modifier.padding(12.dp)) {
                                 Text(
-                                    text = stringResource(R.string.no_groups_found_with_the_bot),
+                                    text = stringResource(R.string.no_chats_found_with_the_bot),
                                     style = MaterialTheme.typography.subtitle1
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
@@ -322,9 +320,9 @@ fun SendTelegramMessageConfigDialog(
                                     text = stringResource(R.string.to_get_started),
                                     style = MaterialTheme.typography.body2
                                 )
-                                Text(stringResource(R.string.create_or_choose_a_telegram_group), style = MaterialTheme.typography.body2)
-                                Text(stringResource(R.string.add_the_bot_to_that_group), style = MaterialTheme.typography.body2)
-                                Text(stringResource(R.string.send_start_in_the_group), style = MaterialTheme.typography.body2)
+                                Text(stringResource(R.string.create_or_choose_a_telegram_chat), style = MaterialTheme.typography.body2)
+                                Text(stringResource(R.string.add_the_bot_to_that_chat), style = MaterialTheme.typography.body2)
+                                Text(stringResource(R.string.send_start_in_the_chat), style = MaterialTheme.typography.body2)
                                 Text(stringResource(R.string.come_back_here_and_refresh), style = MaterialTheme.typography.body2)
                                 Row(
                                     modifier = Modifier.padding(top = 12.dp),
@@ -334,7 +332,7 @@ fun SendTelegramMessageConfigDialog(
                                         onClick = { showBotSetupDialog = true },
                                         enabled = botInfo != null
                                     ) {
-                                        Text(stringResource(R.string.add_bot_to_group))
+                                        Text(stringResource(R.string.add_bot_to_chat))
                                     }
                                     Button(
                                         onClick = {
@@ -349,8 +347,8 @@ fun SendTelegramMessageConfigDialog(
                                     OutlinedButton(
                                         onClick = {
                                             coroutineScope.launch {
-                                                Log.d("SendTelegramMessageConfigDialog", context.getString(R.string.log_empty_groups_refresh))
-                                                fetchGroups()
+                                                Log.d("SendTelegramMessageConfigDialog", context.getString(R.string.log_empty_chats_refresh))
+                                                fetchChats()
                                             }
                                         }
                                     ) {
@@ -361,34 +359,35 @@ fun SendTelegramMessageConfigDialog(
                         }
                     }
                     else -> {
-                        Text(stringResource(R.string.select_group_message_prompt))
+                        Text(stringResource(R.string.select_chat_message_prompt))
                         DropdownMenuSpinner(
                             context = context,
-                            items = groups.map { SpinnerItem.Item(it.title) } + SpinnerItem.Item(otherOptionText),
-                            selectedItem = if (telegramGroupName.isEmpty() || groups.none { it.title == telegramGroupName }) selectGroupOptionText else telegramGroupName,
-                            onItemSelected = { selectedTitle ->
-                                if (selectedTitle == otherOptionText) {
-                                    telegramGroupName = ""
+                            items = chats.map { SpinnerItem.Item((if (it.isGroup) "Group: " else "User: ") + it.title) } + SpinnerItem.Item(otherOptionText),
+                            selectedItem = if (telegramChatName.isEmpty() || chats.none { it.title == telegramChatName }) selectChatOptionText else (if (selectedChat?.isGroup == true) "Group: " else "User: ") + telegramChatName,
+                            onItemSelected = { selectedItem ->
+                                if (selectedItem == otherOptionText) {
+                                    telegramChatName = ""
                                     telegramChatId = ""
-                                    selectedGroup = null
+                                    selectedChat = null
                                     showBotSetupDialog = true
-                                    isAddingNewGroup = true
+                                    isAddingNewChat = true
                                     Log.d("SendTelegramMessageConfigDialog", context.getString(R.string.log_selected_other))
                                 } else {
-                                    groups.find { it.title == selectedTitle }?.let { group ->
-                                        telegramChatId = group.chatId
-                                        telegramGroupName = group.title
-                                        selectedGroup = group
-                                        checkBotInSelectedGroup()
-                                        isAddingNewGroup = false
-                                        Log.d("SendTelegramMessageConfigDialog", context.getString(R.string.log_selected_group, group.title))
+                                    val title = selectedItem.removePrefix("Group: ").removePrefix("User: ")
+                                    chats.find { it.title == title }?.let { chat ->
+                                        telegramChatId = chat.chatId
+                                        telegramChatName = chat.title
+                                        selectedChat = chat
+                                        checkBotInSelectedChat()
+                                        isAddingNewChat = false
+                                        Log.d("SendTelegramMessageConfigDialog", context.getString(R.string.log_selected_chat, chat.title))
                                     }
                                 }
                             },
-                            label = stringResource(R.string.telegram_group_label),
+                            label = stringResource(R.string.telegram_chat_label),
                             modifier = Modifier.fillMaxWidth()
                         )
-                        selectedGroup?.let { group ->
+                        selectedChat?.let { chat ->
                             when {
                                 isCheckingBot -> {
                                     Row(
@@ -399,7 +398,7 @@ fun SendTelegramMessageConfigDialog(
                                         Text(stringResource(R.string.checking_bot_status))
                                     }
                                 }
-                                !group.isBotMember -> {
+                                !chat.isBotMember -> {
                                     Card(
                                         backgroundColor = MaterialTheme.colors.secondary.copy(alpha = 0.1f),
                                         modifier = Modifier.fillMaxWidth()
@@ -410,7 +409,7 @@ fun SendTelegramMessageConfigDialog(
                                                 style = MaterialTheme.typography.subtitle1,
                                                 color = MaterialTheme.colors.secondary
                                             )
-                                            Text(stringResource(R.string.the_bot_needs_to_be_added_to_this_group))
+                                            Text(stringResource(R.string.the_bot_needs_to_be_added_to_this_chat))
                                             Row(
                                                 modifier = Modifier.padding(top = 8.dp),
                                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -418,10 +417,10 @@ fun SendTelegramMessageConfigDialog(
                                                 Button(
                                                     onClick = { showBotSetupDialog = true }
                                                 ) {
-                                                    Text(stringResource(R.string.add_bot_to_group))
+                                                    Text(stringResource(R.string.add_bot_to_chat))
                                                 }
                                                 OutlinedButton(
-                                                    onClick = { checkBotInSelectedGroup() }
+                                                    onClick = { checkBotInSelectedChat() }
                                                 ) {
                                                     Text(stringResource(R.string.refresh_status))
                                                 }
@@ -429,7 +428,7 @@ fun SendTelegramMessageConfigDialog(
                                         }
                                     }
                                 }
-                                group.isBotMember && !group.isBotActive -> {
+                                chat.isBotMember && !chat.isBotActive -> {
                                     Card(
                                         backgroundColor = MaterialTheme.colors.primary.copy(alpha = 0.1f),
                                         modifier = Modifier.fillMaxWidth()
@@ -440,7 +439,7 @@ fun SendTelegramMessageConfigDialog(
                                                 style = MaterialTheme.typography.subtitle1,
                                                 color = MaterialTheme.colors.primary
                                             )
-                                            Text(stringResource(R.string.the_bot_is_in_the_group_but_needs_to_be_activated))
+                                            Text(stringResource(R.string.the_bot_is_in_the_chat_but_needs_to_be_activated))
                                             if (isSendingStart) {
                                                 Row(
                                                     verticalAlignment = Alignment.CenterVertically,
@@ -461,7 +460,7 @@ fun SendTelegramMessageConfigDialog(
                                                         Text(stringResource(R.string.activate_bot))
                                                     }
                                                     OutlinedButton(
-                                                        onClick = { checkBotInSelectedGroup() }
+                                                        onClick = { checkBotInSelectedChat() }
                                                     ) {
                                                         Text(stringResource(R.string.refresh_status))
                                                     }
@@ -470,33 +469,31 @@ fun SendTelegramMessageConfigDialog(
                                         }
                                     }
                                 }
-                                group.isBotMember && group.isBotActive -> {
+                                chat.isBotMember && chat.isBotActive -> {
                                     Card(
                                         backgroundColor = Color.Green.copy(alpha = 0.1f),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
                                         Row(
-                                            modifier = Modifier.padding(8.dp), // Reduced padding from 12dp to 8dp
+                                            modifier = Modifier.padding(8.dp),
                                             verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp) // Changed from SpaceBetween to spacedBy
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                                         ) {
                                             Icon(
                                                 imageVector = Icons.Default.Check,
                                                 contentDescription = stringResource(R.string.ready_to_send_updates),
                                                 tint = Color.Green,
-                                                modifier = Modifier.size(16.dp) // Added size constraint for icon
+                                                modifier = Modifier.size(16.dp)
                                             )
                                             Text(
                                                 text = stringResource(R.string.ready_to_send_updates),
                                                 color = Color.Green,
-                                                style = MaterialTheme.typography.body2, // Changed from subtitle1 to body2
-                                                modifier = Modifier.weight(1f) // Take up remaining space
+                                                style = MaterialTheme.typography.body2,
+                                                modifier = Modifier.weight(1f)
                                             )
                                         }
                                     }
                                     Spacer(modifier = Modifier.height(8.dp))
-
-                                    // Add a card around the group selection to make it clear it's selectable
                                     Card(
                                         backgroundColor = MaterialTheme.colors.surface,
                                         elevation = 2.dp,
@@ -504,7 +501,7 @@ fun SendTelegramMessageConfigDialog(
                                     ) {
                                         Column(modifier = Modifier.padding(12.dp)) {
                                             Text(
-                                                text = stringResource(R.string.selected_group),
+                                                text = stringResource(R.string.selected_chat),
                                                 style = MaterialTheme.typography.caption,
                                                 color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f)
                                             )
@@ -515,16 +512,15 @@ fun SendTelegramMessageConfigDialog(
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
                                                 Text(
-                                                    text = group.title,
+                                                    text = chat.title,
                                                     style = MaterialTheme.typography.body1,
                                                     modifier = Modifier.weight(1f)
                                                 )
                                                 TextButton(
                                                     onClick = {
-                                                        // Reset selection to allow choosing a different group
-                                                        telegramGroupName = ""
+                                                        telegramChatName = ""
                                                         telegramChatId = ""
-                                                        selectedGroup = null
+                                                        selectedChat = null
                                                     }
                                                 ) {
                                                     Text(stringResource(R.string.change))
@@ -532,20 +528,34 @@ fun SendTelegramMessageConfigDialog(
                                             }
                                         }
                                     }
-
                                     Spacer(modifier = Modifier.height(8.dp))
                                     Button(
                                         onClick = { showMessageDialog = true },
-                                        modifier = Modifier.fillMaxWidth()
+                                        modifier = Modifier.fillMaxWidth(),
+                                        enabled = chat.isBotMember && chat.isBotActive
                                     ) {
                                         Text(stringResource(R.string.add_message_to_send))
                                     }
                                     if (selectedMessageTitle.isNotEmpty()) {
                                         Spacer(modifier = Modifier.height(8.dp))
-                                        Text(
-                                            text = "Selected Message: $selectedMessageTitle",
-                                            style = MaterialTheme.typography.body1
-                                        )
+                                        Card(
+                                            backgroundColor = MaterialTheme.colors.surface,
+                                            elevation = 2.dp,
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Column(modifier = Modifier.padding(12.dp)) {
+                                                Text(
+                                                    text = stringResource(R.string.selected_message),
+                                                    style = MaterialTheme.typography.caption,
+                                                    color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f)
+                                                )
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                                Text(
+                                                    text = selectedMessageTitle,
+                                                    style = MaterialTheme.typography.body1
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -556,10 +566,10 @@ fun SendTelegramMessageConfigDialog(
                 if (showBotSetupDialog) {
                     AlertDialog(
                         onDismissRequest = { showBotSetupDialog = false },
-                        title = { Text(stringResource(R.string.add_bot_to_group_title)) },
+                        title = { Text(stringResource(R.string.add_bot_to_chat_title)) },
                         text = {
                             Column {
-                                Text(stringResource(R.string.select_group_to_add_bot))
+                                Text(stringResource(R.string.select_chat_to_add_bot))
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Text(stringResource(R.string.open_telegram_prompt))
                                 Spacer(modifier = Modifier.height(8.dp))
@@ -569,7 +579,7 @@ fun SendTelegramMessageConfigDialog(
                         confirmButton = {
                             Button(
                                 onClick = {
-                                    isAddingNewGroup = true
+                                    isAddingNewChat = true
                                     botInfo?.let { info ->
                                         telegramBotHelper.openTelegramToAddBot(context, info.username)
                                     }
@@ -593,6 +603,7 @@ fun SendTelegramMessageConfigDialog(
                             selectedMessageTitle = title
                             selectedMessageContent = content
                             showMessageDialog = false
+                            Log.d("SendTelegramMessageConfigDialog", "Selected message: $title")
                         },
                         onDismiss = { showMessageDialog = false }
                     )
@@ -611,23 +622,24 @@ fun SendTelegramMessageConfigDialog(
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
                         onClick = {
-                            selectedGroup?.let { group ->
-                                if (group.isBotMember && group.isBotActive && selectedMessageTitle.isNotEmpty()) {
+                            selectedChat?.let { chat ->
+                                if (chat.isBotMember && chat.isBotActive && selectedMessageContent.isNotEmpty()) {
                                     coroutineScope.launch {
+                                        val taskData = "${chat.chatId}|${selectedMessageContent}"
                                         val task = Task(
                                             taskType = "SendTelegramMessage",
-                                            taskData = "${group.chatId}|${selectedMessageContent}",
-                                            taskName = "$selectedMessageTitle - ${group.title}",
+                                            taskData = taskData,
+                                            taskName = "${selectedMessageTitle.take(20)} - ${chat.title}",
                                             launchInBackground = false
                                         )
                                         taskDao.insert(task)
-                                        Log.d("SendTelegramMessageConfigDialog", "Saved task: type=${task.taskType}, chatId=${group.chatId}, message=${selectedMessageContent}, name=${task.taskName}")
+                                        Log.d("SendTelegramMessageConfigDialog", "Saved task: type=${task.taskType}, taskData=$taskData, name=${task.taskName}")
                                         onConfirm()
                                     }
                                 }
                             }
                         },
-                        enabled = selectedGroup?.isBotMember == true && selectedGroup?.isBotActive == true && selectedMessageTitle.isNotEmpty()
+                        enabled = selectedChat?.isBotMember == true && selectedChat?.isBotActive == true && selectedMessageContent.isNotEmpty()
                     ) {
                         Text(stringResource(R.string.confirm))
                     }

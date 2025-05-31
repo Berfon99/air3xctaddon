@@ -446,4 +446,43 @@
     <string name="log_invalid_telegram_message_config">Invalid Telegram message config for event %1$s, id %2$d: chatId or message missing</string>
     <string name="log_invalid_telegram_message_format">Invalid Telegram message taskData format for event %1$s, id %2$d: %3$s</string>
 
+    <string name="select_chat_message_prompt">Select the chat where you want to send the message and choose a message to send.</string>
+    <string name="selected_message">Selected Message</string>
+    <string name="create_or_choose_a_telegram_chat">1. Create or choose a Telegram chat (group or private).</string>
+
+        <!-- LogMonitorService.kt -->
+        <string name="log_invalid_task_data">Invalid task data for task type %1$s, config ID %2$d</string>
+
+        <!-- SendTelegramConfigDialog.kt and SendTelegramMessageConfigDialog.kt (shared strings) -->
+        <string name="select_chat_option">Select a chat</string>
+        <string name="searching_for_available_chats">Searching for available chats...</string>
+        <string name="error_loading_chats">Error loading chats</string>
+        <string name="no_chats_found_with_the_bot">No chats found with the bot</string>
+        <string name="add_the_bot_to_that_chat">Add the bot to that chat</string>
+        <string name="send_start_in_the_chat">Send /start in the chat</string>
+        <string name="add_bot_to_chat">Add Bot to Chat</string>
+        <string name="log_empty_chats_refresh">Empty chats, refreshing chats</string>
+        <string name="log_selected_chat">Selected chat: %1$s</string>
+        <string name="telegram_chat_label">Telegram Chat</string>
+        <string name="the_bot_needs_to_be_added_to_this_chat">The bot needs to be added to this chat.</string>
+        <string name="the_bot_is_in_the_chat_but_needs_to_be_activated">The bot is in the chat but needs to be activated.</string>
+        <string name="selected_chat">Selected Chat</string>
+        <string name="add_bot_to_chat_title">Add Bot to Chat</string>
+        <string name="select_chat_to_add_bot">Select a chat to add the bot</string>
+
+        <!-- SendTelegramConfigDialog.kt (specific) -->
+        <string name="select_the_chat_where_you_want_to_send_position_updates">Select the chat where you want to send position updates.</string>
+
+        <!-- TelegramBotHelper.kt -->
+        <string name="log_raw_chats_fetched">Raw chats fetched: %1$s</string>
+        <string name="log_validated_chats">Validated chats: %1$s</string>
+        <string name="log_no_raw_chats_validate">No raw chats to validate</string>
+        <string name="log_validated_chat">Validated chat: %1$s</string>
+        <string name="log_error_validating_chat">Error validating chat: %1$s</string>
+        <string name="log_failed_fetch_chats">Failed to fetch chats</string>
+        <string name="log_error_fetching_chats">Error fetching chats: %1$s</string>
+        <string name="unknown_user">Unknown User</string>
+        <string name="log_found_chat">Found chat: %1$s</string>
+        <string name="log_error_parsing_chats">Error parsing chats: %1$s</string>
+
 </resources>

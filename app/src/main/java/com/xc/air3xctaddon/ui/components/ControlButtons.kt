@@ -52,12 +52,12 @@ fun ControlButtons(
                         }
                     }
                     "SendTelegramPosition" -> {
-                        if (telegramChatId.isNotEmpty()) {
-                            Log.d("ControlButtons", context.getString(R.string.log_play_telegram_clicked, telegramChatId, config.event))
+                        if (taskData.isNotEmpty()) {
+                            Log.d("ControlButtons", context.getString(R.string.log_play_telegram_clicked, taskData, config.event))
                             telegramBotHelper.getCurrentLocation(
                                 onResult = { latitude, longitude ->
                                     telegramBotHelper.sendLocationMessage(
-                                        chatId = telegramChatId,
+                                        chatId = taskData,
                                         latitude = latitude,
                                         longitude = longitude,
                                         event = config.event
@@ -69,7 +69,7 @@ fun ControlButtons(
                                 }
                             )
                         } else {
-                            Log.w("ControlButtons", "SendTelegramPosition telegramChatId is empty")
+                            Log.w("ControlButtons", "SendTelegramPosition taskData is empty")
                         }
                     }
                     "LaunchApp" -> {
@@ -119,7 +119,7 @@ fun ControlButtons(
                 }
             },
             enabled = (taskType == "Sound" && taskData.isNotEmpty()) ||
-                    (taskType == "SendTelegramPosition" && telegramChatId.isNotEmpty()) ||
+                    (taskType == "SendTelegramPosition" && taskData.isNotEmpty()) ||
                     (taskType == "LaunchApp" && taskData.isNotEmpty()) ||
                     taskType == "ZELLO_PTT" ||
                     (taskType == "SendTelegramMessage" && taskData.isNotEmpty() && taskData.contains("|") && taskData.split("|", limit = 2).all { it.isNotEmpty()}),
@@ -129,7 +129,7 @@ fun ControlButtons(
                 imageVector = Icons.Default.PlayArrow,
                 contentDescription = stringResource(id = R.string.play),
                 tint = if ((taskType == "Sound" && taskData.isNotEmpty()) ||
-                    (taskType == "SendTelegramPosition" && telegramChatId.isNotEmpty()) ||
+                    (taskType == "SendTelegramPosition" && taskData.isNotEmpty()) ||
                     (taskType == "LaunchApp" && taskData.isNotEmpty()) ||
                     taskType == "ZELLO_PTT" ||
                     (taskType == "SendTelegramMessage" && taskData.isNotEmpty() && taskData.contains("|") && taskData.split("|", limit = 2).all { it.isNotEmpty()})) MaterialTheme.colors.primary else Color.Gray

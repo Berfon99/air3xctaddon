@@ -83,46 +83,42 @@ class LogMonitorService : Service() {
                                                 Log.w("LogMonitorService", getString(R.string.log_no_sound_file, event, config.id))
                                             }
                                         }
-                                        "SendPosition" -> {
-                                            Log.d("LogMonitorService", getString(R.string.log_sending_position, event, config.id))
-                                            // TODO: Implement SendPosition logic
+                                        "SendTelegramPosition" -> {
+                                            if (!config.taskData.isNullOrEmpty()) {
+                                                Log.d("LogMonitorService", getString(R.string.log_sending_telegram_position, config.taskData, config.id))
+                                                telegramBotHelper.getCurrentLocation(
+                                                    onResult = { latitude, longitude ->
+                                                        telegramBotHelper.sendLocationMessage(
+                                                            chatId = config.taskData,
+                                                            latitude = latitude,
+                                                            longitude = longitude,
+                                                            event = config.event
+                                                        )
+                                                        Log.d("LogMonitorService", getString(R.string.log_sent_telegram_position, event, latitude, longitude))
+                                                    },
+                                                    onError = { error ->
+                                                        Log.e("LogMonitorService", getString(R.string.log_error_getting_location, event, config.id, error))
+                                                    }
+                                                )
+                                            } else {
+                                                Log.w("LogMonitorService", getString(R.string.log_invalid_task_data, config.taskType, config.id))
+                                            }
                                         }
-                                        "SendTelegramPosition", "LaunchApp" -> {
+                                        "LaunchApp" -> {
                                             val task = tasks.find { it.taskType == config.taskType && it.taskData == config.taskData }
                                             if (task != null) {
-                                                when (task.taskType) {
-                                                    "SendTelegramPosition" -> {
-                                                        Log.d("LogMonitorService", getString(R.string.log_sending_telegram_position, task.taskData, config.id))
-                                                        telegramBotHelper.getCurrentLocation(
-                                                            onResult = { latitude, longitude ->
-                                                                telegramBotHelper.sendLocationMessage(
-                                                                    chatId = task.taskData,
-                                                                    latitude = latitude,
-                                                                    longitude = longitude,
-                                                                    event = config.event
-                                                                )
-                                                                Log.d("LogMonitorService", getString(R.string.log_sent_telegram_position, event, latitude, longitude))
-                                                            },
-                                                            onError = { error ->
-                                                                Log.e("LogMonitorService", getString(R.string.log_error_getting_location, event, config.id, error))
-                                                            }
-                                                        )
-                                                    }
-                                                    "LaunchApp" -> {
-                                                        Log.d("LogMonitorService", getString(R.string.log_preparing_launch_app, config.taskData, config.id, config.launchInBackground))
-                                                        val launchIntent = Intent(this@LogMonitorService, LaunchActivity::class.java).apply {
-                                                            putExtra("packageName", config.taskData)
-                                                            putExtra("configId", config.id)
-                                                            putExtra("launchInBackground", config.launchInBackground)
-                                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                                        }
-                                                        try {
-                                                            startActivity(launchIntent)
-                                                            Log.d("LogMonitorService", getString(R.string.log_started_launch_activity, config.taskData, config.id, config.launchInBackground))
-                                                        } catch (e: SecurityException) {
-                                                            Log.e("LogMonitorService", getString(R.string.log_failed_launch_activity, config.taskData, config.id, e.toString()))
-                                                        }
-                                                    }
+                                                Log.d("LogMonitorService", getString(R.string.log_preparing_launch_app, config.taskData, config.id, config.launchInBackground))
+                                                val launchIntent = Intent(this@LogMonitorService, LaunchActivity::class.java).apply {
+                                                    putExtra("packageName", config.taskData)
+                                                    putExtra("configId", config.id)
+                                                    putExtra("launchInBackground", config.launchInBackground)
+                                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                }
+                                                try {
+                                                    startActivity(launchIntent)
+                                                    Log.d("LogMonitorService", getString(R.string.log_started_launch_activity, config.taskData, config.id, config.launchInBackground))
+                                                } catch (e: SecurityException) {
+                                                    Log.e("LogMonitorService", getString(R.string.log_failed_launch_activity, config.taskData, config.id, e.toString()))
                                                 }
                                             } else {
                                                 Log.w("LogMonitorService", getString(R.string.log_no_task_found, config.taskType, config.taskData, event, config.id))
