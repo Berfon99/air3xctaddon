@@ -159,8 +159,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 volumePercentage = volumePercentage,
                 playCount = playCount,
                 position = maxPosition + 1,
-                telegramChatId = if (taskType == "SendTelegramPosition") taskData else null,
-                telegramGroupName = if (taskType == "SendTelegramPosition") telegramGroupName else null
+                telegramChatId = if (taskType == "SendTelegramPosition" || taskType == "SendTelegramMessage") telegramChatId else null,
+                telegramGroupName = if (taskType == "SendTelegramPosition" || taskType == "SendTelegramMessage") telegramGroupName else null
             )
             configDao.insert(newConfig)
             Log.d("MainViewModel", "Added config: event=$event, taskType=$taskType, taskData=$taskData, telegramChatId=$telegramChatId, telegramGroupName=$telegramGroupName")

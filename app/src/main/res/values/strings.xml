@@ -434,5 +434,16 @@
     <string name="delete_message_title">Delete Message</string>
     <string name="delete_message_confirmation">Are you sure you want to delete the message "%1$s"?</string>
     <string name="failed_to_delete_message">Failed to delete message: %1$s</string>
+    <string name="log_play_telegram_message_clicked">Playing Telegram message for chatId: %s, message: %s</string>
+
+    <string name="telegram_message_from_pilot">Message from %1$s: %2$s</string>
+    <string name="log_sending_message_json">Sending message JSON: %1$s, pilot: %2$s</string>
+    <string name="log_failed_send_message">Failed to send message to chat %1$s, pilot: %2$s, error: %3$s</string>
+    <string name="log_message_sent">Message sent to chat %1$s, pilot: %2$s</string>
+    <string name="log_error_sending_message">Error sending message to chat %1$s, pilot: %2$s, message: %3$s, code: %4$d</string>
+
+    <string name="log_sent_telegram_message">Sent Telegram message for event %1$s to chat %2$s: %3$s</string>
+    <string name="log_invalid_telegram_message_config">Invalid Telegram message config for event %1$s, id %2$d: chatId or message missing</string>
+    <string name="log_invalid_telegram_message_format">Invalid Telegram message taskData format for event %1$s, id %2$d: %3$s</string>
 
 </resources>

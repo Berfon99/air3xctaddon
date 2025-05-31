@@ -41,11 +41,14 @@ fun ControlButtons(
     Row {
         IconButton(
             onClick = {
+                Log.d("ControlButtons", "Play button clicked for taskType: $taskType, taskData: $taskData, telegramChatId: $telegramChatId")
                 when (taskType) {
                     "Sound" -> {
                         if (taskData.isNotEmpty()) {
                             Log.d("ControlButtons", context.getString(R.string.log_play_sound_clicked, taskData))
                             onPlaySound()
+                        } else {
+                            Log.w("ControlButtons", "Sound taskData is empty")
                         }
                     }
                     "SendTelegramPosition" -> {
@@ -65,6 +68,8 @@ fun ControlButtons(
                                     Log.e("ControlButtons", context.getString(R.string.log_failed_get_location, error))
                                 }
                             )
+                        } else {
+                            Log.w("ControlButtons", "SendTelegramPosition telegramChatId is empty")
                         }
                     }
                     "LaunchApp" -> {
@@ -76,6 +81,8 @@ fun ControlButtons(
                             } else {
                                 Log.e("ControlButtons", context.getString(R.string.log_no_launch_intent, taskData))
                             }
+                        } else {
+                            Log.w("ControlButtons", "LaunchApp taskData is empty")
                         }
                     }
                     "ZELLO_PTT" -> {
@@ -89,12 +96,33 @@ fun ControlButtons(
                             Log.e("ControlButtons", context.getString(R.string.log_failed_zello_intent), e)
                         }
                     }
+                    "SendTelegramMessage" -> {
+                        Log.d("ControlButtons", "Processing SendTelegramMessage with taskData: $taskData")
+                        if (taskData.isNotEmpty() && taskData.contains("|")) {
+                            val (chatId, message) = taskData.split("|", limit = 2)
+                            if (chatId.isNotEmpty() && message.isNotEmpty()) {
+                                Log.d("ControlButtons", context.getString(R.string.log_play_telegram_message_clicked, chatId, message))
+                                telegramBotHelper.sendMessage(
+                                    chatId = chatId,
+                                    message = message
+                                )
+                            } else {
+                                Log.e("ControlButtons", context.getString(R.string.log_invalid_telegram_message_config))
+                            }
+                        } else {
+                            Log.e("ControlButtons", context.getString(R.string.log_invalid_telegram_message_format, config.event, config.id, taskData))
+                        }
+                    }
+                    else -> {
+                        Log.w("ControlButtons", "Unknown taskType: $taskType")
+                    }
                 }
             },
             enabled = (taskType == "Sound" && taskData.isNotEmpty()) ||
                     (taskType == "SendTelegramPosition" && telegramChatId.isNotEmpty()) ||
                     (taskType == "LaunchApp" && taskData.isNotEmpty()) ||
-                    taskType == "ZELLO_PTT",
+                    taskType == "ZELLO_PTT" ||
+                    (taskType == "SendTelegramMessage" && taskData.isNotEmpty() && taskData.contains("|") && taskData.split("|", limit = 2).all { it.isNotEmpty()}),
             modifier = Modifier.size(36.dp)
         ) {
             Icon(
@@ -103,7 +131,8 @@ fun ControlButtons(
                 tint = if ((taskType == "Sound" && taskData.isNotEmpty()) ||
                     (taskType == "SendTelegramPosition" && telegramChatId.isNotEmpty()) ||
                     (taskType == "LaunchApp" && taskData.isNotEmpty()) ||
-                    taskType == "ZELLO_PTT") MaterialTheme.colors.primary else Color.Gray
+                    taskType == "ZELLO_PTT" ||
+                    (taskType == "SendTelegramMessage" && taskData.isNotEmpty() && taskData.contains("|") && taskData.split("|", limit = 2).all { it.isNotEmpty()})) MaterialTheme.colors.primary else Color.Gray
             )
         }
 

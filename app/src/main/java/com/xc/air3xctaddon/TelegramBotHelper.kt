@@ -370,6 +370,52 @@ class TelegramBotHelper(
         }
     }
 
+    fun sendMessage(
+        chatId: String,
+        message: String
+    ) {
+        val url = context.getString(R.string.telegram_api_base_url) + botToken + context.getString(R.string.telegram_send_message_endpoint)
+        val pilotName = settingsRepository.getPilotName()
+        val messageText = if (!pilotName.isNullOrEmpty()) {
+            context.getString(R.string.telegram_message_from_pilot, pilotName, message)
+        } else {
+            message
+        }
+        val json = JSONObject()
+            .put("chat_id", chatId)
+            .put("text", messageText)
+            .toString()
+            .also { Log.d("TelegramBotHelper", context.getString(R.string.log_sending_message_json, it, pilotName ?: "")) }
+
+        val requestBody = RequestBody.create(
+            context.getString(R.string.telegram_content_type).toMediaType(),
+            json
+        )
+
+        val request = Request.Builder()
+            .url(url)
+            .post(requestBody)
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                Log.e("TelegramBotHelper", context.getString(R.string.log_failed_send_message, chatId, pilotName ?: "", e.message ?: ""))
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                if (response.isSuccessful) {
+                    Log.d("TelegramBotHelper", context.getString(R.string.log_message_sent, chatId, pilotName ?: ""))
+                } else {
+                    Log.e("TelegramBotHelper", context.getString(R.string.log_error_sending_message, chatId, pilotName ?: "", response.message, response.code))
+                    response.body?.string()?.let { body ->
+                        Log.e("TelegramBotHelper", context.getString(R.string.log_response_body, body))
+                    }
+                }
+                response.close()
+            }
+        })
+    }
+
     private fun fetchGroupsWithOffset(
         offset: Int,
         onResult: (List<TelegramGroup>) -> Unit,

@@ -139,6 +139,22 @@ class LogMonitorService : Service() {
                                                 Log.e("LogMonitorService", getString(R.string.log_failed_zello_intent, event, config.id), e)
                                             }
                                         }
+                                        "SendTelegramMessage" -> {
+                                            if (!config.taskData.isNullOrEmpty() && config.taskData.contains("|")) {
+                                                val (chatId, message) = config.taskData.split("|", limit = 2)
+                                                if (chatId.isNotEmpty() && message.isNotEmpty()) {
+                                                    telegramBotHelper.sendMessage(
+                                                        chatId = chatId,
+                                                        message = message
+                                                    )
+                                                    Log.d("LogMonitorService", getString(R.string.log_sent_telegram_message, event, chatId, message))
+                                                } else {
+                                                    Log.e("LogMonitorService", getString(R.string.log_invalid_telegram_message_config, event, config.id))
+                                                }
+                                            } else {
+                                                Log.e("LogMonitorService", getString(R.string.log_invalid_telegram_message_format, event, config.id, config.taskData ?: "null"))
+                                            }
+                                        }
                                         else -> {
                                             Log.w("LogMonitorService", getString(R.string.log_unknown_task_type, config.taskType ?: "null", event, config.id))
                                         }
