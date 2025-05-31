@@ -12,4 +12,7 @@ interface MessageDao {
 
     @Query("SELECT * FROM messages ORDER BY title ASC")
     fun getAllMessages(): Flow<List<Message>>
+
+    @Query("DELETE FROM messages WHERE id = :messageId")
+    suspend fun deleteById(messageId: Long)
 }

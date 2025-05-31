@@ -8,7 +8,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -31,6 +34,7 @@ fun AddMessageDialog(
     var title by remember { mutableStateOf("") }
     var content by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
+    var showDeleteConfirmation by remember { mutableStateOf<Message?>(null) }
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -86,18 +90,37 @@ fun AddMessageDialog(
                                 Card(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(vertical = 4.dp)
-                                        .clickable {
-                                            title = message.title
-                                            content = message.content
-                                        },
+                                        .padding(vertical = 4.dp),
                                     elevation = 2.dp
                                 ) {
-                                    Text(
-                                        text = message.title,
-                                        style = MaterialTheme.typography.body1,
-                                        modifier = Modifier.padding(8.dp)
-                                    )
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                title = message.title
+                                                content = message.content
+                                            }
+                                            .padding(8.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = message.title,
+                                            style = MaterialTheme.typography.body1,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        IconButton(
+                                            onClick = { showDeleteConfirmation = message },
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Delete,
+                                                contentDescription = "Delete message",
+                                                tint = MaterialTheme.colors.error,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -147,5 +170,41 @@ fun AddMessageDialog(
                 }
             }
         }
+    }
+
+    // Delete confirmation dialog
+    showDeleteConfirmation?.let { messageToDelete ->
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmation = null },
+            title = { Text(stringResource(R.string.delete_message_title)) },
+            text = {
+                Text(stringResource(R.string.delete_message_confirmation, messageToDelete.title))
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        coroutineScope.launch {
+                            try {
+                                messageDao.deleteById(messageToDelete.id)
+                                Log.d("AddMessageDialog", "Deleted message: ${messageToDelete.title}")
+                                showDeleteConfirmation = null
+                            } catch (e: Exception) {
+                                error = context.getString(R.string.failed_to_delete_message, e.message ?: "")
+                                Log.e("AddMessageDialog", "Error deleting message: ${e.message}")
+                                showDeleteConfirmation = null
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(backgroundColor = MaterialTheme.colors.error)
+                ) {
+                    Text(stringResource(R.string.delete), color = MaterialTheme.colors.onError)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmation = null }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
     }
 }

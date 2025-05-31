@@ -428,5 +428,11 @@
     <string name="failed_to_save_message">Failed to save message: %1$s</string>
     <string name="task_send_telegram_message">Send Telegram Message: %1$s</string>
     <string name="ready_to_send_updates">Ready to send updates</string>
+    <string name="selected_group">Selected Group</string>
+    <string name="change">Change</string>
+
+    <string name="delete_message_title">Delete Message</string>
+    <string name="delete_message_confirmation">Are you sure you want to delete the message "%1$s"?</string>
+    <string name="failed_to_delete_message">Failed to delete message: %1$s</string>
 
 </resources>

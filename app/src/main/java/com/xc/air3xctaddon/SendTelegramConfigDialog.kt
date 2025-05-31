@@ -160,17 +160,7 @@ fun SendTelegramConfigDialog(
                     groups = groups.map {
                         if (it.chatId == group.chatId) it.copy(isBotActive = true) else it
                     }
-                    coroutineScope.launch {
-                        val task = Task(
-                            taskType = "SendTelegramPosition",
-                            taskData = group.chatId,
-                            taskName = group.title,
-                            launchInBackground = false
-                        )
-                        taskDao.insert(task)
-                        Log.d("SendTelegramConfigDialog", "Saved task: type=${task.taskType}, chatId=${task.taskData}, name=${task.taskName}")
-                        onConfirm()
-                    }
+                    Log.d("SendTelegramConfigDialog", "Bot activated in group ${group.title}")
                 },
                 onError = { error ->
                     isSendingStart = false
@@ -485,29 +475,59 @@ fun SendTelegramConfigDialog(
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
                                         Row(
-                                            modifier = Modifier.padding(12.dp),
+                                            modifier = Modifier.padding(8.dp), // Reduced padding from 12dp to 8dp
                                             verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.SpaceBetween
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp) // Changed from SpaceBetween to spacedBy
                                         ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Check,
+                                                contentDescription = stringResource(R.string.ready_to_send_position_updates),
+                                                tint = Color.Green,
+                                                modifier = Modifier.size(16.dp) // Added size constraint for icon
+                                            )
+                                            Text(
+                                                text = stringResource(R.string.ready_to_send_position_updates),
+                                                color = Color.Green,
+                                                style = MaterialTheme.typography.body2, // Changed from subtitle1 to body2
+                                                modifier = Modifier.weight(1f) // Take up remaining space
+                                            )
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    // Add a card around the group selection to make it clear it's selectable
+                                    Card(
+                                        backgroundColor = MaterialTheme.colors.surface,
+                                        elevation = 2.dp,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(modifier = Modifier.padding(12.dp)) {
+                                            Text(
+                                                text = stringResource(R.string.selected_group),
+                                                style = MaterialTheme.typography.caption,
+                                                color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f)
+                                            )
+                                            Spacer(modifier = Modifier.height(4.dp))
                                             Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
                                             ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Check,
-                                                    contentDescription = stringResource(R.string.ready_to_send_position_updates),
-                                                    tint = Color.Green
-                                                )
                                                 Text(
-                                                    text = stringResource(R.string.ready_to_send_position_updates),
-                                                    color = Color.Green,
-                                                    style = MaterialTheme.typography.subtitle1
+                                                    text = group.title,
+                                                    style = MaterialTheme.typography.body1,
+                                                    modifier = Modifier.weight(1f)
                                                 )
-                                            }
-                                            OutlinedButton(
-                                                onClick = { checkBotInSelectedGroup() }
-                                            ) {
-                                                Text(stringResource(R.string.refresh))
+                                                TextButton(
+                                                    onClick = {
+                                                        // Reset selection to allow choosing a different group
+                                                        telegramGroupName = ""
+                                                        telegramChatId = ""
+                                                        selectedGroup = null
+                                                    }
+                                                ) {
+                                                    Text(stringResource(R.string.change))
+                                                }
                                             }
                                         }
                                     }
