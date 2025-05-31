@@ -1,7 +1,6 @@
 package com.xc.air3xctaddon
 
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -22,11 +21,14 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xc.air3xctaddon.ui.components.SelectTaskTypeDialog
 import com.xc.air3xctaddon.ui.SendTelegramConfigDialog
+import com.xc.air3xctaddon.ui.SendTelegramMessageConfigDialog
 import com.xc.air3xctaddon.ui.theme.AIR3XCTAddonTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import android.content.pm.PackageManager
+
 
 class SettingsActivity : ComponentActivity() {
     private val _tasks = mutableStateListOf<Task>()
@@ -66,7 +68,8 @@ class SettingsActivity : ComponentActivity() {
         setContent {
             AIR3XCTAddonTheme {
                 var showTaskTypeDialog by remember { mutableStateOf(false) }
-                var showTelegramDialog by remember { mutableStateOf(false) }
+                var showTelegramPositionDialog by remember { mutableStateOf(false) }
+                var showTelegramMessageDialog by remember { mutableStateOf(false) }
 
                 SettingsScreen(
                     onAddTask = { showTaskTypeDialog = true },
@@ -75,7 +78,8 @@ class SettingsActivity : ComponentActivity() {
                             val db = AppDatabase.getDatabase(applicationContext)
                             db.taskDao().deleteAll("LaunchApp")
                             db.taskDao().deleteAll("SendTelegramPosition")
-                            Log.d("SettingsActivity", "Cleared all LaunchApp and SendTelegramPosition tasks")
+                            db.taskDao().deleteAll("SendTelegramMessage")
+                            Log.d("SettingsActivity", "Cleared all LaunchApp, SendTelegramPosition, and SendTelegramMessage tasks")
                         }
                     }
                 )
@@ -86,18 +90,29 @@ class SettingsActivity : ComponentActivity() {
                             taskResultLauncher.launch(Intent(this, AddTaskActivity::class.java))
                             showTaskTypeDialog = false
                         },
-                        onTelegramSelected = {
+                        onTelegramPositionSelected = {
                             showTaskTypeDialog = false
-                            showTelegramDialog = true
+                            showTelegramPositionDialog = true
+                        },
+                        onTelegramMessageSelected = {
+                            showTaskTypeDialog = false
+                            showTelegramMessageDialog = true
                         },
                         onDismiss = { showTaskTypeDialog = false }
                     )
                 }
 
-                if (showTelegramDialog) {
+                if (showTelegramPositionDialog) {
                     SendTelegramConfigDialog(
-                        onConfirm = { showTelegramDialog = false },
-                        onDismiss = { showTelegramDialog = false }
+                        onConfirm = { showTelegramPositionDialog = false },
+                        onDismiss = { showTelegramPositionDialog = false }
+                    )
+                }
+
+                if (showTelegramMessageDialog) {
+                    SendTelegramMessageConfigDialog(
+                        onConfirm = { showTelegramMessageDialog = false },
+                        onDismiss = { showTelegramMessageDialog = false }
                     )
                 }
             }
@@ -243,6 +258,7 @@ fun TaskRow(task: Task, onDelete: () -> Unit) {
     val context = LocalContext.current
     val displayText = when (task.taskType) {
         "SendTelegramPosition" -> stringResource(R.string.task_send_telegram_position, task.taskName)
+        "SendTelegramMessage" -> stringResource(R.string.task_send_telegram_message, task.taskName)
         "LaunchApp" -> {
             val appName = getAppName(context, task.taskData)
             if (task.launchInBackground) {

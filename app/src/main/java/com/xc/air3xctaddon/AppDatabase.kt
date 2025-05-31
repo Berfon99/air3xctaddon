@@ -9,18 +9,19 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.xc.air3xctaddon.converters.Converters
 
-@Database(entities = [EventConfig::class, EventEntity::class, Task::class], version = 11, exportSchema = false)
+@Database(entities = [EventConfig::class, EventEntity::class, Task::class, Message::class], version = 12, exportSchema = false)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun eventConfigDao(): EventConfigDao
     abstract fun eventDao(): EventDao
     abstract fun taskDao(): TaskDao
+    abstract fun messageDao(): MessageDao
 
     companion object {
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
-        // Migration 1→2: Initial schema with soundFile
+        // Existing migrations (1→11) remain unchanged
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("""
@@ -44,7 +45,6 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        // Migration 2→3: Add events table
         val MIGRATION_2_3 = object : Migration(2, 3) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("""
@@ -57,14 +57,12 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        // Migration 3→4: Add category to events
         val MIGRATION_3_4 = object : Migration(3, 4) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("ALTER TABLE events ADD COLUMN category TEXT")
             }
         }
 
-        // Migration 4→5: Add taskType and taskData
         val MIGRATION_4_5 = object : Migration(4, 5) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("ALTER TABLE event_configs ADD COLUMN taskType TEXT")
@@ -77,28 +75,24 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        // Migration 5→6: Add telegramChatId
         val MIGRATION_5_6 = object : Migration(5, 6) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("ALTER TABLE event_configs ADD COLUMN telegramChatId TEXT")
             }
         }
 
-        // Migration 6→7: Add telegramGroupName
         val MIGRATION_6_7 = object : Migration(6, 7) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("ALTER TABLE event_configs ADD COLUMN telegramGroupName TEXT")
             }
         }
 
-        // Migration 7→8: Add telegramUsername
         val MIGRATION_7_8 = object : Migration(7, 8) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("ALTER TABLE event_configs ADD COLUMN telegramUsername TEXT")
             }
         }
 
-        // Migration 8→9: Remove telegramUsername
         val MIGRATION_8_9 = object : Migration(8, 9) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("""
@@ -127,7 +121,6 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        // Migration 9→10: Add launchInBackground
         val MIGRATION_9_10 = object : Migration(9, 10) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("""
@@ -136,7 +129,6 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        // Migration 10→11: Add tasks table
         val MIGRATION_10_11 = object : Migration(10, 11) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("""
@@ -146,6 +138,18 @@ abstract class AppDatabase : RoomDatabase() {
                         taskData TEXT NOT NULL,
                         taskName TEXT NOT NULL,
                         launchInBackground INTEGER NOT NULL
+                    )
+                """.trimIndent())
+            }
+        }
+
+        val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("""
+                    CREATE TABLE messages (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        title TEXT NOT NULL,
+                        content TEXT NOT NULL
                     )
                 """.trimIndent())
             }
@@ -168,7 +172,8 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_7_8,
                         MIGRATION_8_9,
                         MIGRATION_9_10,
-                        MIGRATION_10_11
+                        MIGRATION_10_11,
+                        MIGRATION_11_12
                     )
                     .build()
                 INSTANCE = instance

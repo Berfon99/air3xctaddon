@@ -43,6 +43,7 @@ fun TaskSelector(
                     "Sound" -> if (taskData.isNotEmpty()) taskData else stringResource(id = R.string.select_task)
                     "ZELLO_PTT" -> stringResource(id = R.string.task_zello_ptt)
                     "SendTelegramPosition" -> telegramGroupName?.let { stringResource(id = R.string.task_send_telegram_position, it) } ?: stringResource(id = R.string.select_task)
+                    "SendTelegramMessage" -> telegramGroupName?.let { stringResource(id = R.string.task_send_telegram_message, it) } ?: stringResource(id = R.string.select_task)
                     "LaunchApp" -> {
                         val task = launchAppTasks.find { it.taskData == taskData }
                         task?.let {
@@ -80,6 +81,7 @@ fun TaskSelector(
             launchAppTasks.forEach { task ->
                 val displayText = when (task.taskType) {
                     "SendTelegramPosition" -> stringResource(id = R.string.task_send_telegram_position, task.taskName)
+                    "SendTelegramMessage" -> stringResource(id = R.string.task_send_telegram_message, task.taskName)
                     "LaunchApp" -> {
                         val backgroundText = if (task.launchInBackground) stringResource(id = R.string.background) else stringResource(id = R.string.foreground)
                         stringResource(id = R.string.task_launch_app_item, task.taskName, backgroundText)
