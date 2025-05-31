@@ -21,7 +21,6 @@ fun TaskSelector(
     telegramGroupName: String?,
     launchAppTasks: List<Task>,
     onSoundDialogOpen: () -> Unit,
-    onTelegramDialogOpen: () -> Unit,
     onLaunchAppSelected: (Task) -> Unit,
     onZelloPttSelected: () -> Unit,
     modifier: Modifier = Modifier
@@ -41,15 +40,16 @@ fun TaskSelector(
         ) {
             Text(
                 text = when (taskType) {
-                    "SendTelegramPosition" -> stringResource(id = R.string.task_send_telegram_position, telegramGroupName ?: taskData)
                     "Sound" -> if (taskData.isNotEmpty()) taskData else stringResource(id = R.string.select_task)
-                    "LaunchApp" -> {
-                        val correspondingTask = launchAppTasks.find { it.taskData == taskData }
-                        val backgroundText = if (correspondingTask?.launchInBackground == true)
-                            stringResource(id = R.string.background) else stringResource(id = R.string.foreground)
-                        stringResource(id = R.string.task_launch_app, telegramGroupName ?: taskData, backgroundText)
-                    }
                     "ZELLO_PTT" -> stringResource(id = R.string.task_zello_ptt)
+                    "SendTelegramPosition" -> telegramGroupName?.let { stringResource(id = R.string.task_send_telegram_position, it) } ?: stringResource(id = R.string.select_task)
+                    "LaunchApp" -> {
+                        val task = launchAppTasks.find { it.taskData == taskData }
+                        task?.let {
+                            val backgroundText = if (it.launchInBackground) stringResource(id = R.string.background) else stringResource(id = R.string.foreground)
+                            stringResource(id = R.string.task_launch_app, it.taskName, backgroundText)
+                        } ?: stringResource(id = R.string.select_task)
+                    }
                     else -> stringResource(id = R.string.select_task)
                 },
                 maxLines = 1,
@@ -70,14 +70,6 @@ fun TaskSelector(
                 }
             )
             DropdownMenuItem(
-                content = { Text(stringResource(id = R.string.task_send_telegram_position_item)) },
-                onClick = {
-                    taskMenuExpanded = false
-                    onTelegramDialogOpen()
-                    Log.d("TaskSelector", "Selected task: SendTelegramPosition")
-                }
-            )
-            DropdownMenuItem(
                 content = { Text(stringResource(id = R.string.task_zello_ptt)) },
                 onClick = {
                     taskMenuExpanded = false
@@ -85,15 +77,21 @@ fun TaskSelector(
                     Log.d("TaskSelector", "Selected task: ZELLO_PTT")
                 }
             )
-            launchAppTasks.forEach { appTask ->
-                val backgroundText = if (appTask.launchInBackground)
-                    stringResource(id = R.string.background) else stringResource(id = R.string.foreground)
+            launchAppTasks.forEach { task ->
+                val displayText = when (task.taskType) {
+                    "SendTelegramPosition" -> stringResource(id = R.string.task_send_telegram_position, task.taskName)
+                    "LaunchApp" -> {
+                        val backgroundText = if (task.launchInBackground) stringResource(id = R.string.background) else stringResource(id = R.string.foreground)
+                        stringResource(id = R.string.task_launch_app_item, task.taskName, backgroundText)
+                    }
+                    else -> task.taskName
+                }
                 DropdownMenuItem(
-                    content = { Text(stringResource(id = R.string.task_launch_app_item, appTask.taskName, backgroundText)) },
+                    content = { Text(displayText) },
                     onClick = {
-                        onLaunchAppSelected(appTask)
+                        onLaunchAppSelected(task)
                         taskMenuExpanded = false
-                        Log.d("TaskSelector", "Selected task: LaunchApp, taskName=${appTask.taskName}")
+                        Log.d("TaskSelector", "Selected task: ${task.taskType}, taskName=${task.taskName}")
                     }
                 )
             }

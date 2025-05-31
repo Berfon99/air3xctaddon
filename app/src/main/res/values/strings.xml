@@ -408,4 +408,10 @@
     <string name="no_telegram_chats">No Telegram Chats Available</string>
     <string name="chat_label">Chat</string>
 
+    <string name="select_task_type">Select Task Type</string>
+    <string name="send_position_to_telegram">Send Position to Telegram</string>
+    <string name="launch_an_app">Launch an App</string>
+    <string name="log_no_task_found">No task found for type=%s, data=%s, event=%s, configId=%d</string>
+    <string name="log_selected_task">Selected task: type=%s, name=%s, launchInBackground=%b</string>
+
 </resources>

@@ -13,6 +13,7 @@ import java.util.UUID
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val configDao = AppDatabase.getDatabase(application).eventConfigDao()
     private val eventDao = AppDatabase.getDatabase(application).eventDao()
+    private val taskDao = AppDatabase.getDatabase(application).taskDao()
     private val context = application.applicationContext
 
     private val _configs = MutableStateFlow<List<EventConfig>>(emptyList())
@@ -158,8 +159,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 volumePercentage = volumePercentage,
                 playCount = playCount,
                 position = maxPosition + 1,
-                telegramChatId = telegramChatId,
-                telegramGroupName = telegramGroupName
+                telegramChatId = if (taskType == "SendTelegramPosition") taskData else null,
+                telegramGroupName = if (taskType == "SendTelegramPosition") telegramGroupName else null
             )
             configDao.insert(newConfig)
             Log.d("MainViewModel", "Added config: event=$event, taskType=$taskType, taskData=$taskData, telegramChatId=$telegramChatId, telegramGroupName=$telegramGroupName")

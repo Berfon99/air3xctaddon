@@ -20,16 +20,15 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.xc.air3xctaddon.ui.components.SelectTaskTypeDialog
+import com.xc.air3xctaddon.ui.SendTelegramConfigDialog
 import com.xc.air3xctaddon.ui.theme.AIR3XCTAddonTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
 class SettingsActivity : ComponentActivity() {
-
-    // Declare a mutable state to hold the tasks, so we can trigger recomposition
     private val _tasks = mutableStateListOf<Task>()
     private val tasks: List<Task> get() = _tasks
 
@@ -53,15 +52,9 @@ class SettingsActivity : ComponentActivity() {
                         )
                         Log.d("SettingsActivity", "Inserting Task: id=${task.id}, taskType=${task.taskType}, taskData=${task.taskData}, taskName=${task.taskName}, launchInBackground=${task.launchInBackground}")
                         db.taskDao().insert(task)
-                        // Delay to ensure transaction commits
                         delay(100)
-                        // Log synchronous query
                         val syncTasks = db.taskDao().getAllTasksSync()
                         Log.d("SettingsActivity", "Sync tasks after insert: ${syncTasks.map { "id=${it.id}, taskType=${it.taskType}, taskData=${it.taskData}, launchInBackground=${it.launchInBackground}" }}")
-                        // No need to collectLatest here from the Flow for immediate UI update in Activity,
-                        // as the Composable will observe the Flow directly.
-                        // You might want to update _tasks here if you're managing the list in the Activity
-                        // and passing it down, but the Composable is already observing the DB.
                     }
                 }
             }
@@ -72,19 +65,41 @@ class SettingsActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             AIR3XCTAddonTheme {
-                // Now, the SettingsScreen receives the taskResultLauncher directly as a callback
+                var showTaskTypeDialog by remember { mutableStateOf(false) }
+                var showTelegramDialog by remember { mutableStateOf(false) }
+
                 SettingsScreen(
-                    onAddTask = {
-                        taskResultLauncher.launch(Intent(this, AddTaskActivity::class.java))
-                    },
+                    onAddTask = { showTaskTypeDialog = true },
                     onClearTasks = {
                         CoroutineScope(Dispatchers.IO).launch {
                             val db = AppDatabase.getDatabase(applicationContext)
                             db.taskDao().deleteAll("LaunchApp")
-                            Log.d("SettingsActivity", "Cleared all LaunchApp tasks")
+                            db.taskDao().deleteAll("SendTelegramPosition")
+                            Log.d("SettingsActivity", "Cleared all LaunchApp and SendTelegramPosition tasks")
                         }
                     }
                 )
+
+                if (showTaskTypeDialog) {
+                    SelectTaskTypeDialog(
+                        onLaunchAppSelected = {
+                            taskResultLauncher.launch(Intent(this, AddTaskActivity::class.java))
+                            showTaskTypeDialog = false
+                        },
+                        onTelegramSelected = {
+                            showTaskTypeDialog = false
+                            showTelegramDialog = true
+                        },
+                        onDismiss = { showTaskTypeDialog = false }
+                    )
+                }
+
+                if (showTelegramDialog) {
+                    SendTelegramConfigDialog(
+                        onConfirm = { showTelegramDialog = false },
+                        onDismiss = { showTelegramDialog = false }
+                    )
+                }
             }
         }
     }
@@ -101,15 +116,11 @@ fun SettingsScreen(onAddTask: () -> Unit = {}, onClearTasks: () -> Unit = {}) {
     var pilotName by remember { mutableStateOf(settingsRepository.getPilotName()) }
     var showPilotNameDialog by remember { mutableStateOf(false) }
 
-    // Collect LaunchApp tasks from tasks table directly.
-    // The `key` parameter is no longer needed in collectAsState.
-    // The UI will recompose automatically when the Flow emits new data.
     val launchAppTasks by AppDatabase.getDatabase(context).taskDao()
         .getAllTasks()
         .collectAsState(initial = emptyList())
 
     LaunchedEffect(launchAppTasks) {
-        // This LaunchedEffect will re-run whenever launchAppTasks changes (i.e., when DB emits new data)
         Log.d("SettingsScreen", "launchAppTasks updated: ${launchAppTasks.map { "id=${it.id}, taskType=${it.taskType}, taskData=${it.taskData}, launchInBackground=${it.launchInBackground}" }}")
     }
 
@@ -128,7 +139,6 @@ fun SettingsScreen(onAddTask: () -> Unit = {}, onClearTasks: () -> Unit = {}) {
             verticalArrangement = Arrangement.spacedBy(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // 1. Add Pilot Name
             item {
                 Button(
                     onClick = { showPilotNameDialog = true },
@@ -138,14 +148,12 @@ fun SettingsScreen(onAddTask: () -> Unit = {}, onClearTasks: () -> Unit = {}) {
                 }
             }
 
-            // 2. Current Pilot Name
             pilotName?.let { name ->
                 item {
                     Text(stringResource(R.string.current_pilot_name, name))
                 }
             }
 
-            // 3. Add an Event
             item {
                 Button(
                     onClick = {
@@ -157,26 +165,23 @@ fun SettingsScreen(onAddTask: () -> Unit = {}, onClearTasks: () -> Unit = {}) {
                 }
             }
 
-            // 4. Total of Events
             item {
                 val customEventCount = events.count { it is MainViewModel.EventItem.Event }
                 Text(stringResource(R.string.event_count, customEventCount))
             }
 
-            // 5. Add a New Task
             item {
                 Button(
-                    onClick = onAddTask, // Call the lambda provided by the Activity
+                    onClick = onAddTask,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(stringResource(R.string.add_new_task))
                 }
             }
 
-            // 6. Clear All Tasks
             item {
                 Button(
-                    onClick = onClearTasks, // Call the lambda provided by the Activity
+                    onClick = onClearTasks,
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(backgroundColor = MaterialTheme.colors.error)
                 ) {
@@ -184,7 +189,6 @@ fun SettingsScreen(onAddTask: () -> Unit = {}, onClearTasks: () -> Unit = {}) {
                 }
             }
 
-            // 7. List of Added Tasks
             if (launchAppTasks.isNotEmpty()) {
                 item {
                     Text(
@@ -199,7 +203,6 @@ fun SettingsScreen(onAddTask: () -> Unit = {}, onClearTasks: () -> Unit = {}) {
                             CoroutineScope(Dispatchers.IO).launch {
                                 val db = AppDatabase.getDatabase(context)
                                 db.taskDao().delete(task)
-                                // The UI will automatically refresh because launchAppTasks is observing the database Flow
                             }
                         }
                     )
@@ -225,15 +228,30 @@ fun SettingsScreen(onAddTask: () -> Unit = {}, onClearTasks: () -> Unit = {}) {
     }
 }
 
+fun getAppName(context: android.content.Context, packageName: String): String {
+    return try {
+        val packageManager = context.packageManager
+        val appInfo = packageManager.getApplicationInfo(packageName, 0)
+        packageManager.getApplicationLabel(appInfo).toString()
+    } catch (e: PackageManager.NameNotFoundException) {
+        packageName
+    }
+}
+
 @Composable
 fun TaskRow(task: Task, onDelete: () -> Unit) {
     val context = LocalContext.current
-    val appName = try {
-        val packageManager = context.packageManager
-        val appInfo = packageManager.getApplicationInfo(task.taskData, 0)
-        packageManager.getApplicationLabel(appInfo).toString()
-    } catch (e: PackageManager.NameNotFoundException) {
-        task.taskData
+    val displayText = when (task.taskType) {
+        "SendTelegramPosition" -> stringResource(R.string.task_send_telegram_position, task.taskName)
+        "LaunchApp" -> {
+            val appName = getAppName(context, task.taskData)
+            if (task.launchInBackground) {
+                stringResource(R.string.launch_app_background, appName)
+            } else {
+                stringResource(R.string.launch_app_foreground, appName)
+            }
+        }
+        else -> task.taskName
     }
 
     Row(
@@ -244,11 +262,7 @@ fun TaskRow(task: Task, onDelete: () -> Unit) {
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Text(
-            text = if (task.launchInBackground) {
-                stringResource(R.string.launch_app_background, appName)
-            } else {
-                stringResource(R.string.launch_app_foreground, appName)
-            },
+            text = displayText,
             style = MaterialTheme.typography.body1,
             modifier = Modifier.weight(1f)
         )

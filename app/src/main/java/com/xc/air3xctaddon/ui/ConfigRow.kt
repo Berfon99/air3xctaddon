@@ -30,6 +30,7 @@ import com.xc.air3xctaddon.ui.components.EventSelector
 import com.xc.air3xctaddon.ui.components.TaskSelector
 import com.xc.air3xctaddon.ui.components.ControlButtons
 import com.xc.air3xctaddon.ui.components.SoundConfigDialog
+import com.xc.air3xctaddon.ui.SendTelegramConfigDialog
 
 @Composable
 fun ConfigRow(
@@ -69,7 +70,6 @@ fun ConfigRow(
     var volumePercentage by remember { mutableStateOf(config.volumePercentage) }
     var playCount by remember { mutableStateOf(config.playCount) }
 
-    // Load LaunchApp tasks from tasks table
     val launchAppTasks by AppDatabase.getDatabase(context).taskDao()
         .getAllTasks()
         .collectAsState(initial = emptyList<Task>())
@@ -109,7 +109,6 @@ fun ConfigRow(
                 null -> 1.0f
             }
 
-            // Use an array to make it mutable in the callback
             val currentPlayCount = intArrayOf(0)
             mediaPlayer?.release()
             val newMediaPlayer = MediaPlayer().apply {
@@ -211,7 +210,6 @@ fun ConfigRow(
                     .padding(start = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Event Selection - takes up available space
                 EventSelector(
                     selectedEvent = event,
                     availableEvents = availableEvents,
@@ -225,26 +223,25 @@ fun ConfigRow(
 
                 Spacer(modifier = Modifier.width(4.dp))
 
-                // Task Selection - takes up available space
                 TaskSelector(
                     taskType = taskType,
                     taskData = taskData,
                     telegramGroupName = telegramGroupName,
                     launchAppTasks = launchAppTasks,
                     onSoundDialogOpen = { soundDialogOpen = true },
-                    onTelegramDialogOpen = { telegramDialogOpen = true },
                     onLaunchAppSelected = { appTask ->
-                        taskType = "LaunchApp"
+                        taskType = appTask.taskType
                         taskData = appTask.taskData
+                        telegramChatId = if (appTask.taskType == "SendTelegramPosition") appTask.taskData else ""
                         telegramGroupName = appTask.taskName
                         onUpdate(config.copy(
                             taskType = taskType,
                             taskData = taskData,
-                            telegramGroupName = appTask.taskName,
+                            telegramChatId = telegramChatId,
+                            telegramGroupName = telegramGroupName,
                             volumeType = VolumeType.SYSTEM,
                             volumePercentage = 100,
                             playCount = 1,
-                            telegramChatId = null,
                             launchInBackground = appTask.launchInBackground
                         ))
                         Log.d("ConfigRow", context.getString(
@@ -255,8 +252,8 @@ fun ConfigRow(
                     onZelloPttSelected = {
                         taskType = "ZELLO_PTT"
                         taskData = ""
-                        telegramGroupName = "" // Fix: Use empty string instead of null
-                        telegramChatId = ""   // Fix: Use empty string instead of null
+                        telegramGroupName = ""
+                        telegramChatId = ""
                         onUpdate(config.copy(
                             taskType = taskType,
                             taskData = taskData,
@@ -274,7 +271,6 @@ fun ConfigRow(
 
                 Spacer(modifier = Modifier.width(4.dp))
 
-                // Control Buttons
                 ControlButtons(
                     taskType = taskType,
                     taskData = taskData,
@@ -293,7 +289,6 @@ fun ConfigRow(
             }
         }
 
-        // Dialogs
         if (soundDialogOpen) {
             SoundConfigDialog(
                 soundFile = soundFile,
@@ -331,24 +326,8 @@ fun ConfigRow(
 
         if (telegramDialogOpen) {
             SendTelegramConfigDialog(
-                onAdd = { chatId, groupName ->
-                    taskType = "SendTelegramPosition"
-                    telegramChatId = chatId
-                    telegramGroupName = groupName
-                    onUpdate(config.copy(
-                        taskType = taskType,
-                        taskData = groupName,
-                        volumeType = VolumeType.SYSTEM,
-                        volumePercentage = 100,
-                        playCount = 1,
-                        telegramChatId = chatId,
-                        telegramGroupName = groupName
-                    ))
+                onConfirm = {
                     telegramDialogOpen = false
-                    Log.d("ConfigRow", context.getString(
-                        R.string.log_telegram_config_saved,
-                        chatId, groupName
-                    ))
                 },
                 onDismiss = { telegramDialogOpen = false }
             )

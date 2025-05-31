@@ -15,24 +15,29 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.google.android.gms.location.LocationServices
+import com.xc.air3xctaddon.AppDatabase
 import com.xc.air3xctaddon.BuildConfig
+import com.xc.air3xctaddon.R
 import com.xc.air3xctaddon.SettingsRepository
+import com.xc.air3xctaddon.Task
 import com.xc.air3xctaddon.TelegramBotHelper
-import com.xc.air3xctaddon.TelegramGroup
 import com.xc.air3xctaddon.TelegramBotInfo
+import com.xc.air3xctaddon.TelegramGroup
 import com.xc.air3xctaddon.ui.components.DropdownMenuSpinner
 import com.xc.air3xctaddon.ui.components.SpinnerItem
-import com.xc.air3xctaddon.R
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
 fun SendTelegramConfigDialog(
-    onAdd: (String, String) -> Unit, // chatId, groupName
+    onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
     var telegramChatId by remember { mutableStateOf("") }
@@ -49,6 +54,10 @@ fun SendTelegramConfigDialog(
     var showBotSetupDialog by remember { mutableStateOf(false) }
     var isAddingNewGroup by remember { mutableStateOf(false) }
 
+    // Extract string resources at the composable level
+    val otherOptionText = stringResource(R.string.other_option)
+    val selectGroupOptionText = stringResource(R.string.select_group_option)
+
     val context = LocalContext.current
     val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
     val settingsRepository = remember { SettingsRepository(context) }
@@ -61,55 +70,7 @@ fun SendTelegramConfigDialog(
         )
     }
     val coroutineScope = rememberCoroutineScope()
-
-    suspend fun fetchGroups(retryCount: Int = 0, maxRetries: Int = 2) {
-        Log.d("SendTelegramConfigDialog", "fetchGroups called: retryCount=$retryCount, maxRetries=$maxRetries")
-        if (retryCount > maxRetries) {
-            isLoadingGroups = false
-            groupError = "Failed to fetch groups after $maxRetries retries"
-            Log.e("SendTelegramConfigDialog", "Max retries reached for fetchGroups")
-            return
-        }
-        isLoadingGroups = true
-        groupError = null
-        telegramBotHelper.fetchGroups(
-            onResult = { fetchedGroups ->
-                Log.d("SendTelegramConfigDialog", "Fetched groups: ${fetchedGroups.map { it.title }}")
-                groups = fetchedGroups
-                isLoadingGroups = false
-                if (fetchedGroups.isEmpty() || (telegramChatId.isNotEmpty() && fetchedGroups.none { it.chatId == telegramChatId })) {
-                    telegramChatId = ""
-                    telegramGroupName = ""
-                    selectedGroup = null
-                }
-                if (telegramChatId.isEmpty() && fetchedGroups.isNotEmpty()) {
-                    val targetGroup = if (isAddingNewGroup) {
-                        fetchedGroups.maxByOrNull { it.chatId.toLongOrNull() ?: Long.MIN_VALUE }
-                    } else {
-                        fetchedGroups.firstOrNull { it.isBotMember && it.isBotActive } ?: fetchedGroups.first()
-                    }
-                    targetGroup?.let { group ->
-                        telegramChatId = group.chatId
-                        telegramGroupName = group.title
-                        selectedGroup = group
-                        Log.d("SendTelegramConfigDialog", "Auto-selected group: ${group.title}, isAddingNewGroup=$isAddingNewGroup")
-                    }
-                }
-            },
-            onError = { error ->
-                Log.w("SendTelegramConfigDialog", "Fetch groups error (retry $retryCount/$maxRetries): $error")
-                if (retryCount < maxRetries) {
-                    coroutineScope.launch {
-                        delay(1000L * (retryCount + 1))
-                        fetchGroups(retryCount + 1, maxRetries)
-                    }
-                } else {
-                    isLoadingGroups = false
-                    groupError = "Failed to fetch groups: $error"
-                }
-            }
-        )
-    }
+    val taskDao = AppDatabase.getDatabase(context).taskDao()
 
     fun checkBotInSelectedGroup() {
         selectedGroup?.let { group ->
@@ -126,15 +87,66 @@ fun SendTelegramConfigDialog(
                     if (!isMember) {
                         showBotSetupDialog = true
                     }
+                    // Don't auto-confirm when bot is ready
                 },
                 onError = { error ->
                     isCheckingBot = false
-                    groupError = "Failed to check bot status: $error"
+                    groupError = context.getString(R.string.failed_to_check_bot_status, error)
                     selectedGroup = group.copy(isBotMember = false, isBotActive = false)
                     Log.e("SendTelegramConfigDialog", "Error checking bot in group ${group.title}: $error")
                 }
             )
         }
+    }
+
+    suspend fun fetchGroups(retryCount: Int = 0, maxRetries: Int = 2) {
+        Log.d("SendTelegramConfigDialog", "fetchGroups called: retryCount=$retryCount, maxRetries=$maxRetries")
+        if (retryCount > maxRetries) {
+            isLoadingGroups = false
+            groupError = context.getString(R.string.failed_to_fetch_groups_retries, maxRetries)
+            Log.e("SendTelegramConfigDialog", "Max retries reached for fetchGroups")
+            return
+        }
+        isLoadingGroups = true
+        groupError = null
+        telegramBotHelper.fetchGroups(
+            onResult = { fetchedGroups ->
+                Log.d("SendTelegramConfigDialog", "Fetched groups: ${fetchedGroups.map { it.title }}")
+                groups = fetchedGroups
+                isLoadingGroups = false
+                if (fetchedGroups.isEmpty() || (telegramChatId.isNotEmpty() && fetchedGroups.none { it.chatId == telegramChatId })) {
+                    telegramChatId = ""
+                    telegramGroupName = ""
+                    selectedGroup = null
+                }
+                if (isAddingNewGroup && fetchedGroups.isNotEmpty()) {
+                    // Select the most recently added group (highest chatId)
+                    val targetGroup = fetchedGroups.maxByOrNull { it.chatId.toLongOrNull() ?: Long.MIN_VALUE }
+                    targetGroup?.let { group ->
+                        telegramChatId = group.chatId
+                        telegramGroupName = group.title
+                        selectedGroup = group
+                        isAddingNewGroup = false // Reset flag
+                        Log.d("SendTelegramConfigDialog", "Selected new group: ${group.title}")
+                        coroutineScope.launch {
+                            checkBotInSelectedGroup()
+                        }
+                    }
+                }
+            },
+            onError = { error ->
+                Log.w("SendTelegramConfigDialog", "Fetch groups error (retry $retryCount/$maxRetries): $error")
+                if (retryCount < maxRetries) {
+                    coroutineScope.launch {
+                        delay(1000L * (retryCount + 1))
+                        fetchGroups(retryCount + 1, maxRetries)
+                    }
+                } else {
+                    isLoadingGroups = false
+                    groupError = context.getString(R.string.failed_to_fetch_groups_error, error)
+                }
+            }
+        )
     }
 
     fun sendStartCommand() {
@@ -148,13 +160,21 @@ fun SendTelegramConfigDialog(
                     groups = groups.map {
                         if (it.chatId == group.chatId) it.copy(isBotActive = true) else it
                     }
-                    // Automatically call onAdd when bot is successfully activated
-                    onAdd(group.chatId, group.title)
-                    Log.d("SendTelegramConfigDialog", "Bot activated in group ${group.title}, chatId=${group.chatId}")
+                    coroutineScope.launch {
+                        val task = Task(
+                            taskType = "SendTelegramPosition",
+                            taskData = group.chatId,
+                            taskName = group.title,
+                            launchInBackground = false
+                        )
+                        taskDao.insert(task)
+                        Log.d("SendTelegramConfigDialog", "Saved task: type=${task.taskType}, chatId=${task.taskData}, name=${task.taskName}")
+                        onConfirm()
+                    }
                 },
                 onError = { error ->
                     isSendingStart = false
-                    groupError = "Failed to activate bot: $error"
+                    groupError = context.getString(R.string.failed_to_activate_bot, error)
                     Log.e("SendTelegramConfigDialog", "Error activating bot in group ${group.title}: $error")
                 }
             )
@@ -167,16 +187,33 @@ fun SendTelegramConfigDialog(
         hasLocationPermission = permissions[android.Manifest.permission.ACCESS_FINE_LOCATION] == true
         hasNetworkPermission = permissions[android.Manifest.permission.ACCESS_NETWORK_STATE] == true
         if (!hasLocationPermission) {
-            groupError = "Location permission denied. Please grant permission to continue."
+            groupError = context.getString(R.string.location_permission_denied)
         }
         if (!hasNetworkPermission) {
-            Log.w("SendTelegramConfigDialog", "Network state permission denied")
+            Log.w("SendTelegramConfigDialog", context.getString(R.string.log_network_permission_denied))
         }
         if (hasLocationPermission) {
             coroutineScope.launch {
-                Log.d("SendTelegramConfigDialog", "Permission granted, fetching groups")
+                Log.d("SendTelegramConfigDialog", context.getString(R.string.log_permission_granted))
                 fetchGroups()
             }
+        }
+    }
+
+    // Monitor lifecycle to detect app resume
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME && isAddingNewGroup) {
+                coroutineScope.launch {
+                    Log.d("SendTelegramConfigDialog", "App resumed, fetching groups")
+                    fetchGroups()
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
 
@@ -193,7 +230,7 @@ fun SendTelegramConfigDialog(
             onResult = { info -> botInfo = info },
             onError = { error ->
                 Log.e("SendTelegramConfigDialog", "Failed to get bot info: $error")
-                groupError = "Failed to get bot info: $error"
+                groupError = context.getString(R.string.failed_to_get_bot_info, error)
                 isLoadingGroups = false
             }
         )
@@ -203,51 +240,10 @@ fun SendTelegramConfigDialog(
         ))
     }
 
-    LaunchedEffect(showBotSetupDialog) {
-        if (!showBotSetupDialog) {
-            isAddingNewGroup = false
-            fetchGroups()
-        }
-    }
-
-    if (showBotSetupDialog) {
-        AlertDialog(
-            onDismissRequest = { showBotSetupDialog = false },
-            title = { Text("Add Bot to Group") },
-            text = {
-                Column {
-                    Text("Select the Group to which you want to add the bot to.")
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text("Would you like to open Telegram to add the bot to an existing group?")
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text("After adding the bot, return here and refresh to continue.", style = MaterialTheme.typography.caption)
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        isAddingNewGroup = true
-                        botInfo?.let { info ->
-                            telegramBotHelper.openTelegramToAddBot(context, info.username)
-                        }
-                        showBotSetupDialog = false
-                    }
-                ) {
-                    Text("Open Telegram")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showBotSetupDialog = false }) {
-                    Text("Cancel")
-                }
-            }
-        )
-    }
-
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             modifier = Modifier
-                .widthIn(min = 800.dp)
+                .widthIn(min = 280.dp)
                 .padding(16.dp),
             shape = MaterialTheme.shapes.medium,
             color = MaterialTheme.colors.surface
@@ -265,13 +261,13 @@ fun SendTelegramConfigDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Configure Telegram Position",
+                        text = stringResource(R.string.configure_telegram_position),
                         style = MaterialTheme.typography.h6
                     )
                     IconButton(
                         onClick = {
                             coroutineScope.launch {
-                                Log.d("SendTelegramConfigDialog", "Manual refresh triggered")
+                                Log.d("SendTelegramConfigDialog", context.getString(R.string.log_manual_refresh))
                                 fetchGroups()
                             }
                         },
@@ -279,7 +275,7 @@ fun SendTelegramConfigDialog(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Refresh,
-                            contentDescription = "Refresh",
+                            contentDescription = stringResource(R.string.refresh),
                             tint = MaterialTheme.colors.primary
                         )
                     }
@@ -292,7 +288,7 @@ fun SendTelegramConfigDialog(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             CircularProgressIndicator(modifier = Modifier.size(16.dp))
-                            Text("Searching for available groups...")
+                            Text(stringResource(R.string.searching_for_available_groups))
                         }
                     }
                     groupError != null -> {
@@ -302,20 +298,20 @@ fun SendTelegramConfigDialog(
                         ) {
                             Column(modifier = Modifier.padding(12.dp)) {
                                 Text(
-                                    text = groupError ?: "Error loading groups",
+                                    text = groupError ?: stringResource(R.string.error_loading_groups),
                                     color = MaterialTheme.colors.error
                                 )
                                 Button(
                                     onClick = {
                                         groupError = null
                                         coroutineScope.launch {
-                                            Log.d("SendTelegramConfigDialog", "Retry fetch triggered")
+                                            Log.d("SendTelegramConfigDialog", context.getString(R.string.log_retry_fetch))
                                             fetchGroups()
                                         }
                                     },
                                     modifier = Modifier.padding(top = 8.dp)
                                 ) {
-                                    Text(stringResource(id = R.string.retry))
+                                    Text(stringResource(R.string.retry))
                                 }
                             }
                         }
@@ -327,18 +323,18 @@ fun SendTelegramConfigDialog(
                         ) {
                             Column(modifier = Modifier.padding(12.dp)) {
                                 Text(
-                                    text = "No groups found with the bot",
+                                    text = stringResource(R.string.no_groups_found_with_the_bot),
                                     style = MaterialTheme.typography.subtitle1
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Text(
-                                    text = "To get started:",
+                                    text = stringResource(R.string.to_get_started),
                                     style = MaterialTheme.typography.body2
                                 )
-                                Text("1. Create or choose a Telegram group", style = MaterialTheme.typography.body2)
-                                Text("2. Add the bot to that group", style = MaterialTheme.typography.body2)
-                                Text("3. Send /start in the group", style = MaterialTheme.typography.body2)
-                                Text("4. Come back here and refresh", style = MaterialTheme.typography.body2)
+                                Text(stringResource(R.string.create_or_choose_a_telegram_group), style = MaterialTheme.typography.body2)
+                                Text(stringResource(R.string.add_the_bot_to_that_group), style = MaterialTheme.typography.body2)
+                                Text(stringResource(R.string.send_start_in_the_group), style = MaterialTheme.typography.body2)
+                                Text(stringResource(R.string.come_back_here_and_refresh), style = MaterialTheme.typography.body2)
                                 Row(
                                     modifier = Modifier.padding(top = 12.dp),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -347,7 +343,7 @@ fun SendTelegramConfigDialog(
                                         onClick = { showBotSetupDialog = true },
                                         enabled = botInfo != null
                                     ) {
-                                        Text("Add Bot to Group")
+                                        Text(stringResource(R.string.add_bot_to_group))
                                     }
                                     Button(
                                         onClick = {
@@ -357,36 +353,36 @@ fun SendTelegramConfigDialog(
                                         },
                                         enabled = botInfo != null
                                     ) {
-                                        Text("Open Bot in Telegram")
+                                        Text(stringResource(R.string.open_bot_in_telegram))
                                     }
                                     OutlinedButton(
                                         onClick = {
                                             coroutineScope.launch {
-                                                Log.d("SendTelegramConfigDialog", "Empty groups refresh triggered")
+                                                Log.d("SendTelegramConfigDialog", context.getString(R.string.log_empty_groups_refresh))
                                                 fetchGroups()
                                             }
                                         }
                                     ) {
-                                        Text("Refresh")
+                                        Text(stringResource(R.string.refresh))
                                     }
                                 }
                             }
                         }
                     }
                     else -> {
-                        Text("Select the group where you want to send position updates:")
+                        Text(stringResource(R.string.select_the_group_where_you_want_to_send_position_updates))
                         DropdownMenuSpinner(
-                            context = context, // Add this line
-                            items = groups.map { SpinnerItem.Item(it.title) } + SpinnerItem.Item("Other..."),
-                            selectedItem = if (telegramGroupName.isEmpty() || groups.none { it.title == telegramGroupName }) "Select Group" else telegramGroupName,
+                            context = context,
+                            items = groups.map { SpinnerItem.Item(it.title) } + SpinnerItem.Item(otherOptionText),
+                            selectedItem = if (telegramGroupName.isEmpty() || groups.none { it.title == telegramGroupName }) selectGroupOptionText else telegramGroupName,
                             onItemSelected = { selectedTitle ->
-                                if (selectedTitle == "Other...") {
+                                if (selectedTitle == otherOptionText) {
                                     telegramGroupName = ""
                                     telegramChatId = ""
                                     selectedGroup = null
                                     showBotSetupDialog = true
                                     isAddingNewGroup = true
-                                    Log.d("SendTelegramConfigDialog", "Selected 'Other...', opening bot setup dialog")
+                                    Log.d("SendTelegramConfigDialog", context.getString(R.string.log_selected_other))
                                 } else {
                                     groups.find { it.title == selectedTitle }?.let { group ->
                                         telegramChatId = group.chatId
@@ -394,11 +390,11 @@ fun SendTelegramConfigDialog(
                                         selectedGroup = group
                                         checkBotInSelectedGroup()
                                         isAddingNewGroup = false
-                                        Log.d("SendTelegramConfigDialog", "Selected group: ${group.title}")
+                                        Log.d("SendTelegramConfigDialog", context.getString(R.string.log_selected_group, group.title))
                                     }
                                 }
                             },
-                            label = "Telegram Group",
+                            label = stringResource(R.string.telegram_group_label),
                             modifier = Modifier.fillMaxWidth()
                         )
                         selectedGroup?.let { group ->
@@ -409,7 +405,7 @@ fun SendTelegramConfigDialog(
                                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
                                         CircularProgressIndicator(modifier = Modifier.size(16.dp))
-                                        Text("Checking bot status...")
+                                        Text(stringResource(R.string.checking_bot_status))
                                     }
                                 }
                                 !group.isBotMember -> {
@@ -419,11 +415,11 @@ fun SendTelegramConfigDialog(
                                     ) {
                                         Column(modifier = Modifier.padding(12.dp)) {
                                             Text(
-                                                text = "Bot Setup Required",
+                                                text = stringResource(R.string.bot_setup_required),
                                                 style = MaterialTheme.typography.subtitle1,
                                                 color = MaterialTheme.colors.secondary
                                             )
-                                            Text("The bot needs to be added to this group.")
+                                            Text(stringResource(R.string.the_bot_needs_to_be_added_to_this_group))
                                             Row(
                                                 modifier = Modifier.padding(top = 8.dp),
                                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -431,12 +427,12 @@ fun SendTelegramConfigDialog(
                                                 Button(
                                                     onClick = { showBotSetupDialog = true }
                                                 ) {
-                                                    Text("Add Bot to Group")
+                                                    Text(stringResource(R.string.add_bot_to_group))
                                                 }
                                                 OutlinedButton(
                                                     onClick = { checkBotInSelectedGroup() }
                                                 ) {
-                                                    Text("Refresh Status")
+                                                    Text(stringResource(R.string.refresh_status))
                                                 }
                                             }
                                         }
@@ -449,11 +445,11 @@ fun SendTelegramConfigDialog(
                                     ) {
                                         Column(modifier = Modifier.padding(12.dp)) {
                                             Text(
-                                                text = "Activate Bot",
+                                                text = stringResource(R.string.activate_bot),
                                                 style = MaterialTheme.typography.subtitle1,
                                                 color = MaterialTheme.colors.primary
                                             )
-                                            Text("The bot is in the group but needs to be activated.")
+                                            Text(stringResource(R.string.the_bot_is_in_the_group_but_needs_to_be_activated))
                                             if (isSendingStart) {
                                                 Row(
                                                     verticalAlignment = Alignment.CenterVertically,
@@ -461,7 +457,7 @@ fun SendTelegramConfigDialog(
                                                     modifier = Modifier.padding(top = 8.dp)
                                                 ) {
                                                     CircularProgressIndicator(modifier = Modifier.size(16.dp))
-                                                    Text("Activating bot...")
+                                                    Text(stringResource(R.string.activating_bot))
                                                 }
                                             } else {
                                                 Row(
@@ -471,12 +467,12 @@ fun SendTelegramConfigDialog(
                                                     Button(
                                                         onClick = { sendStartCommand() }
                                                     ) {
-                                                        Text("Activate Bot")
+                                                        Text(stringResource(R.string.activate_bot))
                                                     }
                                                     OutlinedButton(
                                                         onClick = { checkBotInSelectedGroup() }
                                                     ) {
-                                                        Text("Refresh Status")
+                                                        Text(stringResource(R.string.refresh_status))
                                                     }
                                                 }
                                             }
@@ -499,11 +495,11 @@ fun SendTelegramConfigDialog(
                                             ) {
                                                 Icon(
                                                     imageVector = Icons.Default.Check,
-                                                    contentDescription = "Ready",
+                                                    contentDescription = stringResource(R.string.ready_to_send_position_updates),
                                                     tint = Color.Green
                                                 )
                                                 Text(
-                                                    text = "Ready to send position updates!",
+                                                    text = stringResource(R.string.ready_to_send_position_updates),
                                                     color = Color.Green,
                                                     style = MaterialTheme.typography.subtitle1
                                                 )
@@ -511,7 +507,7 @@ fun SendTelegramConfigDialog(
                                             OutlinedButton(
                                                 onClick = { checkBotInSelectedGroup() }
                                             ) {
-                                                Text("Refresh")
+                                                Text(stringResource(R.string.refresh))
                                             }
                                         }
                                     }
@@ -521,21 +517,72 @@ fun SendTelegramConfigDialog(
                     }
                 }
 
+                if (showBotSetupDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showBotSetupDialog = false },
+                        title = { Text(stringResource(R.string.add_bot_to_group_title)) },
+                        text = {
+                            Column {
+                                Text(stringResource(R.string.select_group_to_add_bot))
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(stringResource(R.string.open_telegram_prompt))
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(stringResource(R.string.return_and_refresh_instructions), style = MaterialTheme.typography.caption)
+                            }
+                        },
+                        confirmButton = {
+                            Button(
+                                onClick = {
+                                    isAddingNewGroup = true
+                                    botInfo?.let { info ->
+                                        telegramBotHelper.openTelegramToAddBot(context, info.username)
+                                    }
+                                    showBotSetupDialog = false
+                                }
+                            ) {
+                                Text(stringResource(R.string.open_telegram_button))
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showBotSetupDialog = false }) {
+                                Text(stringResource(R.string.cancel))
+                            }
+                        }
+                    )
+                }
+
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 16.dp),
-                    horizontalArrangement = Arrangement.End
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     TextButton(onClick = onDismiss) {
-                        Text(stringResource(id = R.string.cancel))
+                        Text(stringResource(R.string.cancel))
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
-                        onClick = { onAdd(telegramChatId, telegramGroupName) },
+                        onClick = {
+                            selectedGroup?.let { group ->
+                                if (group.isBotMember && group.isBotActive) {
+                                    coroutineScope.launch {
+                                        val task = Task(
+                                            taskType = "SendTelegramPosition",
+                                            taskData = group.chatId,
+                                            taskName = group.title,
+                                            launchInBackground = false
+                                        )
+                                        taskDao.insert(task)
+                                        Log.d("SendTelegramConfigDialog", "Saved task: type=${task.taskType}, chatId=${task.taskData}, name=${task.taskName}")
+                                        onConfirm()
+                                    }
+                                }
+                            }
+                        },
                         enabled = selectedGroup?.isBotMember == true && selectedGroup?.isBotActive == true
                     ) {
-                        Text(stringResource(id = R.string.confirm))
+                        Text(stringResource(R.string.confirm))
                     }
                 }
             }

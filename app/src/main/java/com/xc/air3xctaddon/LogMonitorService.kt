@@ -16,7 +16,6 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
-import com.xc.air3xctaddon.R
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -62,13 +61,12 @@ class LogMonitorService : Service() {
                         scope.launch {
                             val db = AppDatabase.getDatabase(applicationContext)
                             val configDao = db.eventConfigDao()
-                            val launchAppConfigs = configDao.getAllConfigsSync()
-                                .filter { it.taskType == "LaunchApp" }
-                            Log.d("LogMonitorService", getString(R.string.log_launch_app_configs, launchAppConfigs.map { "id=${it.id}, event=${it.event}, taskData=${it.taskData}, launchInBackground=${it.launchInBackground}" }.toString()))
+                            val taskDao = db.taskDao()
                             val configs = configDao.getAllConfigsSync()
                                 .filter { it.event.equals(event, ignoreCase = true) }
                                 .sortedBy { it.position }
-                            Log.d("LogMonitorService", getString(R.string.log_found_configs, configs.size, event, configs.map { "id=${it.id}, taskData=${it.taskData}, launchInBackground=${it.launchInBackground}" }.toString()))
+                            val tasks = taskDao.getAllTasksSync()
+                            Log.d("LogMonitorService", getString(R.string.log_found_configs, configs.size, event, configs.map { "id=${it.id}, taskData=${it.taskData}, taskType=${it.taskType}" }))
                             if (configs.isNotEmpty()) {
                                 configs.forEach { config ->
                                     Log.d("LogMonitorService", getString(R.string.log_found_config, event, config.taskData) + getString(R.string.log_config_details, config.taskType, config.id, config.launchInBackground))
@@ -89,44 +87,45 @@ class LogMonitorService : Service() {
                                             Log.d("LogMonitorService", getString(R.string.log_sending_position, event, config.id))
                                             // TODO: Implement SendPosition logic
                                         }
-                                        "SendTelegramPosition" -> {
-                                            if (config.telegramChatId?.isNotEmpty() == true) {
-                                                Log.d("LogMonitorService", getString(R.string.log_sending_telegram_position, config.telegramChatId, config.id))
-                                                telegramBotHelper.getCurrentLocation(
-                                                    onResult = { latitude, longitude ->
-                                                        telegramBotHelper.sendLocationMessage(
-                                                            chatId = config.telegramChatId,
-                                                            latitude = latitude,
-                                                            longitude = longitude,
-                                                            event = config.event
+                                        "SendTelegramPosition", "LaunchApp" -> {
+                                            val task = tasks.find { it.taskType == config.taskType && it.taskData == config.taskData }
+                                            if (task != null) {
+                                                when (task.taskType) {
+                                                    "SendTelegramPosition" -> {
+                                                        Log.d("LogMonitorService", getString(R.string.log_sending_telegram_position, task.taskData, config.id))
+                                                        telegramBotHelper.getCurrentLocation(
+                                                            onResult = { latitude, longitude ->
+                                                                telegramBotHelper.sendLocationMessage(
+                                                                    chatId = task.taskData,
+                                                                    latitude = latitude,
+                                                                    longitude = longitude,
+                                                                    event = config.event
+                                                                )
+                                                                Log.d("LogMonitorService", getString(R.string.log_sent_telegram_position, event, latitude, longitude))
+                                                            },
+                                                            onError = { error ->
+                                                                Log.e("LogMonitorService", getString(R.string.log_error_getting_location, event, config.id, error))
+                                                            }
                                                         )
-                                                        Log.d("LogMonitorService", getString(R.string.log_sent_telegram_position, event, latitude, longitude))
-                                                    },
-                                                    onError = { error ->
-                                                        Log.e("LogMonitorService", getString(R.string.log_error_getting_location, event, config.id, error))
                                                     }
-                                                )
-                                            } else {
-                                                Log.w("LogMonitorService", getString(R.string.log_no_chat_id, event, config.id))
-                                            }
-                                        }
-                                        "LaunchApp" -> {
-                                            if (!config.taskData.isNullOrEmpty()) {
-                                                Log.d("LogMonitorService", getString(R.string.log_preparing_launch_app, config.taskData, config.id, config.launchInBackground))
-                                                val launchIntent = Intent(this@LogMonitorService, LaunchActivity::class.java).apply {
-                                                    putExtra("packageName", config.taskData)
-                                                    putExtra("configId", config.id)
-                                                    putExtra("launchInBackground", config.launchInBackground)
-                                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                                }
-                                                try {
-                                                    startActivity(launchIntent)
-                                                    Log.d("LogMonitorService", getString(R.string.log_started_launch_activity, config.taskData, config.id, config.launchInBackground))
-                                                } catch (e: SecurityException) {
-                                                    Log.e("LogMonitorService", getString(R.string.log_failed_launch_activity, config.taskData, config.id, e.toString()))
+                                                    "LaunchApp" -> {
+                                                        Log.d("LogMonitorService", getString(R.string.log_preparing_launch_app, config.taskData, config.id, config.launchInBackground))
+                                                        val launchIntent = Intent(this@LogMonitorService, LaunchActivity::class.java).apply {
+                                                            putExtra("packageName", config.taskData)
+                                                            putExtra("configId", config.id)
+                                                            putExtra("launchInBackground", config.launchInBackground)
+                                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                        }
+                                                        try {
+                                                            startActivity(launchIntent)
+                                                            Log.d("LogMonitorService", getString(R.string.log_started_launch_activity, config.taskData, config.id, config.launchInBackground))
+                                                        } catch (e: SecurityException) {
+                                                            Log.e("LogMonitorService", getString(R.string.log_failed_launch_activity, config.taskData, config.id, e.toString()))
+                                                        }
+                                                    }
                                                 }
                                             } else {
-                                                Log.w("LogMonitorService", getString(R.string.log_no_package_name, event, config.id))
+                                                Log.w("LogMonitorService", getString(R.string.log_no_task_found, config.taskType, config.taskData, event, config.id))
                                             }
                                         }
                                         "ZELLO_PTT" -> {
