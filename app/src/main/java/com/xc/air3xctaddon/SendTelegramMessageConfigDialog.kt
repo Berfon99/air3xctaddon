@@ -617,7 +617,7 @@ fun SendTelegramMessageConfigDialog(
                                         val task = Task(
                                             taskType = "SendTelegramMessage",
                                             taskData = "${group.chatId}|${selectedMessageContent}",
-                                            taskName = selectedMessageTitle,
+                                            taskName = "$selectedMessageTitle - ${group.title}",
                                             launchInBackground = false
                                         )
                                         taskDao.insert(task)
