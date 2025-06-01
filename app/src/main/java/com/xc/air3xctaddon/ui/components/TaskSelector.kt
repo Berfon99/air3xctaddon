@@ -1,5 +1,6 @@
 package com.xc.air3xctaddon.ui.components
 
+import android.content.Intent
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
@@ -7,10 +8,12 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.xc.air3xctaddon.R
+import com.xc.air3xctaddon.SettingsActivity
 import com.xc.air3xctaddon.Task
 import com.xc.air3xctaddon.ui.theme.SoundFieldBackground
 
@@ -26,6 +29,8 @@ fun TaskSelector(
     modifier: Modifier = Modifier
 ) {
     var taskMenuExpanded by remember { mutableStateOf(false) }
+    var showOtherDialog by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     Box(modifier = modifier) {
         Button(
@@ -97,6 +102,48 @@ fun TaskSelector(
                     }
                 )
             }
+            if (launchAppTasks.isEmpty()) {
+                DropdownMenuItem(
+                    content = { Text(stringResource(id = R.string.task_other)) },
+                    onClick = {
+                        taskMenuExpanded = false
+                        showOtherDialog = true
+                        Log.d("TaskSelector", "Selected task: Other")
+                    }
+                )
+            }
         }
+    }
+
+    if (showOtherDialog) {
+        AlertDialog(
+            onDismissRequest = { showOtherDialog = false },
+            title = { Text(stringResource(R.string.add_task_required_title)) },
+            text = { Text(stringResource(R.string.add_task_required_message)) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showOtherDialog = false
+                        val intent = Intent(context, SettingsActivity::class.java).apply {
+                            putExtra("open_task_type_dialog", true)
+                        }
+                        context.startActivity(intent)
+                        Log.d("TaskSelector", "Navigating to SettingsActivity with SelectTaskTypeDialog")
+                    }
+                ) {
+                    Text(stringResource(android.R.string.ok))
+                }
+            },
+            dismissButton = {
+                Button(
+                    onClick = {
+                        showOtherDialog = false
+                        Log.d("TaskSelector", "Other dialog cancelled")
+                    }
+                ) {
+                    Text(stringResource(android.R.string.cancel))
+                }
+            }
+        )
     }
 }

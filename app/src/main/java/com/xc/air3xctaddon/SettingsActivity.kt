@@ -66,7 +66,7 @@ class SettingsActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             AIR3XCTAddonTheme {
-                var showTaskTypeDialog by remember { mutableStateOf(false) }
+                var showTaskTypeDialog by remember { mutableStateOf(intent.getBooleanExtra("open_task_type_dialog", false)) }
                 var showTelegramPositionDialog by remember { mutableStateOf(false) }
                 var showTelegramMessageDialog by remember { mutableStateOf(false) }
                 var showPilotNameDialog by remember { mutableStateOf(false) }

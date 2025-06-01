@@ -535,4 +535,8 @@
     <string name="pilot_name_required_title">Pilot Name Required</string>
     <string name="pilot_name_required_message">Telegram features require a pilot name. Please set your pilot name.</string>
 
+    <string name="task_other">Other</string>
+    <string name="add_task_required_title">Add Task Required</string>
+    <string name="add_task_required_message">Add task in the Settings</string>
+
 </resources>
