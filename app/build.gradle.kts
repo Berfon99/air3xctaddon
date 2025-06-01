@@ -114,6 +114,7 @@ dependencies {
 
     // JSON parsing (for TelegramBotHelper)
     implementation(libs.json)
+    implementation("com.google.code.gson:gson:2.10.1")
 
     // Testing
     testImplementation(libs.junit)
@@ -123,6 +124,12 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
+
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.google.android.gms:play-services-location:21.3.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    implementation("androidx.activity:activity-compose:1.9.2")
+    implementation("androidx.compose.material:material:1.7.3")
 }
 
 tasks.register<DefaultTask>("generateVersionHistory") {

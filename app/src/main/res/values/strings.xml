@@ -490,4 +490,33 @@
     <string name="start_conversation_with_bot">Start conversation with bot</string>
     <string name="private_chat_instructions">To enable the bot to send messages to this private chat:\n1. Open Telegram\n2. Search for the bot\n3. Send /start to the bot\n4. Come back and refresh</string>
 
+    <!-- New strings for chat type selection -->
+    <string name="select_chat_type_title">Select Chat Type</string>
+    <string name="select_chat_type_prompt">Choose whether to add the bot to a group or an individual chat.</string>
+    <string name="select_telegram_group">Select a Telegram group</string>
+    <string name="select_individual_chat">Select individual chat</string>
+
+    <!-- Group setup dialog -->
+    <string name="add_bot_to_group_prompt">Select a group in Telegram to add the bot.</string>
+    <string name="open_telegram_group_prompt">Open Telegram, choose a group, add the bot, and send /start to activate it.</string>
+
+    <!-- Individual setup dialog -->
+    <string name="add_bot_to_individual_title">Add Bot to Individual Chat</string>
+    <string name="add_bot_to_individual_instructions">Follow these steps to add the bot to a private chat:</string>
+    <string name="send_bot_link_instruction">Select your contact\'s conversation to send the bot\'s link via telegram.</string>
+    <string name="ask_contact_start_instruction">Ask your contact to click the link and click on Start or send /start to the bot.</string>
+    <string name="return_and_refresh_instructions_individual">Once your contact has started the bot, return here and refresh to continue.</string>
+
+    <!-- Share bot link logs -->
+    <string name="log_sharing_bot_link">Sharing bot link for %1$s</string>
+    <string name="log_failed_share_bot_link">Failed to share bot link: %1$s</string>
+    <string name="log_failed_share_bot_link_fallback">Failed to share bot link fallback: %1$s</string>
+
+    <string name="log_opening_telegram">Opening Telegram for bot %1$s</string>
+    <string name="log_failed_open_telegram">Failed to open Telegram: %1$s</string>
+    <string name="log_failed_open_telegram_fallback">Failed to open Telegram fallback: %1$s</string>
+
+    <string name="the_bot_needs_to_be_added_to_group">The bot needs to be added to the group to send messages.</string>
+    <string name="bot_no_access_to_individual_chat">The bot does not have access to this individual chat.</string>
+
 </resources>

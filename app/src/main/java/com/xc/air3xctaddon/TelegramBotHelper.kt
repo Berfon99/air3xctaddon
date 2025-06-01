@@ -304,18 +304,51 @@ class TelegramBotHelper(
 
     fun openTelegramToAddBot(context: Context, botUsername: String, groupTitle: String? = null) {
         val cleanUsername = botUsername.removePrefix("@")
-        val deepLink = context.getString(R.string.telegram_deeplink_format, cleanUsername)
-        Log.d("TelegramBotHelper", context.getString(R.string.log_opening_telegram_deeplink, deepLink))
         try {
-            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(deepLink))
+            // Open group picker with /start prefilled
+            val uri = Uri.parse("tg://resolve?domain=$cleanUsername&startgroup")
+            val intent = Intent(Intent.ACTION_VIEW, uri)
             intent.setPackage(context.getString(R.string.telegram_package_name))
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(intent)
+            Log.d("TelegramBotHelper", context.getString(R.string.log_opening_telegram, botUsername))
         } catch (e: Exception) {
-            Log.e("TelegramBotHelper", context.getString(R.string.error_failed_open_telegram, e.message ?: ""))
-            val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse(deepLink))
-            webIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(webIntent)
+            Log.e("TelegramBotHelper", context.getString(R.string.log_failed_open_telegram, e.message ?: ""))
+            try {
+                // Fallback to HTTPS link
+                val fallbackUri = Uri.parse("https://t.me/$cleanUsername?startgroup")
+                val fallbackIntent = Intent(Intent.ACTION_VIEW, fallbackUri)
+                fallbackIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(fallbackIntent)
+            } catch (e: Exception) {
+                Log.e("TelegramBotHelper", context.getString(R.string.log_failed_open_telegram_fallback, e.message ?: ""))
+            }
+        }
+    }
+
+    fun shareBotLink(context: Context, botUsername: String) {
+        val cleanUsername = botUsername.removePrefix("@")
+        try {
+            // Open chat picker to share bot's link
+            val intent = Intent(Intent.ACTION_SEND)
+            intent.type = "text/plain"
+            intent.putExtra(Intent.EXTRA_TEXT, "https://t.me/$cleanUsername")
+            intent.setPackage(context.getString(R.string.telegram_package_name))
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
+            Log.d("TelegramBotHelper", context.getString(R.string.log_sharing_bot_link, botUsername))
+        } catch (e: Exception) {
+            Log.e("TelegramBotHelper", context.getString(R.string.log_failed_share_bot_link, e.message ?: ""))
+            try {
+                // Fallback to generic share
+                val fallbackIntent = Intent(Intent.ACTION_SEND)
+                fallbackIntent.type = "text/plain"
+                fallbackIntent.putExtra(Intent.EXTRA_TEXT, "https://t.me/$cleanUsername")
+                fallbackIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(Intent.createChooser(fallbackIntent, "Share bot link"))
+            } catch (e: Exception) {
+                Log.e("TelegramBotHelper", context.getString(R.string.log_failed_share_bot_link_fallback, e.message ?: ""))
+            }
         }
     }
 
@@ -326,7 +359,11 @@ class TelegramBotHelper(
                 Log.d("TelegramBotHelper", context.getString(R.string.log_raw_chats_fetched, rawChats.map { it.title }.toString()))
                 validateChats(rawChats, { validatedChats ->
                     Log.d("TelegramBotHelper", context.getString(R.string.log_validated_chats, validatedChats.map { it.title }.toString()))
-                    onResult(validatedChats)
+                    // Merge with cached chats
+                    val cachedChats = settingsRepository.getCachedChats()
+                    val allChats = (validatedChats + cachedChats).distinctBy { it.chatId }
+                    settingsRepository.saveChats(allChats)
+                    onResult(allChats.sortedBy { it.title })
                 }, onError)
             }, onError)
         }
@@ -339,7 +376,7 @@ class TelegramBotHelper(
     ) {
         if (rawChats.isEmpty()) {
             Log.d("TelegramBotHelper", context.getString(R.string.log_no_raw_chats_validate))
-            onResult(emptyList())
+            onResult(settingsRepository.getCachedChats())
             return
         }
 
@@ -373,17 +410,13 @@ class TelegramBotHelper(
 
     fun checkBotAccess(chatId: String, isGroup: Boolean, onResult: (Boolean, Boolean) -> Unit, onError: (String) -> Unit) {
         if (!isGroup) {
-            // For individual chats, we assume the bot can send messages if we have the chat ID
-            // We can test this by trying to send a simple API call
             testBotAccessToPrivateChat(chatId, onResult, onError)
         } else {
-            // For groups, use the existing group member check
             checkBotInGroup(chatId, onResult, onError)
         }
     }
 
     private fun testBotAccessToPrivateChat(chatId: String, onResult: (Boolean, Boolean) -> Unit, onError: (String) -> Unit) {
-        // Test bot access by calling getChat API
         val url = context.getString(R.string.telegram_api_base_url) + botToken + "/getChat?chat_id=$chatId"
         val request = Request.Builder()
             .url(url)
@@ -404,7 +437,6 @@ class TelegramBotHelper(
                     try {
                         val jsonObject = JSONObject(json)
                         if (jsonObject.getBoolean("ok")) {
-                            // If we can get chat info, the bot has access
                             Log.d("TelegramBotHelper", "Bot has access to private chat: $chatId")
                             onResult(true, true)
                         } else {
@@ -416,7 +448,6 @@ class TelegramBotHelper(
                         onResult(false, false)
                     }
                 } else {
-                    // If we get a 403 or similar, the bot doesn't have access
                     Log.d("TelegramBotHelper", "Bot doesn't have access to private chat: $chatId (HTTP ${response.code})")
                     onResult(false, false)
                 }
@@ -475,7 +506,7 @@ class TelegramBotHelper(
         onResult: (List<TelegramChat>) -> Unit,
         onError: (String) -> Unit
     ) {
-        val url = context.getString(R.string.telegram_api_base_url) + botToken + context.getString(R.string.telegram_get_updates_endpoint) + "?offset=$offset"
+        val url = context.getString(R.string.telegram_api_base_url) + botToken + context.getString(R.string.telegram_get_updates_endpoint) + "?offset=$offset&timeout=10&limit=1000"
         val request = Request.Builder()
             .url(url)
             .get()
@@ -541,7 +572,7 @@ class TelegramBotHelper(
                         }
                     }
 
-                    if (updates.length() == 100) {
+                    if (updates.length() == 1000) {
                         fetchChatsWithOffset(maxUpdateId + 1, { newChats ->
                             onResult(chats + newChats)
                         }, onError)
