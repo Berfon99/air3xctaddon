@@ -328,12 +328,18 @@ class TelegramBotHelper(
 
     fun shareBotLink(context: Context, botUsername: String) {
         val cleanUsername = botUsername.removePrefix("@")
+        val botLink = "https://t.me/$cleanUsername"
+        val botDescription = context.getString(R.string.bot_description)
+        val additionalMessage = context.getString(R.string.bot_share_additional_message)
+        val shareText = "$botLink\n$botDescription\n$additionalMessage"
+
         try {
             // Open chat picker to share bot's link
-            val intent = Intent(Intent.ACTION_SEND)
-            intent.type = "text/plain"
-            intent.putExtra(Intent.EXTRA_TEXT, "https://t.me/$cleanUsername")
-            intent.setPackage(context.getString(R.string.telegram_package_name))
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, shareText)
+                setPackage(context.getString(R.string.telegram_package_name))
+            }
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(intent)
             Log.d("TelegramBotHelper", context.getString(R.string.log_sharing_bot_link, botUsername))
@@ -341,11 +347,12 @@ class TelegramBotHelper(
             Log.e("TelegramBotHelper", context.getString(R.string.log_failed_share_bot_link, e.message ?: ""))
             try {
                 // Fallback to generic share
-                val fallbackIntent = Intent(Intent.ACTION_SEND)
-                fallbackIntent.type = "text/plain"
-                fallbackIntent.putExtra(Intent.EXTRA_TEXT, "https://t.me/$cleanUsername")
+                val fallbackIntent = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_TEXT, shareText)
+                }
                 fallbackIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                context.startActivity(Intent.createChooser(fallbackIntent, "Share bot link"))
+                context.startActivity(Intent.createChooser(fallbackIntent, context.getString(R.string.share_bot_link)))
             } catch (e: Exception) {
                 Log.e("TelegramBotHelper", context.getString(R.string.log_failed_share_bot_link_fallback, e.message ?: ""))
             }

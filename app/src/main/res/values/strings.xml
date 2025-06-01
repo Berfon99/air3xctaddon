@@ -528,4 +528,8 @@
     <string name="no_internet_title">No Internet Connection</string>
     <string name="no_internet_message">Internet connection is required to setup this task, connect to internet and retry.</string>
 
+    <string name="bot_description">This bot allows you to send position or message updates from the AIR3 XCT addon.</string>
+    <string name="bot_share_additional_message">Please click on the link to start a conversation with the bot and click start in the bottom or send /start to the bot.</string>
+    <string name="share_bot_link">Share Bot Link</string>
+
 </resources>
