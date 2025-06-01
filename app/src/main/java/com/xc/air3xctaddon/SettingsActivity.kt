@@ -73,8 +73,11 @@ class SettingsActivity : ComponentActivity() {
                 var showPilotNameWarningDialog by remember { mutableStateOf(false) }
                 var pendingTelegramTaskType by remember { mutableStateOf<String?>(null) }
                 val settingsRepository = remember { SettingsRepository(applicationContext) }
+                var pilotName by remember { mutableStateOf(settingsRepository.getPilotName()) }
 
                 SettingsScreen(
+                    pilotName = pilotName,
+                    onPilotNameChange = { newPilotName -> pilotName = newPilotName },
                     onAddTask = { showTaskTypeDialog = true },
                     onClearTasks = {
                         CoroutineScope(Dispatchers.IO).launch {
@@ -133,10 +136,11 @@ class SettingsActivity : ComponentActivity() {
                     TextInputDialog(
                         title = stringResource(R.string.add_pilot_name),
                         label = stringResource(R.string.pilot_name_label),
-                        initialValue = settingsRepository.getPilotName() ?: "",
+                        initialValue = pilotName ?: "",
                         onConfirm = { newPilotName ->
                             if (newPilotName.isNotBlank()) {
                                 settingsRepository.savePilotName(newPilotName)
+                                pilotName = newPilotName
                                 when (pendingTelegramTaskType) {
                                     "SendTelegramPosition" -> showTelegramPositionDialog = true
                                     "SendTelegramMessage" -> showTelegramMessageDialog = true
@@ -185,14 +189,18 @@ class SettingsActivity : ComponentActivity() {
 }
 
 @Composable
-fun SettingsScreen(onAddTask: () -> Unit = {}, onClearTasks: () -> Unit = {}) {
+fun SettingsScreen(
+    pilotName: String?,
+    onPilotNameChange: (String?) -> Unit,
+    onAddTask: () -> Unit = {},
+    onClearTasks: () -> Unit = {}
+) {
     val context = LocalContext.current
     val viewModel: MainViewModel = viewModel(
         factory = MainViewModelFactory(context.applicationContext as android.app.Application)
     )
     val settingsRepository = remember { SettingsRepository(context) }
     val events by viewModel.events.collectAsState()
-    var pilotName by remember { mutableStateOf(settingsRepository.getPilotName()) }
     var showPilotNameDialog by remember { mutableStateOf(false) }
 
     val launchAppTasks by AppDatabase.getDatabase(context).taskDao()
@@ -297,7 +305,7 @@ fun SettingsScreen(onAddTask: () -> Unit = {}, onClearTasks: () -> Unit = {}) {
                 onConfirm = { newPilotName ->
                     if (newPilotName.isNotBlank()) {
                         settingsRepository.savePilotName(newPilotName)
-                        pilotName = newPilotName
+                        onPilotNameChange(newPilotName)
                     }
                     showPilotNameDialog = false
                 },
