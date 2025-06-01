@@ -347,8 +347,9 @@ class TelegramBotHelper(
         var chatsProcessed = 0
 
         rawChats.forEach { chat ->
-            checkBotInGroup(
+            checkBotAccess(
                 chatId = chat.chatId,
+                isGroup = chat.isGroup,
                 onResult = { isMember, isActive ->
                     Log.d("TelegramBotHelper", context.getString(R.string.log_validated_chat, chat.title, isMember, isActive))
                     if (isMember) {
@@ -368,6 +369,59 @@ class TelegramBotHelper(
                 }
             )
         }
+    }
+
+    fun checkBotAccess(chatId: String, isGroup: Boolean, onResult: (Boolean, Boolean) -> Unit, onError: (String) -> Unit) {
+        if (!isGroup) {
+            // For individual chats, we assume the bot can send messages if we have the chat ID
+            // We can test this by trying to send a simple API call
+            testBotAccessToPrivateChat(chatId, onResult, onError)
+        } else {
+            // For groups, use the existing group member check
+            checkBotInGroup(chatId, onResult, onError)
+        }
+    }
+
+    private fun testBotAccessToPrivateChat(chatId: String, onResult: (Boolean, Boolean) -> Unit, onError: (String) -> Unit) {
+        // Test bot access by calling getChat API
+        val url = context.getString(R.string.telegram_api_base_url) + botToken + "/getChat?chat_id=$chatId"
+        val request = Request.Builder()
+            .url(url)
+            .get()
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                Log.e("TelegramBotHelper", context.getString(R.string.log_failed_check_bot_status, chatId, e.message ?: ""))
+                onError(context.getString(R.string.failed_to_check_bot_status, e.message ?: ""))
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                val json = response.body?.string() ?: ""
+                response.close()
+
+                if (response.isSuccessful) {
+                    try {
+                        val jsonObject = JSONObject(json)
+                        if (jsonObject.getBoolean("ok")) {
+                            // If we can get chat info, the bot has access
+                            Log.d("TelegramBotHelper", "Bot has access to private chat: $chatId")
+                            onResult(true, true)
+                        } else {
+                            Log.d("TelegramBotHelper", "Bot doesn't have access to private chat: $chatId")
+                            onResult(false, false)
+                        }
+                    } catch (e: Exception) {
+                        Log.e("TelegramBotHelper", "Error parsing private chat access response: ${e.message}")
+                        onResult(false, false)
+                    }
+                } else {
+                    // If we get a 403 or similar, the bot doesn't have access
+                    Log.d("TelegramBotHelper", "Bot doesn't have access to private chat: $chatId (HTTP ${response.code})")
+                    onResult(false, false)
+                }
+            }
+        })
     }
 
     fun sendMessage(

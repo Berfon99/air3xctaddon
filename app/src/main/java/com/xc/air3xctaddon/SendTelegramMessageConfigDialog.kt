@@ -77,8 +77,9 @@ fun SendTelegramMessageConfigDialog(
     fun checkBotInSelectedChat() {
         selectedChat?.let { chat ->
             isCheckingBot = true
-            telegramBotHelper.checkBotInGroup(
+            telegramBotHelper.checkBotAccess(
                 chatId = chat.chatId,
+                isGroup = chat.isGroup,
                 onResult = { isMember, isActive ->
                     isCheckingBot = false
                     selectedChat = chat.copy(isBotMember = isMember, isBotActive = isActive)
@@ -86,8 +87,12 @@ fun SendTelegramMessageConfigDialog(
                         if (it.chatId == chat.chatId) it.copy(isBotMember = isMember, isBotActive = isActive) else it
                     }
                     Log.d("SendTelegramMessageConfigDialog", "Checked chat ${chat.title}: isMember=$isMember, isActive=$isActive")
-                    if (!isMember) {
+                    if (!isMember && chat.isGroup) {
+                        // Only show bot setup dialog for groups
                         showBotSetupDialog = true
+                    } else if (!isMember && !chat.isGroup) {
+                        // For individual chats, if bot doesn't have access, show appropriate message
+                        chatError = context.getString(R.string.bot_no_access_private_chat)
                     }
                 },
                 onError = { error ->

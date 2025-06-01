@@ -477,12 +477,17 @@
         <string name="log_raw_chats_fetched">Raw chats fetched: %1$s</string>
         <string name="log_validated_chats">Validated chats: %1$s</string>
         <string name="log_no_raw_chats_validate">No raw chats to validate</string>
-        <string name="log_validated_chat">Validated chat: %1$s</string>
-        <string name="log_error_validating_chat">Error validating chat: %1$s</string>
-        <string name="log_failed_fetch_chats">Failed to fetch chats</string>
+    <string name="log_validated_chat">Validated chat: %1$s, isMember=%2$b, isActive=%3$b</string>
+    <string name="log_error_validating_chat">Error validating chat %1$s: %2$s</string>
+    <string name="log_failed_fetch_chats">Failed to fetch chats: %1$s</string>
         <string name="log_error_fetching_chats">Error fetching chats: %1$s</string>
         <string name="unknown_user">Unknown User</string>
-        <string name="log_found_chat">Found chat: %1$s</string>
+    <string name="log_found_chat">Found chat: %1$s, chatId=%2$s, type=%3$s</string>
         <string name="log_error_parsing_chats">Error parsing chats: %1$s</string>
+
+    <!-- Add these to your strings.xml file -->
+    <string name="bot_no_access_private_chat">The bot doesn\'t have access to this private chat. The user needs to start a conversation with the bot first.</string>
+    <string name="start_conversation_with_bot">Start conversation with bot</string>
+    <string name="private_chat_instructions">To enable the bot to send messages to this private chat:\n1. Open Telegram\n2. Search for the bot\n3. Send /start to the bot\n4. Come back and refresh</string>
 
 </resources>
