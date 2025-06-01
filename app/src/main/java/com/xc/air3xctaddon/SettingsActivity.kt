@@ -29,7 +29,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import android.content.pm.PackageManager
 
-
 class SettingsActivity : ComponentActivity() {
     private val _tasks = mutableStateListOf<Task>()
     private val tasks: List<Task> get() = _tasks
@@ -70,6 +69,10 @@ class SettingsActivity : ComponentActivity() {
                 var showTaskTypeDialog by remember { mutableStateOf(false) }
                 var showTelegramPositionDialog by remember { mutableStateOf(false) }
                 var showTelegramMessageDialog by remember { mutableStateOf(false) }
+                var showPilotNameDialog by remember { mutableStateOf(false) }
+                var showPilotNameWarningDialog by remember { mutableStateOf(false) }
+                var pendingTelegramTaskType by remember { mutableStateOf<String?>(null) }
+                val settingsRepository = remember { SettingsRepository(applicationContext) }
 
                 SettingsScreen(
                     onAddTask = { showTaskTypeDialog = true },
@@ -92,11 +95,21 @@ class SettingsActivity : ComponentActivity() {
                         },
                         onTelegramPositionSelected = {
                             showTaskTypeDialog = false
-                            showTelegramPositionDialog = true
+                            if (settingsRepository.getPilotName().isNullOrBlank()) {
+                                showPilotNameWarningDialog = true
+                                pendingTelegramTaskType = "SendTelegramPosition"
+                            } else {
+                                showTelegramPositionDialog = true
+                            }
                         },
                         onTelegramMessageSelected = {
                             showTaskTypeDialog = false
-                            showTelegramMessageDialog = true
+                            if (settingsRepository.getPilotName().isNullOrBlank()) {
+                                showPilotNameWarningDialog = true
+                                pendingTelegramTaskType = "SendTelegramMessage"
+                            } else {
+                                showTelegramMessageDialog = true
+                            }
                         },
                         onDismiss = { showTaskTypeDialog = false }
                     )
@@ -113,6 +126,57 @@ class SettingsActivity : ComponentActivity() {
                     SendTelegramMessageConfigDialog(
                         onConfirm = { showTelegramMessageDialog = false },
                         onDismiss = { showTelegramMessageDialog = false }
+                    )
+                }
+
+                if (showPilotNameDialog) {
+                    TextInputDialog(
+                        title = stringResource(R.string.add_pilot_name),
+                        label = stringResource(R.string.pilot_name_label),
+                        initialValue = settingsRepository.getPilotName() ?: "",
+                        onConfirm = { newPilotName ->
+                            if (newPilotName.isNotBlank()) {
+                                settingsRepository.savePilotName(newPilotName)
+                                when (pendingTelegramTaskType) {
+                                    "SendTelegramPosition" -> showTelegramPositionDialog = true
+                                    "SendTelegramMessage" -> showTelegramMessageDialog = true
+                                }
+                                pendingTelegramTaskType = null
+                            }
+                            showPilotNameDialog = false
+                        },
+                        onDismiss = {
+                            showPilotNameDialog = false
+                            pendingTelegramTaskType = null
+                        }
+                    )
+                }
+
+                if (showPilotNameWarningDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showPilotNameWarningDialog = false },
+                        title = { Text(stringResource(R.string.pilot_name_required_title)) },
+                        text = { Text(stringResource(R.string.pilot_name_required_message)) },
+                        confirmButton = {
+                            Button(
+                                onClick = {
+                                    showPilotNameWarningDialog = false
+                                    showPilotNameDialog = true
+                                }
+                            ) {
+                                Text(stringResource(android.R.string.ok))
+                            }
+                        },
+                        dismissButton = {
+                            Button(
+                                onClick = {
+                                    showPilotNameWarningDialog = false
+                                    pendingTelegramTaskType = null
+                                }
+                            ) {
+                                Text(stringResource(android.R.string.cancel))
+                            }
+                        }
                     )
                 }
             }

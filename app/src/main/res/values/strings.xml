@@ -532,4 +532,7 @@
     <string name="bot_share_additional_message">Please click on the link to start a conversation with the bot and click start in the bottom or send /start to the bot.</string>
     <string name="share_bot_link">Share Bot Link</string>
 
+    <string name="pilot_name_required_title">Pilot Name Required</string>
+    <string name="pilot_name_required_message">Telegram features require a pilot name. Please set your pilot name.</string>
+
 </resources>
