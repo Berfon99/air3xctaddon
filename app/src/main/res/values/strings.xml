@@ -525,4 +525,7 @@
     <string name="offline_task_warning_title">Offline Task Creation</string>
     <string name="offline_task_warning_message">You are creating a task without internet access. The task may fail if the bot is not properly set up in the selected chat. Proceed anyway?</string>
 
+    <string name="no_internet_title">No Internet Connection</string>
+    <string name="no_internet_message">Internet connection is required to setup this task, connect to internet and retry.</string>
+
 </resources>
