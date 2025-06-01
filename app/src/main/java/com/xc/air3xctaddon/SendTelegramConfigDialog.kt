@@ -55,6 +55,8 @@ fun SendTelegramConfigDialog(
     var showGroupSetupDialog by remember { mutableStateOf(false) }
     var showIndividualSetupDialog by remember { mutableStateOf(false) }
     var isAddingNewChat by remember { mutableStateOf(false) }
+    var isOfflineMode by remember { mutableStateOf(false) }
+    var showOfflineWarning by remember { mutableStateOf(false) }
 
     val otherOptionText = stringResource(R.string.other_option)
     val selectChatOptionText = stringResource(R.string.select_chat_option)
@@ -111,6 +113,15 @@ fun SendTelegramConfigDialog(
             isLoadingChats = false
             chatError = context.getString(R.string.failed_to_fetch_groups_retries, maxRetries)
             Log.e("SendTelegramConfigDialog", "Max retries reached")
+            // Fallback to cached chats
+            settingsRepository.getCachedChats()?.let { cachedChats ->
+                if (cachedChats.isNotEmpty()) {
+                    chats = cachedChats
+                    isOfflineMode = true
+                    chatError = context.getString(R.string.offline_mode_using_cached_chats)
+                    Log.d("SendTelegramConfigDialog", "Loaded ${cachedChats.size} cached chats")
+                }
+            }
             return
         }
         isLoadingChats = true
@@ -121,6 +132,7 @@ fun SendTelegramConfigDialog(
                 chats = fetchedChats
                 settingsRepository.saveChats(fetchedChats)
                 isLoadingChats = false
+                isOfflineMode = false
                 if (fetchedChats.isEmpty() || (telegramChatId.isNotEmpty() && chats.none { it.chatId == telegramChatId })) {
                     telegramChatId = ""
                     telegramChatName = ""
@@ -142,7 +154,7 @@ fun SendTelegramConfigDialog(
             },
             onError = { error ->
                 Log.w("SendTelegramConfigDialog", "Error (retry $retryCount/$maxRetries): $error")
-                if (retryCount < maxRetries) {
+                if (retryCount < maxRetries && !error.contains("no address associated with hostname")) {
                     coroutineScope.launch {
                         delay(1000L * (retryCount + 1))
                         fetchChats(retryCount + 1, maxRetries)
@@ -150,6 +162,15 @@ fun SendTelegramConfigDialog(
                 } else {
                     isLoadingChats = false
                     chatError = context.getString(R.string.failed_to_fetch_groups_error, error)
+                    // Fallback to cached chats
+                    settingsRepository.getCachedChats()?.let { cachedChats ->
+                        if (cachedChats.isNotEmpty()) {
+                            chats = cachedChats
+                            isOfflineMode = true
+                            chatError = context.getString(R.string.offline_mode_using_cached_chats)
+                            Log.d("SendTelegramConfigDialog", "Loaded ${cachedChats.size} cached chats")
+                        }
+                    }
                 }
             }
         )
@@ -192,6 +213,16 @@ fun SendTelegramConfigDialog(
         if (hasLocationPermission) {
             coroutineScope.launch {
                 Log.d("SendTelegramConfigDialog", context.getString(R.string.log_permission_granted))
+                // Try loading cached chats first
+                settingsRepository.getCachedChats()?.let { cachedChats ->
+                    if (cachedChats.isNotEmpty()) {
+                        chats = cachedChats
+                        isOfflineMode = true
+                        isLoadingChats = false
+                        chatError = context.getString(R.string.offline_mode_using_cached_chats)
+                        Log.d("SendTelegramConfigDialog", "Loaded ${cachedChats.size} cached chats on permission grant")
+                    }
+                }
                 fetchChats()
             }
         }
@@ -216,7 +247,7 @@ fun SendTelegramConfigDialog(
 
     LaunchedEffect(selectedChat?.chatId) {
         selectedChat?.let { chat ->
-            if (chat.chatId.isNotEmpty()) {
+            if (chat.chatId.isNotEmpty() && !isOfflineMode) {
                 checkBotInSelectedChat()
             }
         }
@@ -229,6 +260,15 @@ fun SendTelegramConfigDialog(
                 Log.e("SendTelegramConfigDialog", "Failed to get bot info: $error")
                 chatError = context.getString(R.string.failed_to_get_bot_info, error)
                 isLoadingChats = false
+                // Fallback to cached chats
+                settingsRepository.getCachedChats()?.let { cachedChats ->
+                    if (cachedChats.isNotEmpty()) {
+                        chats = cachedChats
+                        isOfflineMode = true
+                        chatError = context.getString(R.string.offline_mode_using_cached_chats)
+                        Log.d("SendTelegramConfigDialog", "Loaded ${cachedChats.size} cached chats on bot info failure")
+                    }
+                }
             }
         )
         permissionLauncher.launch(arrayOf(
@@ -298,17 +338,19 @@ fun SendTelegramConfigDialog(
                                     text = chatError ?: stringResource(R.string.error_loading_chats),
                                     color = MaterialTheme.colors.error
                                 )
-                                Button(
-                                    onClick = {
-                                        chatError = null
-                                        coroutineScope.launch {
-                                            Log.d("SendTelegramConfigDialog", context.getString(R.string.log_retry_fetch))
-                                            fetchChats()
-                                        }
-                                    },
-                                    modifier = Modifier.padding(top = 8.dp)
-                                ) {
-                                    Text(stringResource(R.string.retry))
+                                if (!isOfflineMode) {
+                                    Button(
+                                        onClick = {
+                                            chatError = null
+                                            coroutineScope.launch {
+                                                Log.d("SendTelegramConfigDialog", context.getString(R.string.log_retry_fetch))
+                                                fetchChats()
+                                            }
+                                        },
+                                        modifier = Modifier.padding(top = 8.dp)
+                                    ) {
+                                        Text(stringResource(R.string.retry))
+                                    }
                                 }
                             }
                         }
@@ -368,25 +410,45 @@ fun SendTelegramConfigDialog(
                     }
                     else -> {
                         Text(stringResource(R.string.select_the_chat_where_you_want_to_send_position_updates))
+                        if (isOfflineMode) {
+                            Card(
+                                backgroundColor = MaterialTheme.colors.secondary.copy(alpha = 0.1f),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.offline_mode_warning),
+                                    style = MaterialTheme.typography.body2,
+                                    color = MaterialTheme.colors.secondary,
+                                    modifier = Modifier.padding(8.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
                         DropdownMenuSpinner(
                             context = context,
                             items = chats.map { SpinnerItem.Item((if (it.isGroup) "Group: " else "User: ") + it.title) } + SpinnerItem.Item(otherOptionText),
                             selectedItem = if (telegramChatName.isEmpty() || chats.none { it.title == telegramChatName }) selectChatOptionText else (if (selectedChat?.isGroup == true) "Group: " else "User: ") + telegramChatName,
                             onItemSelected = { selectedItem ->
                                 if (selectedItem == otherOptionText) {
-                                    telegramChatName = ""
-                                    telegramChatId = ""
-                                    selectedChat = null
-                                    showChatTypeDialog = true
-                                    isAddingNewChat = true
-                                    Log.d("SendTelegramConfigDialog", context.getString(R.string.log_selected_other))
+                                    if (isOfflineMode) {
+                                        chatError = context.getString(R.string.cannot_add_new_chat_offline)
+                                    } else {
+                                        telegramChatName = ""
+                                        telegramChatId = ""
+                                        selectedChat = null
+                                        showChatTypeDialog = true
+                                        isAddingNewChat = true
+                                        Log.d("SendTelegramConfigDialog", context.getString(R.string.log_selected_other))
+                                    }
                                 } else {
                                     val title = selectedItem.removePrefix("Group: ").removePrefix("User: ")
                                     chats.find { it.title == title }?.let { chat ->
                                         telegramChatId = chat.chatId
                                         telegramChatName = chat.title
                                         selectedChat = chat
-                                        checkBotInSelectedChat()
+                                        if (!isOfflineMode) {
+                                            checkBotInSelectedChat()
+                                        }
                                         isAddingNewChat = false
                                         Log.d("SendTelegramConfigDialog", context.getString(R.string.log_selected_chat, chat.title))
                                     }
@@ -406,7 +468,7 @@ fun SendTelegramConfigDialog(
                                         Text(stringResource(R.string.checking_bot_status))
                                     }
                                 }
-                                !chat.isBotMember -> {
+                                !isOfflineMode && !chat.isBotMember -> {
                                     Card(
                                         modifier = Modifier.fillMaxWidth(),
                                         backgroundColor = MaterialTheme.colors.error.copy(alpha = 0.1f)
@@ -447,7 +509,7 @@ fun SendTelegramConfigDialog(
                                         }
                                     }
                                 }
-                                chat.isBotMember && !chat.isBotActive -> {
+                                !isOfflineMode && chat.isBotMember && !chat.isBotActive -> {
                                     Card(
                                         backgroundColor = MaterialTheme.colors.primary.copy(alpha = 0.1f),
                                         modifier = Modifier.fillMaxWidth()
@@ -488,7 +550,7 @@ fun SendTelegramConfigDialog(
                                         }
                                     }
                                 }
-                                chat.isBotMember && chat.isBotActive -> {
+                                isOfflineMode || (chat.isBotMember && chat.isBotActive) -> {
                                     Card(
                                         backgroundColor = Color.Green.copy(alpha = 0.1f),
                                         modifier = Modifier.fillMaxWidth()
@@ -667,6 +729,41 @@ fun SendTelegramConfigDialog(
                     )
                 }
 
+                if (showOfflineWarning) {
+                    AlertDialog(
+                        onDismissRequest = { showOfflineWarning = false },
+                        title = { Text(stringResource(R.string.offline_task_warning_title)) },
+                        text = { Text(stringResource(R.string.offline_task_warning_message)) },
+                        confirmButton = {
+                            Button(
+                                onClick = {
+                                    selectedChat?.let { chat ->
+                                        coroutineScope.launch {
+                                            val task = Task(
+                                                taskType = "SendTelegramPosition",
+                                                taskData = chat.chatId,
+                                                taskName = "Position to ${chat.title}",
+                                                launchInBackground = false
+                                            )
+                                            taskDao.insert(task)
+                                            Log.d("SendTelegramConfigDialog", "Saved task: type=${task.taskType}, chatId=${task.taskData}, name=${task.taskName}")
+                                            showOfflineWarning = false
+                                            onConfirm()
+                                        }
+                                    }
+                                }
+                            ) {
+                                Text(stringResource(R.string.confirm))
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showOfflineWarning = false }) {
+                                Text(stringResource(R.string.cancel))
+                            }
+                        }
+                    )
+                }
+
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -681,7 +778,9 @@ fun SendTelegramConfigDialog(
                     Button(
                         onClick = {
                             selectedChat?.let { chat ->
-                                if (chat.isBotMember && chat.isBotActive) {
+                                if (isOfflineMode) {
+                                    showOfflineWarning = true
+                                } else if (chat.isBotMember && chat.isBotActive) {
                                     coroutineScope.launch {
                                         val task = Task(
                                             taskType = "SendTelegramPosition",
@@ -696,7 +795,7 @@ fun SendTelegramConfigDialog(
                                 }
                             }
                         },
-                        enabled = selectedChat?.isBotMember == true && selectedChat?.isBotActive == true
+                        enabled = selectedChat != null
                     ) {
                         Text(stringResource(R.string.confirm))
                     }

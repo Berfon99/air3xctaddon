@@ -519,4 +519,10 @@
     <string name="the_bot_needs_to_be_added_to_group">The bot needs to be added to the group to send messages.</string>
     <string name="bot_no_access_to_individual_chat">The bot does not have access to this individual chat.</string>
 
+    <string name="offline_mode_using_cached_chats">No internet connection. Using previously saved chats.</string>
+    <string name="offline_mode_warning">You are offline. The task will be saved, but it may fail if the bot is not added or activated in the selected chat.</string>
+    <string name="cannot_add_new_chat_offline">Cannot add a new chat while offline. Please connect to the internet.</string>
+    <string name="offline_task_warning_title">Offline Task Creation</string>
+    <string name="offline_task_warning_message">You are creating a task without internet access. The task may fail if the bot is not properly set up in the selected chat. Proceed anyway?</string>
+
 </resources>
