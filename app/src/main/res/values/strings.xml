@@ -503,7 +503,7 @@
     <!-- Individual setup dialog -->
     <string name="add_bot_to_individual_title">Add Bot to Individual Chat</string>
     <string name="add_bot_to_individual_instructions">Follow these steps to add the bot to a private chat:</string>
-    <string name="send_bot_link_instruction">Select your contact\'s conversation to send the bot\'s link via telegram.</string>
+    <string name="send_bot_link_instruction">Select Telegram, then select your contact\'s conversation to send the bot\'s link via Telegram.</string>
     <string name="ask_contact_start_instruction">Ask your contact to click the link and click on Start or send /start to the bot.</string>
     <string name="return_and_refresh_instructions_individual">Once your contact has started the bot, return here and refresh to continue.</string>
 
