@@ -98,8 +98,7 @@ fun TaskSelector(
                         Toast.makeText(context, R.string.zello_not_installed, Toast.LENGTH_LONG).show()
                         Log.d("TaskSelector", "Zello PTT selected but Zello not installed")
                     }
-                },
-                enabled = zelloInstalled
+                }
             )
             launchAppTasks.forEach { task ->
                 val displayText = when (task.taskType) {
