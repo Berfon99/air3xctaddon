@@ -543,11 +543,11 @@
     <string name="telegram_not_installed_message">A Telegram app must be installed on your device to set up Telegram tasks. Please install Telegram from Google Play Store or use an APK file, then try again.</string>
 
     <string name="user_id_prompt_title">User Authentication Required</string>
-    <string name="user_id_prompt_message">To use this feature, you need to send /chat to the bot in a private chat.</string>
-    <string name="user_id_prompt_instructions">Click below to open the bot in Telegram and send /chat. Then send return here and refresh.</string>
+    <string name="user_id_prompt_message">To use this feature, you need to send /start to the bot in a private chat.</string>
+    <string name="user_id_prompt_instructions">Click below to open the bot in Telegram and send /start. Then send return here and refresh.</string>
     <string name="user_id_not_found">User ID not found</string>
-    <string name="user_id_not_found_prompt">Please send /chat to the bot in a private chat to authenticate.</string>
-    <string name="no_start_command">No /chat command found in recent updates</string>
+    <string name="user_id_not_found_prompt">Please send /start to the bot in a private chat to authenticate.</string>
+    <string name="no_start_command">No /start command found in recent updates</string>
     <string name="failed_to_fetch_user_id">Failed to fetch user ID: %1$s</string>
     <string name="user_not_in_group">You are not a member of this group</string>
     <string name="user_must_be_in_group">You must be a member of the group to send position updates.</string>

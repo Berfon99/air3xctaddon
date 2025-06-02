@@ -39,8 +39,13 @@ class TelegramBotHelper(
 ) {
     private val client = OkHttpClient()
 
-    fun fetchUserId(onResult: (String) -> Unit, onError: (String) -> Unit) {
-        val url = context.getString(R.string.telegram_api_base_url) + botToken + context.getString(R.string.telegram_get_updates_endpoint) + "?timeout=10&limit=10"
+    fun fetchUserId(onResult: (String) -> Unit, onError: (String) -> Unit, retryCount: Int = 0, maxRetries: Int = 3) {
+        if (retryCount > maxRetries) {
+            Log.e("TelegramBotHelper", "Max retries reached for fetchUserId")
+            onError(context.getString(R.string.user_id_not_found_prompt))
+            return
+        }
+        val url = context.getString(R.string.telegram_api_base_url) + botToken + context.getString(R.string.telegram_get_updates_endpoint) + "?timeout=10&limit=100"
         val request = Request.Builder()
             .url(url)
             .get()
@@ -48,30 +53,44 @@ class TelegramBotHelper(
 
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
-                Log.e("TelegramBotHelper", "Failed to fetch user ID: ${e.message}")
-                onError(context.getString(R.string.failed_to_fetch_user_id, e.message ?: ""))
+                Log.e("TelegramBotHelper", "Failed to fetch user ID (retry $retryCount): ${e.message}")
+                CoroutineScope(Dispatchers.IO).launch {
+                    delay(2000L * (retryCount + 1))
+                    fetchUserId(onResult, onError, retryCount + 1, maxRetries)
+                }
             }
 
             override fun onResponse(call: Call, response: Response) {
                 if (!response.isSuccessful) {
-                    Log.e("TelegramBotHelper", "Error fetching user ID: ${response.message}")
-                    onError(context.getString(R.string.failed_to_fetch_user_id, response.message))
+                    Log.e("TelegramBotHelper", "Error fetching user ID (retry $retryCount): ${response.message}, code: ${response.code}")
+                    response.body?.string()?.let { body ->
+                        Log.e("TelegramBotHelper", "Response body: $body")
+                    }
+                    CoroutineScope(Dispatchers.IO).launch {
+                        delay(2000L * (retryCount + 1))
+                        fetchUserId(onResult, onError, retryCount + 1, maxRetries)
+                    }
                     response.close()
                     return
                 }
 
                 val json = response.body?.string() ?: run {
+                    Log.e("TelegramBotHelper", "Response body is null")
                     onError(context.getString(R.string.error_response_body_null))
                     response.close()
                     return
                 }
 
+                Log.d("TelegramBotHelper", "getUpdates response: $json")
                 try {
                     val jsonObject = JSONObject(json)
                     if (!jsonObject.getBoolean("ok")) {
                         val description = jsonObject.optString("description", "Unknown error")
-                        Log.e("TelegramBotHelper", "API error fetching user ID: $description")
-                        onError(context.getString(R.string.failed_to_fetch_user_id, description))
+                        Log.e("TelegramBotHelper", "API error fetching user ID (retry $retryCount): $description")
+                        CoroutineScope(Dispatchers.IO).launch {
+                            delay(2000L * (retryCount + 1))
+                            fetchUserId(onResult, onError, retryCount + 1, maxRetries)
+                        }
                         response.close()
                         return
                     }
@@ -94,9 +113,12 @@ class TelegramBotHelper(
                             }
                         }
                     }
-                    onError(context.getString(R.string.user_id_not_found_prompt))
+                    CoroutineScope(Dispatchers.IO).launch {
+                        delay(2000L * (retryCount + 1))
+                        fetchUserId(onResult, onError, retryCount + 1, maxRetries)
+                    }
                 } catch (e: Exception) {
-                    Log.e("TelegramBotHelper", "Error parsing user ID: ${e.message}")
+                    Log.e("TelegramBotHelper", "Error parsing user ID (retry $retryCount): ${e.message}")
                     onError(context.getString(R.string.failed_to_fetch_user_id, e.message ?: ""))
                 } finally {
                     response.close()
@@ -475,29 +497,18 @@ class TelegramBotHelper(
 
     fun shareBotLink(context: Context, botUsername: String) {
         val cleanUsername = botUsername.removePrefix("@")
-        val botLink = "https://t.me/$cleanUsername"
-        val botDescription = context.getString(R.string.bot_description)
-        val additionalMessage = context.getString(R.string.bot_share_additional_message)
-        val shareText = "$botLink\n$botDescription\n$additionalMessage"
-
+        val botLink = "tg://resolve?domain=$cleanUsername"
         try {
-            // Open chat picker to share bot's link
-            val intent = Intent(Intent.ACTION_SEND).apply {
-                type = "text/plain"
-                putExtra(Intent.EXTRA_TEXT, shareText)
-                setPackage(context.getString(R.string.telegram_package_name))
-            }
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(botLink))
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(intent)
             Log.d("TelegramBotHelper", context.getString(R.string.log_sharing_bot_link, botUsername))
         } catch (e: Exception) {
             Log.e("TelegramBotHelper", context.getString(R.string.log_failed_share_bot_link, e.message ?: ""))
             try {
-                // Fallback to generic share
-                val fallbackIntent = Intent(Intent.ACTION_SEND).apply {
-                    type = "text/plain"
-                    putExtra(Intent.EXTRA_TEXT, shareText)
-                }
+                // Fallback to HTTPS link
+                val fallbackUri = Uri.parse("https://t.me/$cleanUsername")
+                val fallbackIntent = Intent(Intent.ACTION_VIEW, fallbackUri)
                 fallbackIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 context.startActivity(Intent.createChooser(fallbackIntent, context.getString(R.string.share_bot_link)))
             } catch (e: Exception) {
@@ -520,7 +531,7 @@ class TelegramBotHelper(
                                 val cachedChats = settingsRepository.getCachedChats()
                                 val allChats = (validatedChats + cachedChats)
                                     .distinctBy { it.chatId }
-                                    .filter { it.isUserMember || !it.isGroup } // Keep only user-member groups or private chats
+                                    .filter { it.isUserMember || !it.isGroup }
                                 settingsRepository.saveChats(allChats)
                                 onResult(allChats.sortedBy { it.title })
                             }, onError)
@@ -529,7 +540,9 @@ class TelegramBotHelper(
                     onError = { error ->
                         Log.e("TelegramBotHelper", "Failed to fetch user ID: $error")
                         onError(context.getString(R.string.user_id_not_found_prompt))
-                    }
+                    },
+                    retryCount = 0,
+                    maxRetries = 3
                 )
             } else {
                 fetchChatsWithOffset(0, { rawChats ->
@@ -547,7 +560,6 @@ class TelegramBotHelper(
             }
         }
     }
-
     private fun validateChats(
         rawChats: List<TelegramChat>,
         onResult: (List<TelegramChat>) -> Unit,
