@@ -31,6 +31,20 @@ import java.io.File
 import android.content.pm.PackageManager
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+// Add this missing import
+import androidx.compose.foundation.background
+
 
 // Define preference key
 private val IS_AIR3_DEVICE = booleanPreferencesKey("is_air3_device")
@@ -284,21 +298,52 @@ fun OverlayPermissionDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.overlay_permission_required)) },
+        title = {
+            Text(
+                text = stringResource(R.string.overlay_permission_required),
+                style = MaterialTheme.typography.headlineSmall,
+                color = androidx.compose.ui.graphics.Color(0xFF2C387A) // Dark blue
+            )
+        },
         text = {
             Text(
-                stringResource(R.string.overlay_permission_description)
+                text = stringResource(R.string.overlay_permission_description),
+                style = MaterialTheme.typography.bodyMedium,
+                color = androidx.compose.ui.graphics.Color(0xFF2C387A).copy(alpha = 0.8f) // Dark blue with transparency
             )
         },
         confirmButton = {
-            Button(onClick = onConfirm) {
-                Text(stringResource(R.string.go_to_settings))
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = androidx.compose.ui.graphics.Color(0xFFFF6D00), // Orange
+                    contentColor = androidx.compose.ui.graphics.Color.White
+                ),
+                shape = MaterialTheme.shapes.small
+            ) {
+                Text(
+                    text = stringResource(R.string.go_to_settings),
+                    style = MaterialTheme.typography.labelLarge
+                )
             }
         },
         dismissButton = {
-            Button(onClick = onDismiss) {
-                Text(stringResource(R.string.cancel))
+            TextButton(
+                onClick = onDismiss,
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = androidx.compose.ui.graphics.Color(0xFF2C387A) // Dark blue
+                )
+            ) {
+                Text(
+                    text = stringResource(R.string.cancel),
+                    style = MaterialTheme.typography.labelLarge
+                )
             }
-        }
+        },
+        containerColor = androidx.compose.ui.graphics.Color.White,
+        titleContentColor = androidx.compose.ui.graphics.Color(0xFF2C387A),
+        textContentColor = androidx.compose.ui.graphics.Color(0xFF2C387A).copy(alpha = 0.8f),
+        tonalElevation = 8.dp,
+        shape = MaterialTheme.shapes.medium
     )
 }
