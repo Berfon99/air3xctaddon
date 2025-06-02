@@ -20,7 +20,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xc.air3xctaddon.ui.components.SelectTaskTypeDialog
-import com.xc.air3xctaddon.ui.SendTelegramConfigDialog
 import com.xc.air3xctaddon.ui.SendTelegramMessageConfigDialog
 import com.xc.air3xctaddon.ui.theme.AIR3XCTAddonTheme
 import kotlinx.coroutines.CoroutineScope

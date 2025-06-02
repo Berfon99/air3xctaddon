@@ -30,7 +30,6 @@ import com.xc.air3xctaddon.ui.components.EventSelector
 import com.xc.air3xctaddon.ui.components.TaskSelector
 import com.xc.air3xctaddon.ui.components.ControlButtons
 import com.xc.air3xctaddon.ui.components.SoundConfigDialog
-import com.xc.air3xctaddon.ui.SendTelegramConfigDialog
 
 @Composable
 fun ConfigRow(

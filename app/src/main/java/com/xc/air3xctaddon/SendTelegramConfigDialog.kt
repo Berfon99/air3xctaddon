@@ -1,5 +1,4 @@
-package com.xc.air3xctaddon.ui
-
+package com.xc.air3xctaddon
 import android.content.Context
 import android.net.ConnectivityManager
 import android.util.Log
@@ -47,7 +46,7 @@ fun SendTelegramConfigDialog(
     var isLoadingChats by remember { mutableStateOf(true) }
     var isCheckingBot by remember { mutableStateOf(false) }
     var isSendingStart by remember { mutableStateOf(false) }
-    var chatError by remember { mutableStateOf<String?>(null) } // Fixed: Explicitly String?
+    var chatError by remember { mutableStateOf<String?>(null) }
     var chats by remember { mutableStateOf<List<TelegramChat>>(emptyList()) }
     var hasLocationPermission by remember { mutableStateOf(false) }
     var hasNetworkPermission by remember { mutableStateOf(false) }
@@ -99,17 +98,17 @@ fun SendTelegramConfigDialog(
                         if (chat.isGroup) {
                             showGroupSetupDialog = true
                         } else {
-                            chatError = context.getString(R.string.bot_no_access_private_chat) // Line 102
+                            chatError = context.getString(R.string.bot_no_access_private_chat)
                             showIndividualSetupDialog = true
                         }
                     } else if (!isUserMember && chat.isGroup) {
-                        chatError = context.getString(R.string.user_not_in_group) // Line 106
+                        chatError = context.getString(R.string.user_not_in_group)
                         showGroupSetupDialog = true
                     }
                 },
                 onError = { error ->
                     isCheckingBot = false
-                    chatError = context.getString(R.string.failed_to_check_bot_status, error) // Line 112
+                    chatError = context.getString(R.string.failed_to_check_bot_status, error)
                     selectedChat = chat.copy(isBotMember = false, isBotActive = false, isUserMember = false)
                     Log.e("SendTelegramConfigDialog", "Error checking bot in chat ${chat.title}: $error")
                 }
@@ -121,7 +120,7 @@ fun SendTelegramConfigDialog(
         Log.d("SendTelegramConfigDialog", "fetchChats called: retry=$retryCount, maxRetries=$maxRetries")
         if (retryCount > maxRetries) {
             isLoadingChats = false
-            chatError = context.getString(R.string.failed_to_fetch_groups_retries, maxRetries) // Line 124
+            chatError = context.getString(R.string.failed_to_fetch_groups_retries, maxRetries)
             Log.e("SendTelegramConfigDialog", "Max retries reached")
             return
         }
@@ -164,7 +163,7 @@ fun SendTelegramConfigDialog(
                     }
                 } else {
                     isLoadingChats = false
-                    chatError = context.getString(R.string.failed_to_fetch_groups_error, error) // Line 167
+                    chatError = context.getString(R.string.failed_to_fetch_groups_error, error)
                 }
             }
         )
@@ -186,20 +185,21 @@ fun SendTelegramConfigDialog(
                 },
                 onError = { error ->
                     isSendingStart = false
-                    chatError = context.getString(R.string.failed_to_activate_bot, error) // Line 189
+                    chatError = context.getString(R.string.failed_to_activate_bot, error)
                     Log.e("SendTelegramConfigDialog", "Error activating bot in ${chat.title}: $error")
                 }
             )
         }
     }
 
+    // Define permissionLauncher before initBotAndFetchChats
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         hasLocationPermission = permissions[android.Manifest.permission.ACCESS_FINE_LOCATION] == true
         hasNetworkPermission = permissions[android.Manifest.permission.ACCESS_NETWORK_STATE] == true
         if (!hasLocationPermission) {
-            chatError = context.getString(R.string.location_permission_denied) // Line 202
+            chatError = context.getString(R.string.location_permission_denied)
         }
         if (!hasNetworkPermission) {
             Log.w("SendTelegramConfigDialog", context.getString(R.string.log_network_permission_denied))
@@ -212,13 +212,39 @@ fun SendTelegramConfigDialog(
         }
     }
 
+    fun initBotAndFetchChats() {
+        coroutineScope.launch {
+            if (!isOnline()) {
+                showNoInternetDialog = true
+                return@launch
+            }
+            telegramBotHelper.getBotInfo(
+                onResult = { info ->
+                    botInfo = info
+                    coroutineScope.launch {
+                        fetchChats()
+                    }
+                },
+                onError = { error ->
+                    Log.e("SendTelegramConfigDialog", "Failed to get bot info: $error")
+                    chatError = context.getString(R.string.failed_to_get_bot_info, error)
+                    isLoadingChats = false
+                }
+            )
+            permissionLauncher.launch(arrayOf(
+                android.Manifest.permission.ACCESS_FINE_LOCATION,
+                android.Manifest.permission.ACCESS_NETWORK_STATE
+            ))
+        }
+    }
+
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME && isAddingNewChat) {
                 coroutineScope.launch {
                     Log.d("SendTelegramConfigDialog", "App resumed, fetching chats")
-                    delay(5000L)
+                    delay(10000L) // Increased to 10 seconds
                     fetchChats()
                 }
             }
@@ -230,22 +256,9 @@ fun SendTelegramConfigDialog(
     }
 
     LaunchedEffect(Unit) {
-        if (!isOnline()) {
-            showNoInternetDialog = true
-        } else {
-            telegramBotHelper.getBotInfo(
-                onResult = { info -> botInfo = info },
-                onError = { error ->
-                    Log.e("SendTelegramConfigDialog", "Failed to get bot info: $error")
-                    chatError = context.getString(R.string.failed_to_get_bot_info, error) // Line 240
-                    isLoadingChats = false
-                }
-            )
-            permissionLauncher.launch(arrayOf(
-                android.Manifest.permission.ACCESS_FINE_LOCATION,
-                android.Manifest.permission.ACCESS_NETWORK_STATE
-            ))
-        }
+        settingsRepository.clearCachedChats()
+        settingsRepository.clearUserId() // Clear user ID to force re-authentication
+        initBotAndFetchChats()
     }
 
     LaunchedEffect(selectedChat?.chatId) {
@@ -265,24 +278,7 @@ fun SendTelegramConfigDialog(
                 Button(
                     onClick = {
                         showNoInternetDialog = false
-                        if (isOnline()) {
-                            coroutineScope.launch {
-                                telegramBotHelper.getBotInfo(
-                                    onResult = { info -> botInfo = info },
-                                    onError = { error ->
-                                        Log.e("SendTelegramConfigDialog", "Failed to get bot info: $error")
-                                        chatError = context.getString(R.string.failed_to_get_bot_info, error)
-                                        isLoadingChats = false
-                                    }
-                                )
-                                permissionLauncher.launch(arrayOf(
-                                    android.Manifest.permission.ACCESS_FINE_LOCATION,
-                                    android.Manifest.permission.ACCESS_NETWORK_STATE
-                                ))
-                            }
-                        } else {
-                            showNoInternetDialog = true
-                        }
+                        initBotAndFetchChats()
                     }
                 ) {
                     Text(stringResource(R.string.retry))
@@ -308,12 +304,21 @@ fun SendTelegramConfigDialog(
             confirmButton = {
                 Button(
                     onClick = {
-                        botInfo?.let { info ->
-                            telegramBotHelper.shareBotLink(context, info.username)
+                        if (botInfo == null) {
+                            chatError = context.getString(R.string.bot_info_unavailable)
+                            showUserIdPromptDialog = false
+                            coroutineScope.launch {
+                                initBotAndFetchChats()
+                            }
+                        } else {
+                            botInfo?.let { info ->
+                                telegramBotHelper.shareBotLink(context, info.username)
+                            }
+                            showUserIdPromptDialog = false
+                            isAddingNewChat = true
                         }
-                        showUserIdPromptDialog = false
-                        isAddingNewChat = true
-                    }
+                    },
+                    enabled = true // Always enabled to allow retry
                 ) {
                     Text(stringResource(R.string.open_bot_in_telegram))
                 }
@@ -353,7 +358,7 @@ fun SendTelegramConfigDialog(
                             onClick = {
                                 coroutineScope.launch {
                                     Log.d("SendTelegramConfigDialog", context.getString(R.string.log_manual_refresh))
-                                    fetchChats()
+                                    initBotAndFetchChats()
                                 }
                             },
                             enabled = true
@@ -383,7 +388,7 @@ fun SendTelegramConfigDialog(
                             ) {
                                 Column(modifier = Modifier.padding(8.dp)) {
                                     Text(
-                                        text = chatError ?: stringResource(R.string.error_loading_chats), // Line 274
+                                        text = chatError ?: stringResource(R.string.error_loading_chats),
                                         color = MaterialTheme.colors.error
                                     )
                                     Button(
@@ -391,7 +396,7 @@ fun SendTelegramConfigDialog(
                                             chatError = null
                                             coroutineScope.launch {
                                                 Log.d("SendTelegramConfigDialog", context.getString(R.string.log_retry_fetch))
-                                                fetchChats()
+                                                initBotAndFetchChats()
                                             }
                                         },
                                         modifier = Modifier.padding(top = 8.dp)
@@ -432,11 +437,19 @@ fun SendTelegramConfigDialog(
                                         }
                                         Button(
                                             onClick = {
-                                                botInfo?.let { info ->
-                                                    telegramBotHelper.openTelegramToAddBot(context, info.username)
+                                                if (botInfo == null) {
+                                                    chatError = context.getString(R.string.bot_info_unavailable)
+                                                    coroutineScope.launch {
+                                                        initBotAndFetchChats()
+                                                    }
+                                                } else {
+                                                    botInfo?.let { info ->
+                                                        telegramBotHelper.openTelegramToAddBot(context, info.username)
+                                                    }
+                                                    isAddingNewChat = true
                                                 }
                                             },
-                                            enabled = botInfo != null
+                                            enabled = true // Always enabled to allow retry
                                         ) {
                                             Text(stringResource(R.string.open_bot_in_telegram))
                                         }
@@ -444,12 +457,19 @@ fun SendTelegramConfigDialog(
                                             onClick = {
                                                 coroutineScope.launch {
                                                     Log.d("SendTelegramConfigDialog", context.getString(R.string.log_empty_chats_refresh))
-                                                    fetchChats()
+                                                    initBotAndFetchChats()
                                                 }
                                             }
                                         ) {
                                             Text(stringResource(R.string.refresh))
                                         }
+                                    }
+                                    if (botInfo == null) {
+                                        Text(
+                                            text = stringResource(R.string.bot_info_unavailable),
+                                            color = MaterialTheme.colors.error,
+                                            modifier = Modifier.padding(top = 8.dp)
+                                        )
                                     }
                                 }
                             }
@@ -732,8 +752,15 @@ fun SendTelegramConfigDialog(
                                 Button(
                                     onClick = {
                                         isAddingNewChat = true
-                                        botInfo?.let { info ->
-                                            telegramBotHelper.openTelegramToAddBot(context, info.username)
+                                        if (botInfo == null) {
+                                            chatError = context.getString(R.string.bot_info_unavailable)
+                                            coroutineScope.launch {
+                                                initBotAndFetchChats()
+                                            }
+                                        } else {
+                                            botInfo?.let { info ->
+                                                telegramBotHelper.openTelegramToAddBot(context, info.username)
+                                            }
                                         }
                                         showGroupSetupDialog = false
                                     }
@@ -768,8 +795,15 @@ fun SendTelegramConfigDialog(
                                 Button(
                                     onClick = {
                                         isAddingNewChat = true
-                                        botInfo?.let { info ->
-                                            telegramBotHelper.shareBotLink(context, info.username)
+                                        if (botInfo == null) {
+                                            chatError = context.getString(R.string.bot_info_unavailable)
+                                            coroutineScope.launch {
+                                                initBotAndFetchChats()
+                                            }
+                                        } else {
+                                            botInfo?.let { info ->
+                                                telegramBotHelper.shareBotLink(context, info.username)
+                                            }
                                         }
                                         showIndividualSetupDialog = false
                                     }

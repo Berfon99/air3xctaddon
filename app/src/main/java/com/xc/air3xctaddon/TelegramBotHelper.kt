@@ -39,7 +39,6 @@ class TelegramBotHelper(
 ) {
     private val client = OkHttpClient()
 
-    // Function to fetch user ID from a private chat /start command
     fun fetchUserId(onResult: (String) -> Unit, onError: (String) -> Unit) {
         val url = context.getString(R.string.telegram_api_base_url) + botToken + context.getString(R.string.telegram_get_updates_endpoint) + "?timeout=10&limit=10"
         val request = Request.Builder()
@@ -69,6 +68,14 @@ class TelegramBotHelper(
 
                 try {
                     val jsonObject = JSONObject(json)
+                    if (!jsonObject.getBoolean("ok")) {
+                        val description = jsonObject.optString("description", "Unknown error")
+                        Log.e("TelegramBotHelper", "API error fetching user ID: $description")
+                        onError(context.getString(R.string.failed_to_fetch_user_id, description))
+                        response.close()
+                        return
+                    }
+
                     val updates = jsonObject.getJSONArray("result")
                     for (i in 0 until updates.length()) {
                         val update = updates.getJSONObject(i)
@@ -76,7 +83,7 @@ class TelegramBotHelper(
                             val message = update.getJSONObject("message")
                             val chat = message.getJSONObject("chat")
                             val chatType = chat.getString("type")
-                            if (chatType == "private" && message.has("text") && message.getString("text") == "/chat") {
+                            if (chatType == "private" && message.has("text") && message.getString("text") == "/start") {
                                 val user = message.getJSONObject("from")
                                 val userId = user.getLong("id").toString()
                                 settingsRepository.saveUserId(userId)
@@ -87,7 +94,7 @@ class TelegramBotHelper(
                             }
                         }
                     }
-                    onError(context.getString(R.string.no_start_command))
+                    onError(context.getString(R.string.user_id_not_found_prompt))
                 } catch (e: Exception) {
                     Log.e("TelegramBotHelper", "Error parsing user ID: ${e.message}")
                     onError(context.getString(R.string.failed_to_fetch_user_id, e.message ?: ""))
@@ -225,6 +232,14 @@ class TelegramBotHelper(
     }
 
     fun getBotInfo(onResult: (TelegramBotInfo) -> Unit, onError: (String) -> Unit) {
+        // Validate bot token format (e.g., "123456:ABC-DEF")
+        if (!botToken.matches(Regex("\\d+:[A-Za-z0-9_-]+"))) {
+            val error = "Invalid bot token format: $botToken"
+            Log.e("TelegramBotHelper", error)
+            onError(context.getString(R.string.failed_to_get_bot_info, error))
+            return
+        }
+
         val url = context.getString(R.string.telegram_api_base_url) + botToken + context.getString(R.string.telegram_get_me_endpoint)
         val request = Request.Builder()
             .url(url)
@@ -254,6 +269,14 @@ class TelegramBotHelper(
 
                 try {
                     val jsonObject = JSONObject(json)
+                    if (!jsonObject.getBoolean("ok")) {
+                        val description = jsonObject.optString("description", "Unknown error")
+                        Log.e("TelegramBotHelper", "API error: $description")
+                        onError(context.getString(R.string.failed_to_get_bot_info, description))
+                        response.close()
+                        return
+                    }
+
                     val result = jsonObject.getJSONObject("result")
                     val username = result.getString("username")
                     val firstName = result.getString("first_name")

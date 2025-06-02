@@ -36,6 +36,9 @@ android {
         if (token.isBlank()) {
             throw GradleException("Telegram bot token is missing or empty in local.properties")
         }
+        if (!token.matches(Regex("\\d+:[A-Za-z0-9_-]+"))) {
+            throw GradleException("Invalid Telegram bot token format in local.properties: '$token'")
+        }
         buildConfigField("String", "TELEGRAM_BOT_TOKEN", "\"$token\"")
     }
 

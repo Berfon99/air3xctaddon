@@ -232,7 +232,7 @@
     <string name="log_failed_get_bot_info">Failed to get bot info: %s</string>
     <string name="log_error_getting_bot_info">Error getting bot info: %s</string>
     <string name="log_error_parsing_bot_info">Error parsing bot info: %s</string>
-    <string name="log_bot_info_fetched">Bot info fetched: username=%1$s, id=%2$d</string>
+    <string name="log_bot_info_fetched">Bot info fetched: %1$s, %2$s</string>
     <string name="log_failed_check_bot_status">Failed to check bot status for chat %1$s: %2$s</string>
     <string name="log_bot_not_in_group">Bot not in group %1$s: %2$s (code=%3$d)</string>
     <string name="log_bot_status_in_chat">Bot status in chat %1$s: isMember=%2$b, status=%3$s</string>
@@ -553,7 +553,7 @@
     <string name="user_must_be_in_group">You must be a member of the group to send position updates.</string>
     <string name="join_group">Join Group</string>
 
-
+    <string name="bot_info_unavailable">Unable to fetch bot information. Please check your bot token and try again.</string>
 
 
 
