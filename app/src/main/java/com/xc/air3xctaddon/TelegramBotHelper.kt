@@ -21,13 +21,14 @@ data class TelegramChat(
     val title: String,
     val isGroup: Boolean,
     val isBotMember: Boolean = false,
-    val isBotActive: Boolean = false
+    val isBotActive: Boolean = false,
+    val isUserMember: Boolean = false // New field to track user membership
 )
 
 data class TelegramBotInfo(
     val username: String,
     val botName: String,
-    val id: Long
+    val id: String // Changed to String to match chatId type
 )
 
 class TelegramBotHelper(
@@ -37,6 +38,65 @@ class TelegramBotHelper(
     private val settingsRepository: SettingsRepository
 ) {
     private val client = OkHttpClient()
+
+    // Function to fetch user ID from a private chat /start command
+    fun fetchUserId(onResult: (String) -> Unit, onError: (String) -> Unit) {
+        val url = context.getString(R.string.telegram_api_base_url) + botToken + context.getString(R.string.telegram_get_updates_endpoint) + "?timeout=10&limit=10"
+        val request = Request.Builder()
+            .url(url)
+            .get()
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                Log.e("TelegramBotHelper", "Failed to fetch user ID: ${e.message}")
+                onError(context.getString(R.string.failed_to_fetch_user_id, e.message ?: ""))
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                if (!response.isSuccessful) {
+                    Log.e("TelegramBotHelper", "Error fetching user ID: ${response.message}")
+                    onError(context.getString(R.string.failed_to_fetch_user_id, response.message))
+                    response.close()
+                    return
+                }
+
+                val json = response.body?.string() ?: run {
+                    onError(context.getString(R.string.error_response_body_null))
+                    response.close()
+                    return
+                }
+
+                try {
+                    val jsonObject = JSONObject(json)
+                    val updates = jsonObject.getJSONArray("result")
+                    for (i in 0 until updates.length()) {
+                        val update = updates.getJSONObject(i)
+                        if (update.has("message")) {
+                            val message = update.getJSONObject("message")
+                            val chat = message.getJSONObject("chat")
+                            val chatType = chat.getString("type")
+                            if (chatType == "private" && message.has("text") && message.getString("text") == "/chat") {
+                                val user = message.getJSONObject("from")
+                                val userId = user.getLong("id").toString()
+                                settingsRepository.saveUserId(userId)
+                                Log.d("TelegramBotHelper", "Fetched user ID: $userId")
+                                onResult(userId)
+                                response.close()
+                                return
+                            }
+                        }
+                    }
+                    onError(context.getString(R.string.no_start_command))
+                } catch (e: Exception) {
+                    Log.e("TelegramBotHelper", "Error parsing user ID: ${e.message}")
+                    onError(context.getString(R.string.failed_to_fetch_user_id, e.message ?: ""))
+                } finally {
+                    response.close()
+                }
+            }
+        })
+    }
 
     fun sendLiveLocation(
         chatId: String,
@@ -197,7 +257,7 @@ class TelegramBotHelper(
                     val result = jsonObject.getJSONObject("result")
                     val username = result.getString("username")
                     val firstName = result.getString("first_name")
-                    val id = result.getLong("id")
+                    val id = result.getLong("id").toString()
                     Log.d("TelegramBotHelper", context.getString(R.string.log_bot_info_fetched, username, id))
                     onResult(TelegramBotInfo(username, firstName, id))
                 } catch (e: Exception) {
@@ -210,18 +270,36 @@ class TelegramBotHelper(
         })
     }
 
-    fun checkBotInGroup(chatId: String, onResult: (Boolean, Boolean) -> Unit, onError: (String) -> Unit) {
+    fun checkBotAccess(
+        chatId: String,
+        isGroup: Boolean,
+        onResult: (Boolean, Boolean, Boolean) -> Unit, // Added isUserMember
+        onError: (String) -> Unit
+    ) {
+        if (!isGroup) {
+            testBotAccessToPrivateChat(chatId, { isMember, isActive ->
+                onResult(isMember, isActive, true) // Private chats don't need user membership check
+            }, onError)
+            return
+        }
+
         getBotInfo(
             onResult = { botInfo ->
-                val url = context.getString(R.string.telegram_api_base_url) + botToken + context.getString(R.string.telegram_get_chat_member_endpoint) + "?chat_id=$chatId&user_id=${botInfo.id}"
-                val request = Request.Builder()
-                    .url(url)
-                    .get()
-                    .build()
+                val userId = settingsRepository.getUserId()
+                if (userId == null) {
+                    Log.e("TelegramBotHelper", "User ID not found")
+                    onError(context.getString(R.string.user_id_not_found))
+                    onResult(false, false, false)
+                    return@getBotInfo
+                }
 
-                client.newCall(request).enqueue(object : Callback {
+                // Check bot membership
+                val botCheckUrl = context.getString(R.string.telegram_api_base_url) + botToken + context.getString(R.string.telegram_get_chat_member_endpoint) + "?chat_id=$chatId&user_id=${botInfo.id}"
+                val botRequest = Request.Builder().url(botCheckUrl).get().build()
+
+                client.newCall(botRequest).enqueue(object : Callback {
                     override fun onFailure(call: Call, e: IOException) {
-                        Log.e("TelegramBotHelper", context.getString(R.string.log_failed_check_bot_status, chatId, e.message ?: ""))
+                        Log.e("TelegramBotHelper", "Failed to check bot status in $chatId: ${e.message}")
                         onError(context.getString(R.string.failed_to_check_bot_status, e.message ?: ""))
                     }
 
@@ -230,40 +308,86 @@ class TelegramBotHelper(
                         response.close()
 
                         if (!response.isSuccessful) {
-                            Log.d("TelegramBotHelper", context.getString(R.string.log_bot_not_in_group, chatId, response.message, response.code))
-                            onResult(false, false)
+                            Log.d("TelegramBotHelper", "Bot not in group $chatId: ${response.message}, code: ${response.code}")
+                            onResult(false, false, false)
                             return
                         }
 
                         try {
                             val jsonObject = JSONObject(json)
-                            if (jsonObject.getBoolean("ok")) {
-                                val result = jsonObject.getJSONObject("result")
-                                val status = result.getString("status")
-                                val validStatuses = listOf(
-                                    context.getString(R.string.telegram_member_status),
-                                    context.getString(R.string.telegram_admin_status),
-                                    context.getString(R.string.telegram_creator_status)
-                                )
-                                val isMember = status in validStatuses
-                                Log.d("TelegramBotHelper", context.getString(R.string.log_bot_status_in_chat, chatId, isMember, status))
-                                onResult(isMember, isMember)
-                            } else {
-                                Log.d("TelegramBotHelper", context.getString(R.string.log_bot_not_in_group_response_not_ok, chatId, json))
-                                onResult(false, false)
+                            if (!jsonObject.getBoolean("ok")) {
+                                Log.d("TelegramBotHelper", "Bot not in group $chatId: response not ok")
+                                onResult(false, false, false)
+                                return
                             }
+
+                            val result = jsonObject.getJSONObject("result")
+                            val status = result.getString("status")
+                            val validStatuses = listOf(
+                                context.getString(R.string.telegram_member_status),
+                                context.getString(R.string.telegram_admin_status),
+                                context.getString(R.string.telegram_creator_status)
+                            )
+                            val isBotMember = status in validStatuses
+                            val isBotActive = isBotMember // Assume active if member
+
+                            // Check user membership
+                            val userCheckUrl = context.getString(R.string.telegram_api_base_url) + botToken + context.getString(R.string.telegram_get_chat_member_endpoint) + "?chat_id=$chatId&user_id=$userId"
+                            val userRequest = Request.Builder().url(userCheckUrl).get().build()
+
+                            client.newCall(userRequest).enqueue(object : Callback {
+                                override fun onFailure(call: Call, e: IOException) {
+                                    Log.e("TelegramBotHelper", "Failed to check user status in $chatId: ${e.message}")
+                                    onResult(isBotMember, isBotActive, false)
+                                }
+
+                                override fun onResponse(call: Call, userResponse: Response) {
+                                    val userJson = userResponse.body?.string() ?: ""
+                                    userResponse.close()
+
+                                    if (!userResponse.isSuccessful) {
+                                        Log.d("TelegramBotHelper", "User not in group $chatId: ${userResponse.message}")
+                                        onResult(isBotMember, isBotActive, false)
+                                        return
+                                    }
+
+                                    try {
+                                        val userJsonObject = JSONObject(userJson)
+                                        if (userJsonObject.getBoolean("ok")) {
+                                            val userResult = userJsonObject.getJSONObject("result")
+                                            val userStatus = userResult.getString("status")
+                                            val isUserMember = userStatus in validStatuses
+                                            Log.d("TelegramBotHelper", "Bot status in $chatId: isMember=$isBotMember, isActive=$isBotActive, userMember=$isUserMember")
+                                            onResult(isBotMember, isBotActive, isUserMember)
+                                        } else {
+                                            Log.d("TelegramBotHelper", "User not in group $chatId: response not ok")
+                                            onResult(isBotMember, isBotActive, false)
+                                        }
+                                    } catch (e: Exception) {
+                                        Log.e("TelegramBotHelper", "Error parsing user status in $chatId: ${e.message}")
+                                        onResult(isBotMember, isBotActive, false)
+                                    }
+                                }
+                            })
                         } catch (e: Exception) {
-                            Log.e("TelegramBotHelper", context.getString(R.string.log_error_parsing_bot_status, chatId, e.message ?: "", json))
-                            onResult(false, false)
+                            Log.e("TelegramBotHelper", "Error parsing bot status in $chatId: ${e.message}")
+                            onResult(false, false, false)
                         }
                     }
                 })
             },
             onError = { error ->
-                Log.e("TelegramBotHelper", context.getString(R.string.log_failed_get_bot_info_for_check, error))
+                Log.e("TelegramBotHelper", "Failed to get bot info: $error")
                 onError(context.getString(R.string.failed_to_get_bot_info, error))
             }
         )
+    }
+
+    // Deprecated, replaced by checkBotAccess
+    fun checkBotInGroup(chatId: String, onResult: (Boolean, Boolean) -> Unit, onError: (String) -> Unit) {
+        checkBotAccess(chatId, isGroup = true, { isMember, isActive, _ ->
+            onResult(isMember, isActive)
+        }, onError)
     }
 
     fun sendStartCommand(chatId: String, onResult: () -> Unit, onError: (String) -> Unit) {
@@ -362,17 +486,42 @@ class TelegramBotHelper(
     fun fetchRecentChats(onResult: (List<TelegramChat>) -> Unit, onError: (String) -> Unit) {
         CoroutineScope(Dispatchers.IO).launch {
             delay(2000L)
-            fetchChatsWithOffset(0, { rawChats ->
-                Log.d("TelegramBotHelper", context.getString(R.string.log_raw_chats_fetched, rawChats.map { it.title }.toString()))
-                validateChats(rawChats, { validatedChats ->
-                    Log.d("TelegramBotHelper", context.getString(R.string.log_validated_chats, validatedChats.map { it.title }.toString()))
-                    // Merge with cached chats
-                    val cachedChats = settingsRepository.getCachedChats()
-                    val allChats = (validatedChats + cachedChats).distinctBy { it.chatId }
-                    settingsRepository.saveChats(allChats)
-                    onResult(allChats.sortedBy { it.title })
+            val userId = settingsRepository.getUserId()
+            if (userId == null) {
+                fetchUserId(
+                    onResult = { fetchedUserId ->
+                        fetchChatsWithOffset(0, { rawChats ->
+                            Log.d("TelegramBotHelper", "Raw chats fetched: ${rawChats.map { it.title }}")
+                            validateChats(rawChats, { validatedChats ->
+                                Log.d("TelegramBotHelper", "Validated chats: ${validatedChats.map { it.title }}")
+                                val cachedChats = settingsRepository.getCachedChats()
+                                val allChats = (validatedChats + cachedChats)
+                                    .distinctBy { it.chatId }
+                                    .filter { it.isUserMember || !it.isGroup } // Keep only user-member groups or private chats
+                                settingsRepository.saveChats(allChats)
+                                onResult(allChats.sortedBy { it.title })
+                            }, onError)
+                        }, onError)
+                    },
+                    onError = { error ->
+                        Log.e("TelegramBotHelper", "Failed to fetch user ID: $error")
+                        onError(context.getString(R.string.user_id_not_found_prompt))
+                    }
+                )
+            } else {
+                fetchChatsWithOffset(0, { rawChats ->
+                    Log.d("TelegramBotHelper", "Raw chats fetched: ${rawChats.map { it.title }}")
+                    validateChats(rawChats, { validatedChats ->
+                        Log.d("TelegramBotHelper", "Validated chats: ${validatedChats.map { it.title }}")
+                        val cachedChats = settingsRepository.getCachedChats()
+                        val allChats = (validatedChats + cachedChats)
+                            .distinctBy { it.chatId }
+                            .filter { it.isUserMember || !it.isGroup }
+                        settingsRepository.saveChats(allChats)
+                        onResult(allChats.sortedBy { it.title })
+                    }, onError)
                 }, onError)
-            }, onError)
+            }
         }
     }
 
@@ -382,8 +531,8 @@ class TelegramBotHelper(
         onError: (String) -> Unit
     ) {
         if (rawChats.isEmpty()) {
-            Log.d("TelegramBotHelper", context.getString(R.string.log_no_raw_chats_validate))
-            onResult(settingsRepository.getCachedChats())
+            Log.d("TelegramBotHelper", "No raw chats to validate")
+            onResult(settingsRepository.getCachedChats().filter { it.isUserMember || !it.isGroup })
             return
         }
 
@@ -394,10 +543,10 @@ class TelegramBotHelper(
             checkBotAccess(
                 chatId = chat.chatId,
                 isGroup = chat.isGroup,
-                onResult = { isMember, isActive ->
-                    Log.d("TelegramBotHelper", context.getString(R.string.log_validated_chat, chat.title, isMember, isActive))
-                    if (isMember) {
-                        validatedChats.add(chat.copy(isBotMember = isMember, isBotActive = isActive))
+                onResult = { isBotMember, isBotActive, isUserMember ->
+                    Log.d("TelegramBotHelper", "Validated chat ${chat.title}: isBotMember=$isBotMember, isBotActive=$isBotActive, isUserMember=$isUserMember")
+                    if (isBotMember && (isUserMember || !chat.isGroup)) {
+                        validatedChats.add(chat.copy(isBotMember = isBotMember, isBotActive = isBotActive, isUserMember = isUserMember))
                     }
                     chatsProcessed++
                     if (chatsProcessed == rawChats.size) {
@@ -405,7 +554,7 @@ class TelegramBotHelper(
                     }
                 },
                 onError = { error ->
-                    Log.w("TelegramBotHelper", context.getString(R.string.log_error_validating_chat, chat.title, error))
+                    Log.w("TelegramBotHelper", "Error validating chat ${chat.title}: $error")
                     chatsProcessed++
                     if (chatsProcessed == rawChats.size) {
                         onResult(validatedChats.sortedBy { it.title })
@@ -415,15 +564,11 @@ class TelegramBotHelper(
         }
     }
 
-    fun checkBotAccess(chatId: String, isGroup: Boolean, onResult: (Boolean, Boolean) -> Unit, onError: (String) -> Unit) {
-        if (!isGroup) {
-            testBotAccessToPrivateChat(chatId, onResult, onError)
-        } else {
-            checkBotInGroup(chatId, onResult, onError)
-        }
-    }
-
-    private fun testBotAccessToPrivateChat(chatId: String, onResult: (Boolean, Boolean) -> Unit, onError: (String) -> Unit) {
+    private fun testBotAccessToPrivateChat(
+        chatId: String,
+        onResult: (Boolean, Boolean) -> Unit,
+        onError: (String) -> Unit
+    ) {
         val url = context.getString(R.string.telegram_api_base_url) + botToken + "/getChat?chat_id=$chatId"
         val request = Request.Builder()
             .url(url)
@@ -496,7 +641,7 @@ class TelegramBotHelper(
 
             override fun onResponse(call: Call, response: Response) {
                 if (response.isSuccessful) {
-                    Log.d("TelegramBotHelper", context.getString(R.string.log_message_sent, chatId, pilotName ?: ""))
+                    Log.d("TelegramBotHelper", "Message sent to $chatId, pilot: ${pilotName ?: ""}")
                 } else {
                     Log.e("TelegramBotHelper", context.getString(R.string.log_error_sending_message, chatId, pilotName ?: "", response.message, response.code))
                     response.body?.string()?.let { body ->

@@ -20,6 +20,18 @@ class SettingsRepository(context: Context) {
         prefs.edit { remove("pilot_name") }
     }
 
+    fun saveUserId(userId: String) {
+        prefs.edit { putString("user_id", userId) }
+    }
+
+    fun getUserId(): String? {
+        return prefs.getString("user_id", null)
+    }
+
+    fun clearUserId() {
+        prefs.edit { remove("user_id") }
+    }
+
     fun saveChats(chats: List<TelegramChat>) {
         val json = gson.toJson(chats)
         prefs.edit().putString("cached_chats", json).apply()
@@ -27,13 +39,10 @@ class SettingsRepository(context: Context) {
 
     fun getCachedChats(): List<TelegramChat> {
         val json = prefs.getString("cached_chats", null) ?: return emptyList()
-
         return try {
-            // Use Array instead of List to avoid TypeToken
             val chatsArray = gson.fromJson(json, Array<TelegramChat>::class.java)
             chatsArray?.toList() ?: emptyList()
         } catch (e: Exception) {
-            // If parsing fails, clear cache and return empty list
             clearCachedChats()
             emptyList()
         }
