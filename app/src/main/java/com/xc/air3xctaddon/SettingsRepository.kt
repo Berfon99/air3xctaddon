@@ -3,7 +3,6 @@ package com.xc.air3xctaddon
 import android.content.Context
 import androidx.core.content.edit
 import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
 
 class SettingsRepository(context: Context) {
     private val prefs = context.getSharedPreferences("air3xctaddon_prefs", Context.MODE_PRIVATE)
@@ -20,6 +19,7 @@ class SettingsRepository(context: Context) {
     fun clearPilotName() {
         prefs.edit { remove("pilot_name") }
     }
+
     fun saveChats(chats: List<TelegramChat>) {
         val json = gson.toJson(chats)
         prefs.edit().putString("cached_chats", json).apply()
@@ -27,8 +27,16 @@ class SettingsRepository(context: Context) {
 
     fun getCachedChats(): List<TelegramChat> {
         val json = prefs.getString("cached_chats", null) ?: return emptyList()
-        val type = object : TypeToken<List<TelegramChat>>() {}.type
-        return gson.fromJson(json, type) ?: emptyList()
+
+        return try {
+            // Use Array instead of List to avoid TypeToken
+            val chatsArray = gson.fromJson(json, Array<TelegramChat>::class.java)
+            chatsArray?.toList() ?: emptyList()
+        } catch (e: Exception) {
+            // If parsing fails, clear cache and return empty list
+            clearCachedChats()
+            emptyList()
+        }
     }
 
     fun clearCachedChats() {
