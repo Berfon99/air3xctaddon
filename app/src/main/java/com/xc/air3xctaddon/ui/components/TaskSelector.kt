@@ -2,12 +2,14 @@ package com.xc.air3xctaddon.ui.components
 
 import android.content.Intent
 import android.util.Log
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -31,6 +33,11 @@ fun TaskSelector(
     var taskMenuExpanded by remember { mutableStateOf(false) }
     var showOtherDialog by remember { mutableStateOf(false) }
     val context = LocalContext.current
+
+    // Check if Zello is installed
+    val zelloInstalled = remember {
+        context.packageManager.getLaunchIntentForPackage("com.loudtalks") != null
+    }
 
     Box(modifier = modifier) {
         Button(
@@ -76,12 +83,23 @@ fun TaskSelector(
                 }
             )
             DropdownMenuItem(
-                content = { Text(stringResource(id = R.string.task_zello_ptt)) },
+                content = {
+                    Text(
+                        text = stringResource(id = R.string.task_zello_ptt),
+                        color = if (zelloInstalled) Color.Unspecified else Color.Gray
+                    )
+                },
                 onClick = {
                     taskMenuExpanded = false
-                    onZelloPttSelected()
-                    Log.d("TaskSelector", "Selected task: ZELLO_PTT")
-                }
+                    if (zelloInstalled) {
+                        onZelloPttSelected()
+                        Log.d("TaskSelector", "Selected task: ZELLO_PTT")
+                    } else {
+                        Toast.makeText(context, R.string.zello_not_installed, Toast.LENGTH_LONG).show()
+                        Log.d("TaskSelector", "Zello PTT selected but Zello not installed")
+                    }
+                },
+                enabled = zelloInstalled
             )
             launchAppTasks.forEach { task ->
                 val displayText = when (task.taskType) {

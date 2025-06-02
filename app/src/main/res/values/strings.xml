@@ -539,4 +539,7 @@
     <string name="add_task_required_title">You want to add another task?</string>
     <string name="add_task_required_message">Add task in the Settings</string>
 
+    <string name="telegram_not_installed_title">Telegram Required</string>
+    <string name="telegram_not_installed_message">A Telegram app must be installed on your device to set up Telegram tasks. Please install Telegram from Google Play Store or use an APK file, then try again.</string>
+
 </resources>

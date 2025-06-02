@@ -168,13 +168,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
                                     }
                                     .first()
                                 if (isAir3 || filteredConfigs.size < 1) {
-                                    // Check if Zello is installed
-                                    val zelloInstalled = context.packageManager.getLaunchIntentForPackage("com.loudtalks") != null
-                                    if (!zelloInstalled) {
-                                        Log.w("MainScreen", context.getString(R.string.zello_not_installed))
-                                        Toast.makeText(context, R.string.zello_not_installed, Toast.LENGTH_LONG).show()
-                                        return@launch
-                                    }
+                                    // Always create the row regardless of Zello installation
                                     val selectedEvent = availableEvents.firstOrNull { item -> item is MainViewModel.EventItem.Event } as? MainViewModel.EventItem.Event
                                     if (selectedEvent != null) {
                                         Log.d("MainScreen", context.getString(R.string.log_add_config_clicked, selectedEvent.name, "", ""))

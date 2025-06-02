@@ -62,6 +62,28 @@ class SettingsActivity : ComponentActivity() {
         }
     }
 
+    // Function to check if any Telegram app is installed
+    private fun isTelegramInstalled(): Boolean {
+        val telegramPackages = listOf(
+            "org.telegram.messenger",      // Telegram (Google Play)
+            "org.telegram.messenger.web",  // Telegram Web
+            "org.telegram.plus",           // Telegram Plus
+            "nekox.messenger",             // NekoX
+            "org.thunderdog.challegram",   // Challegram
+            "com.telegram.messenger"       // Alternative package name
+        )
+
+        val packageManager = packageManager
+        return telegramPackages.any { packageName ->
+            try {
+                packageManager.getPackageInfo(packageName, 0)
+                true
+            } catch (e: PackageManager.NameNotFoundException) {
+                false
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -71,6 +93,7 @@ class SettingsActivity : ComponentActivity() {
                 var showTelegramMessageDialog by remember { mutableStateOf(false) }
                 var showPilotNameDialog by remember { mutableStateOf(false) }
                 var showPilotNameWarningDialog by remember { mutableStateOf(false) }
+                var showTelegramNotInstalledDialog by remember { mutableStateOf(false) }
                 var pendingTelegramTaskType by remember { mutableStateOf<String?>(null) }
                 val settingsRepository = remember { SettingsRepository(applicationContext) }
                 var pilotName by remember { mutableStateOf(settingsRepository.getPilotName()) }
@@ -98,7 +121,9 @@ class SettingsActivity : ComponentActivity() {
                         },
                         onTelegramPositionSelected = {
                             showTaskTypeDialog = false
-                            if (settingsRepository.getPilotName().isNullOrBlank()) {
+                            if (!isTelegramInstalled()) {
+                                showTelegramNotInstalledDialog = true
+                            } else if (settingsRepository.getPilotName().isNullOrBlank()) {
                                 showPilotNameWarningDialog = true
                                 pendingTelegramTaskType = "SendTelegramPosition"
                             } else {
@@ -107,7 +132,9 @@ class SettingsActivity : ComponentActivity() {
                         },
                         onTelegramMessageSelected = {
                             showTaskTypeDialog = false
-                            if (settingsRepository.getPilotName().isNullOrBlank()) {
+                            if (!isTelegramInstalled()) {
+                                showTelegramNotInstalledDialog = true
+                            } else if (settingsRepository.getPilotName().isNullOrBlank()) {
                                 showPilotNameWarningDialog = true
                                 pendingTelegramTaskType = "SendTelegramMessage"
                             } else {
@@ -179,6 +206,28 @@ class SettingsActivity : ComponentActivity() {
                                 }
                             ) {
                                 Text(stringResource(android.R.string.cancel))
+                            }
+                        }
+                    )
+                }
+
+                // New dialog for Telegram not installed
+                if (showTelegramNotInstalledDialog) {
+                    AlertDialog(
+                        onDismissRequest = {
+                            showTelegramNotInstalledDialog = false
+                            showTaskTypeDialog = true
+                        },
+                        title = { Text(stringResource(R.string.telegram_not_installed_title)) },
+                        text = { Text(stringResource(R.string.telegram_not_installed_message)) },
+                        confirmButton = {
+                            Button(
+                                onClick = {
+                                    showTelegramNotInstalledDialog = false
+                                    showTaskTypeDialog = true
+                                }
+                            ) {
+                                Text(stringResource(android.R.string.ok))
                             }
                         }
                     )
