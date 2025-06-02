@@ -41,12 +41,15 @@ android {
 
     buildTypes {
         getByName("release") {
-            isMinifyEnabled = true // Enables code shrinking
-            isShrinkResources = true // Enables resource shrinking (see below)
+            isMinifyEnabled = true
+            isShrinkResources = true
+            // Add this for debugging
+            isDebuggable = true // Remove this after fixing
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
     compileOptions {
