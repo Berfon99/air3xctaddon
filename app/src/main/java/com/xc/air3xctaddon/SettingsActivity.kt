@@ -132,7 +132,8 @@ class SettingsActivity : ComponentActivity() {
                     onValidationCancelled = {
                         validationPending = false
                         onValidationSuccess = null
-                    }
+                    },
+                    isTelegramInstalled = { isTelegramInstalled() }
                 )
 
                 if (showTaskTypeDialog) {
@@ -296,7 +297,8 @@ fun SettingsScreen(
     settingsRepository: SettingsRepository,
     telegramBotHelper: TelegramBotHelper,
     onValidationStarted: ((String) -> Unit) -> Unit,
-    onValidationCancelled: () -> Unit
+    onValidationCancelled: () -> Unit,
+    isTelegramInstalled: () -> Boolean
 ) {
     val context = LocalContext.current
     val viewModel: MainViewModel = viewModel(
@@ -307,6 +309,7 @@ fun SettingsScreen(
     var isTelegramValidated by remember { mutableStateOf(settingsRepository.isTelegramValidated()) }
     var validatedUserId by remember { mutableStateOf(settingsRepository.getUserId()) }
     var showValidationDialog by remember { mutableStateOf(false) }
+    var showTelegramNotInstalledDialog by remember { mutableStateOf(false) }
     var botUsername by remember { mutableStateOf<String?>(null) }
     val telegramValidation = remember {
         TelegramValidation(
@@ -396,17 +399,22 @@ fun SettingsScreen(
                             } else {
                                 Button(
                                     onClick = {
-                                        if (botUsername != null) {
-                                            settingsRepository.clearUserId()
-                                            settingsRepository.clearTelegramValidated()
-                                            isTelegramValidated = false
-                                            validatedUserId = null
-                                            showValidationDialog = true
-                                            Log.d("SettingsScreen", "Initiating Telegram validation")
+                                        if (isTelegramInstalled()) {
+                                            if (botUsername != null) {
+                                                settingsRepository.clearUserId()
+                                                settingsRepository.clearTelegramValidated()
+                                                isTelegramValidated = false
+                                                validatedUserId = null
+                                                showValidationDialog = true
+                                                Log.d("SettingsScreen", "Initiating Telegram validation")
+                                            }
+                                        } else {
+                                            showTelegramNotInstalledDialog = true
+                                            Log.d("SettingsScreen", "Telegram not installed, showing dialog")
                                         }
                                     },
                                     modifier = Modifier.wrapContentWidth(),
-                                    enabled = botUsername != null
+                                    enabled = botUsername != null && isTelegramInstalled()
                                 ) {
                                     Text(stringResource(R.string.telegram_validation))
                                 }
@@ -506,6 +514,21 @@ fun SettingsScreen(
                 telegramValidation = telegramValidation,
                 settingsRepository = settingsRepository,
                 onValidationStarted = onValidationStarted
+            )
+        }
+
+        if (showTelegramNotInstalledDialog) {
+            AlertDialog(
+                onDismissRequest = { showTelegramNotInstalledDialog = false },
+                title = { Text(stringResource(R.string.telegram_not_installed_title)) },
+                text = { Text(stringResource(R.string.telegram_not_installed_message)) },
+                confirmButton = {
+                    Button(
+                        onClick = { showTelegramNotInstalledDialog = false }
+                    ) {
+                        Text(stringResource(android.R.string.ok))
+                    }
+                }
             )
         }
     }
