@@ -23,14 +23,6 @@ import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.google.android.gms.location.LocationServices
-import com.xc.air3xctaddon.AppDatabase
-import com.xc.air3xctaddon.BuildConfig
-import com.xc.air3xctaddon.R
-import com.xc.air3xctaddon.SettingsRepository
-import com.xc.air3xctaddon.Task
-import com.xc.air3xctaddon.TelegramBotHelper
-import com.xc.air3xctaddon.TelegramBotInfo
-import com.xc.air3xctaddon.TelegramChat
 import com.xc.air3xctaddon.ui.components.DropdownMenuSpinner
 import com.xc.air3xctaddon.ui.components.SpinnerItem
 import kotlinx.coroutines.delay
@@ -64,13 +56,12 @@ fun SendTelegramConfigDialog(
 
     val context = LocalContext.current
     val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
-    val settingsRepository = remember { SettingsRepository(context) }
+    LaunchedEffect(Unit) { SettingsRepository.initialize(context) }
     val telegramBotHelper = remember {
         TelegramBotHelper(
             context,
             BuildConfig.TELEGRAM_BOT_TOKEN,
-            fusedLocationClient,
-            settingsRepository
+            fusedLocationClient
         )
     }
     val coroutineScope = rememberCoroutineScope()
@@ -130,7 +121,7 @@ fun SendTelegramConfigDialog(
             onResult = { fetchedChats ->
                 Log.d("SendTelegramConfigDialog", "Fetched chats: ${fetchedChats.map { it.title }}")
                 chats = fetchedChats
-                settingsRepository.saveChats(fetchedChats)
+                SettingsRepository.saveChats(fetchedChats)
                 isLoadingChats = false
                 if (fetchedChats.isEmpty() || (telegramChatId.isNotEmpty() && chats.none { it.chatId == telegramChatId })) {
                     telegramChatId = ""
@@ -180,7 +171,7 @@ fun SendTelegramConfigDialog(
                     chats = chats.map {
                         if (it.chatId == chat.chatId) it.copy(isBotActive = true) else it
                     }
-                    settingsRepository.saveChats(chats)
+                    SettingsRepository.saveChats(chats)
                     Log.d("SendTelegramConfigDialog", "Bot activated in chat ${chat.title}")
                 },
                 onError = { error ->
@@ -256,8 +247,9 @@ fun SendTelegramConfigDialog(
     }
 
     LaunchedEffect(Unit) {
-        settingsRepository.clearCachedChats()
-        settingsRepository.clearUserId() // Clear user ID to force re-authentication
+        SettingsRepository.initialize(context) // Initialize singleton
+        SettingsRepository.clearCachedChats()
+        SettingsRepository.clearUserId() // Clear user ID to force re-authentication
         initBotAndFetchChats()
     }
 

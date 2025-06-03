@@ -68,13 +68,12 @@ fun SendTelegramMessageConfigDialog(
 
     val context = LocalContext.current
     val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
-    val settingsRepository = remember { SettingsRepository(context) }
+    LaunchedEffect(Unit) { SettingsRepository.initialize(context) }
     val telegramBotHelper = remember {
         TelegramBotHelper(
             context,
             BuildConfig.TELEGRAM_BOT_TOKEN,
-            fusedLocationClient,
-            settingsRepository
+            fusedLocationClient
         )
     }
     val coroutineScope = rememberCoroutineScope()
@@ -132,7 +131,7 @@ fun SendTelegramMessageConfigDialog(
             onResult = { fetchedChats ->
                 Log.d("SendTelegramMessageConfigDialog", "Fetched chats: ${fetchedChats.map { it.title }}")
                 chats = fetchedChats
-                settingsRepository.saveChats(fetchedChats)
+                SettingsRepository.saveChats(fetchedChats)
                 isLoadingChats = false
                 if (fetchedChats.isEmpty() || (telegramChatId.isNotEmpty() && chats.none { it.chatId == telegramChatId })) {
                     telegramChatId = ""; telegramChatName = ""; selectedChat = null
@@ -178,7 +177,7 @@ fun SendTelegramMessageConfigDialog(
                     chats = chats.map {
                         if (it.chatId == chat.chatId) it.copy(isBotActive = true) else it
                     }
-                    settingsRepository.saveChats(chats)
+                    SettingsRepository.saveChats(chats)
                     Log.d("SendTelegramMessageConfigDialog", "Bot activated in chat ${chat.title}")
                 },
                 onError = { error ->
@@ -227,6 +226,7 @@ fun SendTelegramMessageConfigDialog(
     }
 
     LaunchedEffect(Unit) {
+        SettingsRepository.initialize(context) // Initialize singleton
         if (!isOnline()) {
             showNoInternetDialog = true
         } else {

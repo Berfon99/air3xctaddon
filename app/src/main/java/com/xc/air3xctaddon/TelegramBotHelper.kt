@@ -22,110 +22,21 @@ data class TelegramChat(
     val isGroup: Boolean,
     val isBotMember: Boolean = false,
     val isBotActive: Boolean = false,
-    val isUserMember: Boolean = false // New field to track user membership
+    val isUserMember: Boolean = false
 )
 
 data class TelegramBotInfo(
     val username: String,
     val botName: String,
-    val id: String // Changed to String to match chatId type
+    val id: String
 )
 
 class TelegramBotHelper(
     private val context: Context,
     private val botToken: String,
     private val fusedLocationClient: FusedLocationProviderClient,
-    private val settingsRepository: SettingsRepository
 ) {
     private val client = OkHttpClient()
-
-    fun fetchUserId(onResult: (String) -> Unit, onError: (String) -> Unit, retryCount: Int = 0, maxRetries: Int = 3) {
-        if (retryCount > maxRetries) {
-            Log.e("TelegramBotHelper", "Max retries reached for fetchUserId")
-            onError(context.getString(R.string.user_id_not_found_prompt))
-            return
-        }
-        val url = context.getString(R.string.telegram_api_base_url) + botToken + context.getString(R.string.telegram_get_updates_endpoint) + "?timeout=10&limit=100"
-        val request = Request.Builder()
-            .url(url)
-            .get()
-            .build()
-
-        client.newCall(request).enqueue(object : Callback {
-            override fun onFailure(call: Call, e: IOException) {
-                Log.e("TelegramBotHelper", "Failed to fetch user ID (retry $retryCount): ${e.message}")
-                CoroutineScope(Dispatchers.IO).launch {
-                    delay(2000L * (retryCount + 1))
-                    fetchUserId(onResult, onError, retryCount + 1, maxRetries)
-                }
-            }
-
-            override fun onResponse(call: Call, response: Response) {
-                if (!response.isSuccessful) {
-                    Log.e("TelegramBotHelper", "Error fetching user ID (retry $retryCount): ${response.message}, code: ${response.code}")
-                    response.body?.string()?.let { body ->
-                        Log.e("TelegramBotHelper", "Response body: $body")
-                    }
-                    CoroutineScope(Dispatchers.IO).launch {
-                        delay(2000L * (retryCount + 1))
-                        fetchUserId(onResult, onError, retryCount + 1, maxRetries)
-                    }
-                    response.close()
-                    return
-                }
-
-                val json = response.body?.string() ?: run {
-                    Log.e("TelegramBotHelper", "Response body is null")
-                    onError(context.getString(R.string.error_response_body_null))
-                    response.close()
-                    return
-                }
-
-                Log.d("TelegramBotHelper", "getUpdates response: $json")
-                try {
-                    val jsonObject = JSONObject(json)
-                    if (!jsonObject.getBoolean("ok")) {
-                        val description = jsonObject.optString("description", "Unknown error")
-                        Log.e("TelegramBotHelper", "API error fetching user ID (retry $retryCount): $description")
-                        CoroutineScope(Dispatchers.IO).launch {
-                            delay(2000L * (retryCount + 1))
-                            fetchUserId(onResult, onError, retryCount + 1, maxRetries)
-                        }
-                        response.close()
-                        return
-                    }
-
-                    val updates = jsonObject.getJSONArray("result")
-                    for (i in 0 until updates.length()) {
-                        val update = updates.getJSONObject(i)
-                        if (update.has("message")) {
-                            val message = update.getJSONObject("message")
-                            val chat = message.getJSONObject("chat")
-                            val chatType = chat.getString("type")
-                            if (chatType == "private" && message.has("text") && message.getString("text") == "/start") {
-                                val user = message.getJSONObject("from")
-                                val userId = user.getLong("id").toString()
-                                settingsRepository.saveUserId(userId)
-                                Log.d("TelegramBotHelper", "Fetched user ID: $userId")
-                                onResult(userId)
-                                response.close()
-                                return
-                            }
-                        }
-                    }
-                    CoroutineScope(Dispatchers.IO).launch {
-                        delay(2000L * (retryCount + 1))
-                        fetchUserId(onResult, onError, retryCount + 1, maxRetries)
-                    }
-                } catch (e: Exception) {
-                    Log.e("TelegramBotHelper", "Error parsing user ID (retry $retryCount): ${e.message}")
-                    onError(context.getString(R.string.failed_to_fetch_user_id, e.message ?: ""))
-                } finally {
-                    response.close()
-                }
-            }
-        })
-    }
 
     fun sendLiveLocation(
         chatId: String,
@@ -134,7 +45,7 @@ class TelegramBotHelper(
         livePeriod: Int = 3600
     ) {
         val url = context.getString(R.string.telegram_api_base_url) + botToken + context.getString(R.string.telegram_send_location_endpoint)
-        val pilotName = settingsRepository.getPilotName()
+        val pilotName = SettingsRepository.getPilotName()
         val json = JSONObject()
             .put("chat_id", chatId)
             .put("latitude", latitude)
@@ -184,7 +95,7 @@ class TelegramBotHelper(
         event: String? = null
     ) {
         val url = context.getString(R.string.telegram_api_base_url) + botToken + context.getString(R.string.telegram_send_message_endpoint)
-        val pilotName = settingsRepository.getPilotName()
+        val pilotName = SettingsRepository.getPilotName()
         val mapsLink = context.getString(R.string.telegram_maps_link_format, latitude, longitude)
         val messageText = when {
             !pilotName.isNullOrEmpty() && !event.isNullOrEmpty() -> {
@@ -254,7 +165,6 @@ class TelegramBotHelper(
     }
 
     fun getBotInfo(onResult: (TelegramBotInfo) -> Unit, onError: (String) -> Unit) {
-        // Validate bot token format (e.g., "123456:ABC-DEF")
         if (!botToken.matches(Regex("\\d+:[A-Za-z0-9_-]+"))) {
             val error = "Invalid bot token format: $botToken"
             Log.e("TelegramBotHelper", error)
@@ -318,19 +228,19 @@ class TelegramBotHelper(
     fun checkBotAccess(
         chatId: String,
         isGroup: Boolean,
-        onResult: (Boolean, Boolean, Boolean) -> Unit, // Added isUserMember
+        onResult: (Boolean, Boolean, Boolean) -> Unit,
         onError: (String) -> Unit
     ) {
         if (!isGroup) {
             testBotAccessToPrivateChat(chatId, { isMember, isActive ->
-                onResult(isMember, isActive, true) // Private chats don't need user membership check
+                onResult(isMember, isActive, true)
             }, onError)
             return
         }
 
         getBotInfo(
             onResult = { botInfo ->
-                val userId = settingsRepository.getUserId()
+                val userId = SettingsRepository.getUserId()
                 if (userId == null) {
                     Log.e("TelegramBotHelper", "User ID not found")
                     onError(context.getString(R.string.user_id_not_found))
@@ -338,7 +248,6 @@ class TelegramBotHelper(
                     return@getBotInfo
                 }
 
-                // Check bot membership
                 val botCheckUrl = context.getString(R.string.telegram_api_base_url) + botToken + context.getString(R.string.telegram_get_chat_member_endpoint) + "?chat_id=$chatId&user_id=${botInfo.id}"
                 val botRequest = Request.Builder().url(botCheckUrl).get().build()
 
@@ -374,9 +283,8 @@ class TelegramBotHelper(
                                 context.getString(R.string.telegram_creator_status)
                             )
                             val isBotMember = status in validStatuses
-                            val isBotActive = isBotMember // Assume active if member
+                            val isBotActive = isBotMember
 
-                            // Check user membership
                             val userCheckUrl = context.getString(R.string.telegram_api_base_url) + botToken + context.getString(R.string.telegram_get_chat_member_endpoint) + "?chat_id=$chatId&user_id=$userId"
                             val userRequest = Request.Builder().url(userCheckUrl).get().build()
 
@@ -428,13 +336,6 @@ class TelegramBotHelper(
         )
     }
 
-    // Deprecated, replaced by checkBotAccess
-    fun checkBotInGroup(chatId: String, onResult: (Boolean, Boolean) -> Unit, onError: (String) -> Unit) {
-        checkBotAccess(chatId, isGroup = true, { isMember, isActive, _ ->
-            onResult(isMember, isActive)
-        }, onError)
-    }
-
     fun sendStartCommand(chatId: String, onResult: () -> Unit, onError: (String) -> Unit) {
         val url = context.getString(R.string.telegram_api_base_url) + botToken + context.getString(R.string.telegram_send_message_endpoint)
         val json = JSONObject()
@@ -474,7 +375,6 @@ class TelegramBotHelper(
     fun openTelegramToAddBot(context: Context, botUsername: String, groupTitle: String? = null) {
         val cleanUsername = botUsername.removePrefix("@")
         try {
-            // Open group picker with /start prefilled
             val uri = Uri.parse("tg://resolve?domain=$cleanUsername&startgroup")
             val intent = Intent(Intent.ACTION_VIEW, uri)
             intent.setPackage(context.getString(R.string.telegram_package_name))
@@ -484,7 +384,6 @@ class TelegramBotHelper(
         } catch (e: Exception) {
             Log.e("TelegramBotHelper", context.getString(R.string.log_failed_open_telegram, e.message ?: ""))
             try {
-                // Fallback to HTTPS link
                 val fallbackUri = Uri.parse("https://t.me/$cleanUsername?startgroup")
                 val fallbackIntent = Intent(Intent.ACTION_VIEW, fallbackUri)
                 fallbackIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -506,7 +405,6 @@ class TelegramBotHelper(
         } catch (e: Exception) {
             Log.e("TelegramBotHelper", context.getString(R.string.log_failed_share_bot_link, e.message ?: ""))
             try {
-                // Fallback to HTTPS link
                 val fallbackUri = Uri.parse("https://t.me/$cleanUsername")
                 val fallbackIntent = Intent(Intent.ACTION_VIEW, fallbackUri)
                 fallbackIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -520,46 +418,27 @@ class TelegramBotHelper(
     fun fetchRecentChats(onResult: (List<TelegramChat>) -> Unit, onError: (String) -> Unit) {
         CoroutineScope(Dispatchers.IO).launch {
             delay(2000L)
-            val userId = settingsRepository.getUserId()
+            val userId = SettingsRepository.getUserId()
             if (userId == null) {
-                fetchUserId(
-                    onResult = { fetchedUserId ->
-                        fetchChatsWithOffset(0, { rawChats ->
-                            Log.d("TelegramBotHelper", "Raw chats fetched: ${rawChats.map { it.title }}")
-                            validateChats(rawChats, { validatedChats ->
-                                Log.d("TelegramBotHelper", "Validated chats: ${validatedChats.map { it.title }}")
-                                val cachedChats = settingsRepository.getCachedChats()
-                                val allChats = (validatedChats + cachedChats)
-                                    .distinctBy { it.chatId }
-                                    .filter { it.isUserMember || !it.isGroup }
-                                settingsRepository.saveChats(allChats)
-                                onResult(allChats.sortedBy { it.title })
-                            }, onError)
-                        }, onError)
-                    },
-                    onError = { error ->
-                        Log.e("TelegramBotHelper", "Failed to fetch user ID: $error")
-                        onError(context.getString(R.string.user_id_not_found_prompt))
-                    },
-                    retryCount = 0,
-                    maxRetries = 3
-                )
-            } else {
-                fetchChatsWithOffset(0, { rawChats ->
-                    Log.d("TelegramBotHelper", "Raw chats fetched: ${rawChats.map { it.title }}")
-                    validateChats(rawChats, { validatedChats ->
-                        Log.d("TelegramBotHelper", "Validated chats: ${validatedChats.map { it.title }}")
-                        val cachedChats = settingsRepository.getCachedChats()
-                        val allChats = (validatedChats + cachedChats)
-                            .distinctBy { it.chatId }
-                            .filter { it.isUserMember || !it.isGroup }
-                        settingsRepository.saveChats(allChats)
-                        onResult(allChats.sortedBy { it.title })
-                    }, onError)
-                }, onError)
+                Log.e("TelegramBotHelper", "User ID not found")
+                onError(context.getString(R.string.user_id_not_found_prompt))
+                return@launch
             }
+            fetchChatsWithOffset(0, { rawChats ->
+                Log.d("TelegramBotHelper", "Raw chats fetched: ${rawChats.map { it.title }}")
+                validateChats(rawChats, { validatedChats ->
+                    Log.d("TelegramBotHelper", "Validated chats: ${validatedChats.map { it.title }}")
+                    val cachedChats = SettingsRepository.getCachedChats()
+                    val allChats = (validatedChats + cachedChats)
+                        .distinctBy { it.chatId }
+                        .filter { it.isUserMember || !it.isGroup }
+                    SettingsRepository.saveChats(allChats)
+                    onResult(allChats.sortedBy { it.title })
+                }, onError)
+            }, onError)
         }
     }
+
     private fun validateChats(
         rawChats: List<TelegramChat>,
         onResult: (List<TelegramChat>) -> Unit,
@@ -567,7 +446,7 @@ class TelegramBotHelper(
     ) {
         if (rawChats.isEmpty()) {
             Log.d("TelegramBotHelper", "No raw chats to validate")
-            onResult(settingsRepository.getCachedChats().filter { it.isUserMember || !it.isGroup })
+            onResult(SettingsRepository.getCachedChats().filter { it.isUserMember || !it.isGroup })
             return
         }
 
@@ -647,7 +526,7 @@ class TelegramBotHelper(
         message: String
     ) {
         val url = context.getString(R.string.telegram_api_base_url) + botToken + context.getString(R.string.telegram_send_message_endpoint)
-        val pilotName = settingsRepository.getPilotName()
+        val pilotName = SettingsRepository.getPilotName()
         val messageText = if (!pilotName.isNullOrEmpty()) {
             context.getString(R.string.telegram_message_from_pilot, pilotName, message)
         } else {

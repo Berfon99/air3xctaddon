@@ -1,6 +1,5 @@
 package com.xc.air3xctaddon
 
-import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
@@ -27,7 +26,6 @@ class LogMonitorService : Service() {
     private val scope = CoroutineScope(Dispatchers.IO)
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var telegramBotHelper: TelegramBotHelper
-    private lateinit var settingsRepository: SettingsRepository
 
     companion object {
         private const val NOTIFICATION_ID = 1
@@ -46,8 +44,8 @@ class LogMonitorService : Service() {
         Log.d("LogMonitorService", getString(R.string.log_started_foreground))
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
-        settingsRepository = SettingsRepository(this)
-        telegramBotHelper = TelegramBotHelper(this, BuildConfig.TELEGRAM_BOT_TOKEN, fusedLocationClient, settingsRepository)
+        SettingsRepository.initialize(this) // Initialize singleton
+        telegramBotHelper = TelegramBotHelper(this, BuildConfig.TELEGRAM_BOT_TOKEN, fusedLocationClient)
 
         eventReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {

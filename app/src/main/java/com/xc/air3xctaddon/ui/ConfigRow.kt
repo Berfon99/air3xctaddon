@@ -54,13 +54,12 @@ fun ConfigRow(
     var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
 
     val context = LocalContext.current
-    val settingsRepository = remember { SettingsRepository(context) }
+    LaunchedEffect(Unit) { SettingsRepository.initialize(context) }
     val telegramBotHelper = remember {
         TelegramBotHelper(
             context,
             BuildConfig.TELEGRAM_BOT_TOKEN,
-            LocationServices.getFusedLocationProviderClient(context),
-            settingsRepository
+            LocationServices.getFusedLocationProviderClient(context)
         )
     }
 
