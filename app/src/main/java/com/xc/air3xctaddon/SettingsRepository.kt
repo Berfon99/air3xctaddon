@@ -85,4 +85,9 @@ object SettingsRepository {
         prefs.edit().remove("telegram_validated").apply()
         Log.d("SettingsRepository", "Cleared telegram_validated")
     }
+
+    fun debugLogUserId(context: String) {
+        val userId = getUserId()
+        Log.d("SettingsRepository", "$context - Current userId: $userId")
+    }
 }

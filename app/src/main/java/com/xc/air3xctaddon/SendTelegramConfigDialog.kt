@@ -249,7 +249,6 @@ fun SendTelegramConfigDialog(
     LaunchedEffect(Unit) {
         SettingsRepository.initialize(context) // Initialize singleton
         SettingsRepository.clearCachedChats()
-        SettingsRepository.clearUserId() // Clear user ID to force re-authentication
         initBotAndFetchChats()
     }
 

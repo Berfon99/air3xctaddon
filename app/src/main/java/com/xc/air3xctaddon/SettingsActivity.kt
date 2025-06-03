@@ -125,14 +125,6 @@ class SettingsActivity : ComponentActivity() {
                 }
 
                 SettingsScreen(
-                    pilotName = SettingsRepository.getPilotName(),
-                    onPilotNameChange = { newPilotName ->
-                        if (newPilotName != null) {
-                            SettingsRepository.savePilotName(newPilotName)
-                        } else {
-                            SettingsRepository.clearPilotName()
-                        }
-                    },
                     onAddTask = { showTaskTypeDialog = true },
                     onClearTasks = {
                         CoroutineScope(Dispatchers.IO).launch {
@@ -322,11 +314,24 @@ class SettingsActivity : ComponentActivity() {
                             onAuthenticationSuccess = null
                         },
                         onValidationSuccess = { userId ->
+                            Log.d("SettingsActivity", "TelegramValidationDialog - Authentication succeeded with user ID: $userId")
+
+                            // Save the authentication data
                             SettingsRepository.saveUserId(userId)
                             SettingsRepository.setTelegramValidated(true)
+
+                            // Verify the data was saved correctly
+                            val savedUserId = SettingsRepository.getUserId()
+                            val isValidated = SettingsRepository.isTelegramValidated()
+                            Log.d("SettingsActivity", "After saving - UserId: $savedUserId, Validated: $isValidated")
+
                             authenticationTrigger++ // Increment trigger to force recomposition
                             showAuthenticationDialog = false
-                            Log.d("SettingsActivity", "Telegram authentication succeeded with user ID: $userId")
+
+                            // Clear the authentication pending state since we're handling it here
+                            authenticationPending = false
+                            onAuthenticationSuccess = null
+
                             when (pendingTelegramTaskType) {
                                 "SendTelegramPosition" -> {
                                     if (SettingsRepository.getPilotName().isNullOrBlank()) {
@@ -367,7 +372,7 @@ class SettingsActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        Log.d("SettingsActivity", "onResume called")
+        Log.d("SettingsActivity", "onResume called, authenticationPending: $authenticationPending")
         if (authenticationPending) {
             Log.d("SettingsActivity", "Checking authentication on resume")
             val telegramAuthentication = TelegramValidation(
@@ -378,12 +383,21 @@ class SettingsActivity : ComponentActivity() {
             CoroutineScope(Dispatchers.IO).launch {
                 telegramAuthentication.fetchUserId(
                     onResult = { userId ->
-                        SettingsRepository.saveUserId(userId)
-                        SettingsRepository.setTelegramValidated(true)
+                        Log.d("SettingsActivity", "OnResume - Authentication succeeded with user ID: $userId")
+                        // Only save if we don't already have this user ID saved
+                        val currentUserId = SettingsRepository.getUserId()
+                        if (currentUserId != userId) {
+                            SettingsRepository.saveUserId(userId)
+                            SettingsRepository.setTelegramValidated(true)
+                            Log.d("SettingsActivity", "OnResume - Saved new user ID: $userId")
+                        } else {
+                            Log.d("SettingsActivity", "OnResume - User ID already saved: $currentUserId")
+                        }
+
+                        // Always call the callback if it exists
                         onAuthenticationSuccess?.invoke(userId)
                         authenticationPending = false
                         onAuthenticationSuccess = null
-                        Log.d("SettingsActivity", "Authentication succeeded on resume with user ID: $userId")
                     },
                     onError = { error ->
                         Log.e("SettingsActivity", "Authentication failed on resume: $error")
@@ -403,8 +417,6 @@ class SettingsActivity : ComponentActivity() {
 
 @Composable
 fun SettingsScreen(
-    pilotName: String?,
-    onPilotNameChange: (String?) -> Unit,
     onAddTask: () -> Unit = {},
     onClearTasks: () -> Unit = {},
     telegramBotHelper: TelegramBotHelper,
@@ -425,6 +437,11 @@ fun SettingsScreen(
     var showPilotNameDialog by remember { mutableStateOf(false) }
     var showTelegramNotInstalledDialog by remember { mutableStateOf(false) }
     var showClearAuthConfirmation by remember { mutableStateOf(false) }
+
+    // Make pilot name reactive to changes
+    var pilotNameTrigger by remember { mutableStateOf(0) }
+    val pilotName = remember(pilotNameTrigger) { SettingsRepository.getPilotName() }
+
     val launchAppTasks by AppDatabase.getDatabase(context).taskDao()
         .getAllTasks()
         .collectAsState(initial = emptyList())
@@ -578,7 +595,7 @@ fun SettingsScreen(
                 onConfirm = { newPilotName ->
                     if (newPilotName.isNotBlank()) {
                         SettingsRepository.savePilotName(newPilotName)
-                        onPilotNameChange(newPilotName)
+                        pilotNameTrigger++ // Trigger recomposition
                         Log.d("SettingsScreen", "Saved pilot name: $newPilotName")
                     }
                     showPilotNameDialog = false
