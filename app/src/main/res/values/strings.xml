@@ -566,5 +566,6 @@
 
     <string name="open_telegram_with_start">Open Telegram with /start</string>
     <string name="telegram_validated_with_id">%s - Telegram validated</string>
+    <string name="telegram_validation_initial_message">Click below to open Telegram and send /start to %s to authenticate.</string>
 
 </resources>

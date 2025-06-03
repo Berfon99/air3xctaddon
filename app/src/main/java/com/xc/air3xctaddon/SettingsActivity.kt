@@ -33,6 +33,8 @@ import android.content.pm.PackageManager
 class SettingsActivity : ComponentActivity() {
     private val _tasks = mutableStateListOf<Task>()
     private val tasks: List<Task> get() = _tasks
+    private var validationPending by mutableStateOf(false)
+    private var onValidationSuccess: ((String) -> Unit)? = null
 
     private val taskResultLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == RESULT_OK) {
@@ -122,7 +124,15 @@ class SettingsActivity : ComponentActivity() {
                         }
                     },
                     settingsRepository = settingsRepository,
-                    telegramBotHelper = telegramBotHelper
+                    telegramBotHelper = telegramBotHelper,
+                    onValidationStarted = { callback ->
+                        validationPending = true
+                        onValidationSuccess = callback
+                    },
+                    onValidationCancelled = {
+                        validationPending = false
+                        onValidationSuccess = null
+                    }
                 )
 
                 if (showTaskTypeDialog) {
@@ -244,6 +254,33 @@ class SettingsActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        Log.d("SettingsActivity", "onResume called")
+        if (validationPending) {
+            Log.d("SettingsActivity", "Checking validation on resume")
+            val telegramValidation = TelegramValidation(
+                context = applicationContext,
+                botToken = BuildConfig.TELEGRAM_BOT_TOKEN,
+                settingsRepository = SettingsRepository(applicationContext)
+            )
+            CoroutineScope(Dispatchers.IO).launch {
+                telegramValidation.fetchUserId(
+                    onResult = { userId ->
+                        onValidationSuccess?.invoke(userId)
+                        validationPending = false
+                        onValidationSuccess = null
+                        Log.d("SettingsActivity", "Validation succeeded on resume with user ID: $userId")
+                    },
+                    onError = { error ->
+                        Log.e("SettingsActivity", "Validation failed on resume: $error")
+                        // Keep validationPending true to allow retries
+                    }
+                )
+            }
+        }
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         Log.d("SettingsActivity", "onDestroy called")
@@ -257,7 +294,9 @@ fun SettingsScreen(
     onAddTask: () -> Unit = {},
     onClearTasks: () -> Unit = {},
     settingsRepository: SettingsRepository,
-    telegramBotHelper: TelegramBotHelper
+    telegramBotHelper: TelegramBotHelper,
+    onValidationStarted: ((String) -> Unit) -> Unit,
+    onValidationCancelled: () -> Unit
 ) {
     val context = LocalContext.current
     val viewModel: MainViewModel = viewModel(
@@ -454,7 +493,10 @@ fun SettingsScreen(
         if (showValidationDialog && botUsername != null) {
             TelegramValidationDialog(
                 botUsername = botUsername!!,
-                onDismiss = { showValidationDialog = false },
+                onDismiss = {
+                    showValidationDialog = false
+                    onValidationCancelled()
+                },
                 onValidationSuccess = { userId ->
                     isTelegramValidated = true
                     validatedUserId = userId
@@ -462,7 +504,8 @@ fun SettingsScreen(
                     Log.d("SettingsScreen", "Telegram validation succeeded with user ID: $userId")
                 },
                 telegramValidation = telegramValidation,
-                settingsRepository = settingsRepository
+                settingsRepository = settingsRepository,
+                onValidationStarted = onValidationStarted
             )
         }
     }
