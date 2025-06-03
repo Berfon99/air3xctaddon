@@ -65,6 +65,7 @@ class SettingsActivity : ComponentActivity() {
         }
     }
 
+
     private fun isTelegramInstalled(): Boolean {
         val telegramPackages = listOf(
             "org.telegram.messenger",
@@ -120,7 +121,7 @@ class SettingsActivity : ComponentActivity() {
                             db.taskDao().deleteAll("LaunchApp")
                             db.taskDao().deleteAll("SendTelegramPosition")
                             db.taskDao().deleteAll("SendTelegramMessage")
-                            Log.d("SettingsActivity", "Cleared all LaunchApp, SendTelegramPosition, and SendTelegramMessage tasks")
+                            Log.d("SettingsActivity", "Cleared all tasks: LaunchApp, SendTelegramPosition, SendTelegramMessage")
                         }
                     },
                     settingsRepository = settingsRepository,
@@ -233,18 +234,12 @@ class SettingsActivity : ComponentActivity() {
 
                 if (showTelegramNotInstalledDialog) {
                     AlertDialog(
-                        onDismissRequest = {
-                            showTelegramNotInstalledDialog = false
-                            showTaskTypeDialog = true
-                        },
+                        onDismissRequest = { showTelegramNotInstalledDialog = false },
                         title = { Text(stringResource(R.string.telegram_not_installed_title)) },
                         text = { Text(stringResource(R.string.telegram_not_installed_message)) },
                         confirmButton = {
                             Button(
-                                onClick = {
-                                    showTelegramNotInstalledDialog = false
-                                    showTaskTypeDialog = true
-                                }
+                                onClick = { showTelegramNotInstalledDialog = false }
                             ) {
                                 Text(stringResource(android.R.string.ok))
                             }
@@ -414,7 +409,7 @@ fun SettingsScreen(
                                         }
                                     },
                                     modifier = Modifier.wrapContentWidth(),
-                                    enabled = botUsername != null && isTelegramInstalled()
+                                    enabled = botUsername != null
                                 ) {
                                     Text(stringResource(R.string.telegram_validation))
                                 }
@@ -563,7 +558,7 @@ fun TaskRow(task: Task, onDelete: () -> Unit) {
 
     Row(
         modifier = Modifier
-            .fillMaxWidth()
+            .fillMaxSize()
             .padding(horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
