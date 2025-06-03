@@ -568,4 +568,11 @@
     <string name="telegram_validated_with_id">%s - Telegram validated</string>
     <string name="telegram_validation_initial_message">Click below to open Telegram and send /start to %s to authenticate.</string>
 
+    <string name="telegram_authentication">Telegram Authentication</string>
+    <string name="telegram_authenticated_with_id">%s - Telegram authenticated</string>
+    <string name="clear_telegram_authentication">Clear Telegram authentication</string>
+    <string name="telegram_authentication_required_title">Authentication Required</string>
+    <string name="telegram_authentication_required_message">To use Telegram tasks, you first need to be authenticated. Please authenticate first.</string>
+
+
 </resources>
