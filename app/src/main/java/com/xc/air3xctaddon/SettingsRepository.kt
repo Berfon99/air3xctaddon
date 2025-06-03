@@ -51,4 +51,16 @@ class SettingsRepository(context: Context) {
     fun clearCachedChats() {
         prefs.edit().remove("cached_chats").apply()
     }
+
+    fun setTelegramValidated(isValidated: Boolean) {
+        prefs.edit { putBoolean("telegram_validated", isValidated) }
+    }
+
+    fun isTelegramValidated(): Boolean {
+        return prefs.getBoolean("telegram_validated", false)
+    }
+
+    fun clearTelegramValidated() {
+        prefs.edit { remove("telegram_validated") }
+    }
 }

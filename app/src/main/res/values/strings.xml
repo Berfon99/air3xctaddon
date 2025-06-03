@@ -555,6 +555,8 @@
 
     <string name="bot_info_unavailable">Unable to fetch bot information. Please check your bot token and try again.</string>
 
-
+    <string name="telegram_validation">Telegram Validation</string>
+    <string name="telegram_validated">User ID - Telegram validated</string>
+    <string name="clear_telegram_validation">Clear Telegram Validation</string>
 
 </resources>

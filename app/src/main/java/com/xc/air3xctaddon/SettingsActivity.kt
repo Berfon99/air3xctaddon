@@ -27,6 +27,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import android.content.pm.PackageManager
+import android.widget.Toast
 
 class SettingsActivity : ComponentActivity() {
     private val _tasks = mutableStateListOf<Task>()
@@ -61,15 +62,14 @@ class SettingsActivity : ComponentActivity() {
         }
     }
 
-    // Function to check if any Telegram app is installed
     private fun isTelegramInstalled(): Boolean {
         val telegramPackages = listOf(
-            "org.telegram.messenger",      // Telegram (Google Play)
-            "org.telegram.messenger.web",  // Telegram Web
-            "org.telegram.plus",           // Telegram Plus
-            "nekox.messenger",             // NekoX
-            "org.thunderdog.challegram",   // Challegram
-            "com.telegram.messenger"       // Alternative package name
+            "org.telegram.messenger",
+            "org.telegram.messenger.web",
+            "org.telegram.plus",
+            "nekox.messenger",
+            "org.thunderdog.challegram",
+            "com.telegram.messenger"
         )
 
         val packageManager = packageManager
@@ -109,7 +109,8 @@ class SettingsActivity : ComponentActivity() {
                             db.taskDao().deleteAll("SendTelegramMessage")
                             Log.d("SettingsActivity", "Cleared all LaunchApp, SendTelegramPosition, and SendTelegramMessage tasks")
                         }
-                    }
+                    },
+                    settingsRepository = settingsRepository
                 )
 
                 if (showTaskTypeDialog) {
@@ -210,7 +211,6 @@ class SettingsActivity : ComponentActivity() {
                     )
                 }
 
-                // New dialog for Telegram not installed
                 if (showTelegramNotInstalledDialog) {
                     AlertDialog(
                         onDismissRequest = {
@@ -241,15 +241,16 @@ fun SettingsScreen(
     pilotName: String?,
     onPilotNameChange: (String?) -> Unit,
     onAddTask: () -> Unit = {},
-    onClearTasks: () -> Unit = {}
+    onClearTasks: () -> Unit = {},
+    settingsRepository: SettingsRepository
 ) {
     val context = LocalContext.current
     val viewModel: MainViewModel = viewModel(
         factory = MainViewModelFactory(context.applicationContext as android.app.Application)
     )
-    val settingsRepository = remember { SettingsRepository(context) }
     val events by viewModel.events.collectAsState()
     var showPilotNameDialog by remember { mutableStateOf(false) }
+    var isTelegramValidated by remember { mutableStateOf(settingsRepository.isTelegramValidated()) }
 
     val launchAppTasks by AppDatabase.getDatabase(context).taskDao()
         .getAllTasks()
@@ -285,7 +286,49 @@ fun SettingsScreen(
 
             pilotName?.let { name ->
                 item {
-                    Text(stringResource(R.string.current_pilot_name, name))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = stringResource(R.string.current_pilot_name, name),
+                            style = MaterialTheme.typography.body1
+                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            if (isTelegramValidated) {
+                                Text(
+                                    text = stringResource(R.string.telegram_validated),
+                                    style = MaterialTheme.typography.body1
+                                )
+                                IconButton(onClick = {
+                                    settingsRepository.clearTelegramValidated()
+                                    isTelegramValidated = false
+                                }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = stringResource(R.string.clear_telegram_validation),
+                                        tint = MaterialTheme.colors.error,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            } else {
+                                Button(
+                                    onClick = {
+                                        Toast.makeText(context, "Future feature to validate user ID with Telegram", Toast.LENGTH_LONG).show()
+                                        settingsRepository.setTelegramValidated(true)
+                                        isTelegramValidated = true
+                                    },
+                                    modifier = Modifier.wrapContentWidth()
+                                ) {
+                                    Text(stringResource(R.string.telegram_validation))
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
