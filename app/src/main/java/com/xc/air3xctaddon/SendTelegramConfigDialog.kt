@@ -50,6 +50,7 @@ fun SendTelegramConfigDialog(
     var showUserIdPromptDialog by remember { mutableStateOf(false) }
     var isAddingNewChat by remember { mutableStateOf(false) }
     var showNoInternetDialog by remember { mutableStateOf(false) }
+    var pendingGroupChat by remember { mutableStateOf<TelegramChat?>(null) } // New state for pending group selection
 
     val otherOptionText = stringResource(R.string.other_option)
     val selectChatOptionText = stringResource(R.string.select_chat_option)
@@ -80,11 +81,11 @@ fun SendTelegramConfigDialog(
                 isGroup = chat.isGroup,
                 onResult = { isMember, isActive, isUserMember ->
                     isCheckingBot = false
-                    selectedChat = chat.copy(isBotMember = isMember, isBotActive = isMember, isUserMember = isUserMember)
+                    selectedChat = chat.copy(isBotMember = isMember, isBotActive = isActive, isUserMember = isUserMember)
                     chats = chats.map {
-                        if (it.chatId == chat.chatId) it.copy(isBotMember = isMember, isBotActive = isMember, isUserMember = isUserMember) else it
+                        if (it.chatId == chat.chatId) it.copy(isBotMember = isMember, isBotActive = isActive, isUserMember = isUserMember) else it
                     }
-                    Log.d("SendTelegramConfigDialog", "Checked chat ${chat.title}: isMember=$isMember, isActive=$isMember, isUserMember=$isUserMember")
+                    Log.d("SendTelegramConfigDialog", "Checked chat ${chat.title}: isMember=$isMember, isActive=$isActive, isUserMember=$isUserMember")
                     if (!isMember) {
                         if (chat.isGroup) {
                             showGroupSetupDialog = true
@@ -123,22 +124,43 @@ fun SendTelegramConfigDialog(
                 chats = fetchedChats
                 SettingsRepository.saveChats(fetchedChats)
                 isLoadingChats = false
-                if (fetchedChats.isEmpty() || (telegramChatId.isNotEmpty() && chats.none { it.chatId == telegramChatId })) {
-                    telegramChatId = ""
-                    telegramChatName = ""
-                    selectedChat = null
-                }
-                if (isAddingNewChat && fetchedChats.isNotEmpty()) {
-                    val targetChat = fetchedChats.maxByOrNull { it.chatId.toLongOrNull() ?: Long.MAX_VALUE }
-                    targetChat?.let { chat ->
-                        telegramChatId = chat.chatId
-                        telegramChatName = chat.title
-                        selectedChat = chat
-                        isAddingNewChat = false
-                        Log.d("SendTelegramConfigDialog", "Selected new chat: ${chat.title}")
-                        coroutineScope.launch {
-                            checkBotInSelectedChat()
+
+                // Handle chat selection logic
+                when {
+                    // If we're adding a new chat and have pending group selection
+                    isAddingNewChat && pendingGroupChat != null -> {
+                        val matchingChat = fetchedChats.find { it.chatId == pendingGroupChat!!.chatId }
+                        if (matchingChat != null) {
+                            telegramChatId = matchingChat.chatId
+                            telegramChatName = matchingChat.title
+                            selectedChat = matchingChat
+                            pendingGroupChat = null
+                            isAddingNewChat = false
+                            Log.d("SendTelegramConfigDialog", "Selected pending group chat: ${matchingChat.title}")
+                            coroutineScope.launch {
+                                checkBotInSelectedChat()
+                            }
                         }
+                    }
+                    // If we're adding a new chat and no specific chat is pending, select the most recent
+                    isAddingNewChat && fetchedChats.isNotEmpty() -> {
+                        val targetChat = fetchedChats.maxByOrNull { it.chatId.toLongOrNull() ?: Long.MAX_VALUE }
+                        targetChat?.let { chat ->
+                            telegramChatId = chat.chatId
+                            telegramChatName = chat.title
+                            selectedChat = chat
+                            isAddingNewChat = false
+                            Log.d("SendTelegramConfigDialog", "Selected new chat: ${chat.title}")
+                            coroutineScope.launch {
+                                checkBotInSelectedChat()
+                            }
+                        }
+                    }
+                    // If current selection is no longer available, clear it
+                    telegramChatId.isNotEmpty() && chats.none { it.chatId == telegramChatId } -> {
+                        telegramChatId = ""
+                        telegramChatName = ""
+                        selectedChat = null
                     }
                 }
             },
@@ -234,8 +256,8 @@ fun SendTelegramConfigDialog(
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME && isAddingNewChat) {
                 coroutineScope.launch {
-                    Log.d("SendTelegramConfigDialog", "App resumed, fetching chats")
-                    delay(10000L) // Increased to 10 seconds
+                    Log.d("SendTelegramConfigDialog", "App resumed, fetching chats immediately")
+                    // Removed the 10-second delay - fetch immediately
                     fetchChats()
                 }
             }
@@ -529,6 +551,7 @@ fun SendTelegramConfigDialog(
                                                     Button(
                                                         onClick = {
                                                             if (chat.isGroup) {
+                                                                pendingGroupChat = chat // Store the selected chat
                                                                 showGroupSetupDialog = true
                                                             } else {
                                                                 showIndividualSetupDialog = true
@@ -563,7 +586,10 @@ fun SendTelegramConfigDialog(
                                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                                 ) {
                                                     Button(
-                                                        onClick = { showGroupSetupDialog = true }
+                                                        onClick = {
+                                                            pendingGroupChat = chat // Store the selected chat
+                                                            showGroupSetupDialog = true
+                                                        }
                                                     ) {
                                                         Text(stringResource(R.string.join_group))
                                                     }

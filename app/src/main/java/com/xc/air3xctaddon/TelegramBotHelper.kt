@@ -375,6 +375,7 @@ class TelegramBotHelper(
     fun openTelegramToAddBot(context: Context, botUsername: String, groupTitle: String? = null) {
         val cleanUsername = botUsername.removePrefix("@")
         try {
+            // Use only startgroup to open group selection screen
             val uri = Uri.parse("tg://resolve?domain=$cleanUsername&startgroup")
             val intent = Intent(Intent.ACTION_VIEW, uri)
             intent.setPackage(context.getString(R.string.telegram_package_name))
@@ -384,6 +385,7 @@ class TelegramBotHelper(
         } catch (e: Exception) {
             Log.e("TelegramBotHelper", context.getString(R.string.log_failed_open_telegram, e.message ?: ""))
             try {
+                // Fallback URI for web Telegram
                 val fallbackUri = Uri.parse("https://t.me/$cleanUsername?startgroup")
                 val fallbackIntent = Intent(Intent.ACTION_VIEW, fallbackUri)
                 fallbackIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
