@@ -94,6 +94,7 @@ class SettingsActivity : ComponentActivity() {
         settingsRepository = SettingsRepository(applicationContext)
         setContent {
             AIR3XCTAddonTheme {
+                var authenticationTrigger by remember { mutableStateOf(0) }
                 var showTaskTypeDialog by remember { mutableStateOf(intent.getBooleanExtra("open_task_type_dialog", false)) }
                 var showTelegramPositionDialog by remember { mutableStateOf(false) }
                 var showTelegramMessageDialog by remember { mutableStateOf(false) }
@@ -154,7 +155,9 @@ class SettingsActivity : ComponentActivity() {
                     isTelegramInstalled = { isTelegramInstalled() },
                     showAuthenticationDialog = showAuthenticationDialog,
                     setShowAuthenticationDialog = { showAuthenticationDialog = it },
-                    botUsername = botUsername
+                    botUsername = botUsername,
+                    authenticationTrigger = authenticationTrigger,
+                    onAuthenticationCleared = { authenticationTrigger++ }
                 )
 
                 if (showTaskTypeDialog) {
@@ -321,6 +324,8 @@ class SettingsActivity : ComponentActivity() {
                         },
                         onValidationSuccess = { userId ->
                             settingsRepository.saveUserId(userId)
+                            settingsRepository.setTelegramValidated(true)
+                            authenticationTrigger++ // Increment trigger to force recomposition
                             showAuthenticationDialog = false
                             Log.d("SettingsActivity", "Telegram authentication succeeded with user ID: $userId")
                             when (pendingTelegramTaskType) {
@@ -408,7 +413,9 @@ fun SettingsScreen(
     isTelegramInstalled: () -> Boolean,
     showAuthenticationDialog: Boolean,
     setShowAuthenticationDialog: (Boolean) -> Unit,
-    botUsername: String?
+    botUsername: String?,
+    authenticationTrigger: Int = 0,
+    onAuthenticationCleared: () -> Unit = {} // Add this callback
 ) {
     val context = LocalContext.current
     val viewModel: MainViewModel = viewModel(
@@ -420,19 +427,10 @@ fun SettingsScreen(
     val launchAppTasks by AppDatabase.getDatabase(context).taskDao()
         .getAllTasks()
         .collectAsState(initial = emptyList())
-    var isTelegramAuthenticated by remember { mutableStateOf(settingsRepository.isTelegramValidated()) }
-    var authenticatedUserId by remember { mutableStateOf(settingsRepository.getUserId()) }
+// Use the trigger to force recomposition when authentication state changes
+    val isTelegramAuthenticated = remember(authenticationTrigger) { settingsRepository.isTelegramValidated() }
+    val authenticatedUserId = remember(authenticationTrigger) { settingsRepository.getUserId() }
 
-    LaunchedEffect(Unit) {
-        snapshotFlow { settingsRepository.isTelegramValidated() }.collect { validated ->
-            isTelegramAuthenticated = validated
-        }
-    }
-    LaunchedEffect(Unit) {
-        snapshotFlow { settingsRepository.getUserId() }.collect { userId ->
-            authenticatedUserId = userId
-        }
-    }
     LaunchedEffect(launchAppTasks) {
         Log.d("SettingsScreen", "launchAppTasks updated: ${launchAppTasks.map { "id=${it.id}, taskType=${it.taskType}, taskData=${it.taskData}, launchInBackground=${it.launchInBackground}" }}")
     }
@@ -484,8 +482,7 @@ fun SettingsScreen(
                                 IconButton(onClick = {
                                     settingsRepository.clearTelegramValidated()
                                     settingsRepository.clearUserId()
-                                    isTelegramAuthenticated = false
-                                    authenticatedUserId = null
+                                    onAuthenticationCleared() // Call the callback to increment trigger
                                     Log.d("SettingsScreen", "Cleared Telegram authentication")
                                 }) {
                                     Icon(
