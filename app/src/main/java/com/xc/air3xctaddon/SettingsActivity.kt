@@ -266,6 +266,7 @@ fun SettingsScreen(
     val events by viewModel.events.collectAsState()
     var showPilotNameDialog by remember { mutableStateOf(false) }
     var isTelegramValidated by remember { mutableStateOf(settingsRepository.isTelegramValidated()) }
+    var validatedUserId by remember { mutableStateOf(settingsRepository.getUserId()) }
     var showValidationDialog by remember { mutableStateOf(false) }
     var botUsername by remember { mutableStateOf<String?>(null) }
     val telegramValidation = remember {
@@ -334,15 +335,16 @@ fun SettingsScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.End
                         ) {
-                            if (isTelegramValidated) {
+                            if (isTelegramValidated && validatedUserId != null) {
                                 Text(
-                                    text = stringResource(R.string.telegram_validated),
+                                    text = stringResource(R.string.telegram_validated_with_id, validatedUserId ?: "Unknown"),
                                     style = MaterialTheme.typography.body1
                                 )
                                 IconButton(onClick = {
                                     settingsRepository.clearTelegramValidated()
                                     settingsRepository.clearUserId()
                                     isTelegramValidated = false
+                                    validatedUserId = null
                                     Log.d("SettingsScreen", "Cleared Telegram validation")
                                 }) {
                                     Icon(
@@ -359,6 +361,7 @@ fun SettingsScreen(
                                             settingsRepository.clearUserId()
                                             settingsRepository.clearTelegramValidated()
                                             isTelegramValidated = false
+                                            validatedUserId = null
                                             showValidationDialog = true
                                             Log.d("SettingsScreen", "Initiating Telegram validation")
                                         }
@@ -452,10 +455,11 @@ fun SettingsScreen(
             TelegramValidationDialog(
                 botUsername = botUsername!!,
                 onDismiss = { showValidationDialog = false },
-                onValidationSuccess = {
+                onValidationSuccess = { userId ->
                     isTelegramValidated = true
+                    validatedUserId = userId
                     showValidationDialog = false
-                    Log.d("SettingsScreen", "Telegram validation succeeded")
+                    Log.d("SettingsScreen", "Telegram validation succeeded with user ID: $userId")
                 },
                 telegramValidation = telegramValidation,
                 settingsRepository = settingsRepository

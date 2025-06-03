@@ -564,5 +564,7 @@
     <string name="waiting_for_validation">Waiting for you to send /start command...</string>
     <string name="open_telegram">Open Telegram</string>
 
+    <string name="open_telegram_with_start">Open Telegram with /start</string>
+    <string name="telegram_validated_with_id">%s - Telegram validated</string>
 
 </resources>

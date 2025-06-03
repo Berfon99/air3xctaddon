@@ -142,19 +142,29 @@ class TelegramValidation(
         })
     }
 
-    fun openTelegramChat(botUsername: String) {
+    fun openTelegramChat(botUsername: String, prefillText: String? = null) {
         val cleanUsername = botUsername.removePrefix("@")
         try {
-            val uri = Uri.parse("tg://resolve?domain=$cleanUsername")
+            val uriString = if (prefillText != null) {
+                "tg://msg?to=$cleanUsername&text=${Uri.encode(prefillText)}"
+            } else {
+                "tg://resolve?domain=$cleanUsername"
+            }
+            val uri = Uri.parse(uriString)
             val intent = Intent(Intent.ACTION_VIEW, uri)
             intent.setPackage(context.getString(R.string.telegram_package_name))
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(intent)
-            Log.d("TelegramValidation", "Opening Telegram for bot: $botUsername")
+            Log.d("TelegramValidation", "Opening Telegram for bot: $botUsername, prefill: $prefillText")
         } catch (e: Exception) {
             Log.e("TelegramValidation", "Failed to open Telegram: ${e.message}")
             try {
-                val fallbackUri = Uri.parse("https://t.me/$cleanUsername")
+                val fallbackUrl = if (prefillText != null) {
+                    "https://t.me/$cleanUsername?text=${Uri.encode(prefillText)}"
+                } else {
+                    "https://t.me/$cleanUsername"
+                }
+                val fallbackUri = Uri.parse(fallbackUrl)
                 val fallbackIntent = Intent(Intent.ACTION_VIEW, fallbackUri)
                 fallbackIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 context.startActivity(fallbackIntent)
@@ -169,7 +179,7 @@ class TelegramValidation(
 fun TelegramValidationDialog(
     botUsername: String,
     onDismiss: () -> Unit,
-    onValidationSuccess: () -> Unit,
+    onValidationSuccess: (String) -> Unit,
     telegramValidation: TelegramValidation,
     settingsRepository: SettingsRepository
 ) {
@@ -184,7 +194,7 @@ fun TelegramValidationDialog(
                 onResult = { userId ->
                     Log.d("TelegramValidationDialog", "User ID validated: $userId")
                     settingsRepository.setTelegramValidated(true)
-                    onValidationSuccess()
+                    onValidationSuccess(userId)
                     isValidating = false
                 },
                 onError = { error ->
@@ -219,11 +229,11 @@ fun TelegramValidationDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    telegramValidation.openTelegramChat(botUsername)
+                    telegramValidation.openTelegramChat(botUsername, "/start")
                 },
                 enabled = !isValidating
             ) {
-                Text(stringResource(R.string.open_telegram))
+                Text(stringResource(R.string.open_telegram_with_start))
             }
         },
         dismissButton = {
