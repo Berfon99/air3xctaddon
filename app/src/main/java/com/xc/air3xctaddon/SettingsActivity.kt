@@ -19,6 +19,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationServices
 import com.xc.air3xctaddon.ui.components.SelectTaskTypeDialog
 import com.xc.air3xctaddon.ui.SendTelegramMessageConfigDialog
 import com.xc.air3xctaddon.ui.theme.AIR3XCTAddonTheme
@@ -27,7 +29,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import android.content.pm.PackageManager
-import android.widget.Toast
 
 class SettingsActivity : ComponentActivity() {
     private val _tasks = mutableStateListOf<Task>()
@@ -85,6 +86,7 @@ class SettingsActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Log.d("SettingsActivity", "onCreate called")
         setContent {
             AIR3XCTAddonTheme {
                 var showTaskTypeDialog by remember { mutableStateOf(intent.getBooleanExtra("open_task_type_dialog", false)) }
@@ -96,6 +98,15 @@ class SettingsActivity : ComponentActivity() {
                 var pendingTelegramTaskType by remember { mutableStateOf<String?>(null) }
                 val settingsRepository = remember { SettingsRepository(applicationContext) }
                 var pilotName by remember { mutableStateOf(settingsRepository.getPilotName()) }
+                val fusedLocationClient = remember { LocationServices.getFusedLocationProviderClient(this) }
+                val telegramBotHelper = remember {
+                    TelegramBotHelper(
+                        context = applicationContext,
+                        botToken = BuildConfig.TELEGRAM_BOT_TOKEN,
+                        fusedLocationClient = fusedLocationClient,
+                        settingsRepository = settingsRepository
+                    )
+                }
 
                 SettingsScreen(
                     pilotName = pilotName,
@@ -110,7 +121,8 @@ class SettingsActivity : ComponentActivity() {
                             Log.d("SettingsActivity", "Cleared all LaunchApp, SendTelegramPosition, and SendTelegramMessage tasks")
                         }
                     },
-                    settingsRepository = settingsRepository
+                    settingsRepository = settingsRepository,
+                    telegramBotHelper = telegramBotHelper
                 )
 
                 if (showTaskTypeDialog) {
@@ -176,10 +188,7 @@ class SettingsActivity : ComponentActivity() {
                             }
                             showPilotNameDialog = false
                         },
-                        onDismiss = {
-                            showPilotNameDialog = false
-                            pendingTelegramTaskType = null
-                        }
+                        onDismiss = { showPilotNameDialog = false }
                     )
                 }
 
@@ -234,6 +243,11 @@ class SettingsActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        Log.d("SettingsActivity", "onDestroy called")
+    }
 }
 
 @Composable
@@ -242,7 +256,8 @@ fun SettingsScreen(
     onPilotNameChange: (String?) -> Unit,
     onAddTask: () -> Unit = {},
     onClearTasks: () -> Unit = {},
-    settingsRepository: SettingsRepository
+    settingsRepository: SettingsRepository,
+    telegramBotHelper: TelegramBotHelper
 ) {
     val context = LocalContext.current
     val viewModel: MainViewModel = viewModel(
@@ -251,13 +266,33 @@ fun SettingsScreen(
     val events by viewModel.events.collectAsState()
     var showPilotNameDialog by remember { mutableStateOf(false) }
     var isTelegramValidated by remember { mutableStateOf(settingsRepository.isTelegramValidated()) }
-
+    var showValidationDialog by remember { mutableStateOf(false) }
+    var botUsername by remember { mutableStateOf<String?>(null) }
+    val telegramValidation = remember {
+        TelegramValidation(
+            context = context,
+            botToken = BuildConfig.TELEGRAM_BOT_TOKEN,
+            settingsRepository = settingsRepository
+        )
+    }
     val launchAppTasks by AppDatabase.getDatabase(context).taskDao()
         .getAllTasks()
         .collectAsState(initial = emptyList())
 
     LaunchedEffect(launchAppTasks) {
         Log.d("SettingsScreen", "launchAppTasks updated: ${launchAppTasks.map { "id=${it.id}, taskType=${it.taskType}, taskData=${it.taskData}, launchInBackground=${it.launchInBackground}" }}")
+    }
+
+    LaunchedEffect(Unit) {
+        telegramBotHelper.getBotInfo(
+            onResult = { botInfo ->
+                botUsername = botInfo.username
+                Log.d("SettingsScreen", "Bot username fetched: ${botInfo.username}")
+            },
+            onError = { error ->
+                Log.e("SettingsScreen", "Failed to get bot info: $error")
+            }
+        )
     }
 
     Scaffold(
@@ -306,7 +341,9 @@ fun SettingsScreen(
                                 )
                                 IconButton(onClick = {
                                     settingsRepository.clearTelegramValidated()
+                                    settingsRepository.clearUserId()
                                     isTelegramValidated = false
+                                    Log.d("SettingsScreen", "Cleared Telegram validation")
                                 }) {
                                     Icon(
                                         imageVector = Icons.Default.Delete,
@@ -318,11 +355,16 @@ fun SettingsScreen(
                             } else {
                                 Button(
                                     onClick = {
-                                        Toast.makeText(context, "Future feature to validate user ID with Telegram", Toast.LENGTH_LONG).show()
-                                        settingsRepository.setTelegramValidated(true)
-                                        isTelegramValidated = true
+                                        if (botUsername != null) {
+                                            settingsRepository.clearUserId()
+                                            settingsRepository.clearTelegramValidated()
+                                            isTelegramValidated = false
+                                            showValidationDialog = true
+                                            Log.d("SettingsScreen", "Initiating Telegram validation")
+                                        }
                                     },
-                                    modifier = Modifier.wrapContentWidth()
+                                    modifier = Modifier.wrapContentWidth(),
+                                    enabled = botUsername != null
                                 ) {
                                     Text(stringResource(R.string.telegram_validation))
                                 }
@@ -374,13 +416,14 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.h6
                     )
                 }
-                items(launchAppTasks, key = { it.id }) { task ->
+                items(launchAppTasks, key = { task -> task.id }) { task ->
                     TaskRow(
                         task = task,
                         onDelete = {
                             CoroutineScope(Dispatchers.IO).launch {
                                 val db = AppDatabase.getDatabase(context)
                                 db.taskDao().delete(task)
+                                Log.d("SettingsScreen", "Deleted task: id=${task.id}")
                             }
                         }
                     )
@@ -397,10 +440,25 @@ fun SettingsScreen(
                     if (newPilotName.isNotBlank()) {
                         settingsRepository.savePilotName(newPilotName)
                         onPilotNameChange(newPilotName)
+                        Log.d("SettingsScreen", "Saved pilot name: $newPilotName")
                     }
                     showPilotNameDialog = false
                 },
                 onDismiss = { showPilotNameDialog = false }
+            )
+        }
+
+        if (showValidationDialog && botUsername != null) {
+            TelegramValidationDialog(
+                botUsername = botUsername!!,
+                onDismiss = { showValidationDialog = false },
+                onValidationSuccess = {
+                    isTelegramValidated = true
+                    showValidationDialog = false
+                    Log.d("SettingsScreen", "Telegram validation succeeded")
+                },
+                telegramValidation = telegramValidation,
+                settingsRepository = settingsRepository
             )
         }
     }
