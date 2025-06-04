@@ -19,6 +19,55 @@ class TelegramBotHelper(
 ) {
     private val client = OkHttpClient()
 
+    fun openTelegramToSelectGroup(context: Context) {
+        try {
+            // Try to open Telegram without specifying package first (let system choose)
+            val uri = Uri.parse("tg://")
+            val intent = Intent(Intent.ACTION_VIEW, uri)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
+            Log.d("TelegramBotHelper", "Opening Telegram for group selection")
+        } catch (e: Exception) {
+            Log.e("TelegramBotHelper", "Failed to open Telegram with tg:// scheme: ${e.message}")
+            try {
+                // Fallback - try with specific package
+                val uri = Uri.parse("tg://")
+                val intent = Intent(Intent.ACTION_VIEW, uri)
+                intent.setPackage("org.telegram.messenger")
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(intent)
+                Log.d("TelegramBotHelper", "Opened Telegram with specific package")
+            } catch (e: Exception) {
+                Log.e("TelegramBotHelper", "Failed with specific package: ${e.message}")
+                try {
+                    // Try alternative Telegram package names
+                    val packages = listOf("org.telegram.messenger", "org.telegram.plus", "org.thunderdog.challegram")
+                    var success = false
+                    for (packageName in packages) {
+                        try {
+                            val packageManager = context.packageManager
+                            val telegramIntent = packageManager.getLaunchIntentForPackage(packageName)
+                            if (telegramIntent != null) {
+                                telegramIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                context.startActivity(telegramIntent)
+                                Log.d("TelegramBotHelper", "Opened Telegram app directly with package: $packageName")
+                                success = true
+                                break
+                            }
+                        } catch (e: Exception) {
+                            Log.d("TelegramBotHelper", "Package $packageName not found or failed to launch")
+                        }
+                    }
+                    if (!success) {
+                        Log.e("TelegramBotHelper", "No Telegram app found")
+                    }
+                } catch (e: Exception) {
+                    Log.e("TelegramBotHelper", "Failed to launch any Telegram app: ${e.message}")
+                }
+            }
+        }
+    }
+
     fun openTelegramToAddBot(context: Context, botUsername: String) {
         val cleanUsername = botUsername.removePrefix("@")
         try {

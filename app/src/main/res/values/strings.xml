@@ -570,4 +570,9 @@
     <string name="failed_to_access_private_chat">Failed to access private chat: %s</string>
     <string name="check_bot_privacy_settings">Ensure bot privacy is disabled in BotFather (/setprivacy -> Disable).</string>
     <string name="invalid_chat_id_message">Cannot send message: Invalid chat ID selected. Please select a valid user or group.</string>
+    <string name="select_group_option_prompt">Choose how you want to configure your Telegram group:</string>
+    <string name="add_bot_to_new_group_description">Add the bot to a new group and activate it with /start</string>
+    <string name="select_existing_group_description">Select a group where the bot is already active</string>
+    <string name="select_group_with_bot">Select Group with Bot</string>
+
 </resources>
