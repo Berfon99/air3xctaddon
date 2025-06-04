@@ -327,14 +327,16 @@ fun SendTelegramMessageConfigDialog(
                         Text(stringResource(R.string.select_chat_message_prompt))
                         DropdownMenuSpinner(
                             context = context,
-                            items = chats.map { SpinnerItem.Item((if (it.isGroup) "Group: " else "User: ") + it.title) } + SpinnerItem.Item(otherOptionText),
-                            selectedItem = if (telegramChatName.isEmpty() || chats.none { it.title == telegramChatName }) selectChatOptionText else (if (selectedChat?.isGroup == true) "Group: " else "User: ") + telegramChatName,
+                            items = chats
+                                .filter { it.isGroup && it.isBotMember && it.isBotActive && it.isUserMember }
+                                .map { SpinnerItem.Item("Group: " + it.title) } + SpinnerItem.Item(otherOptionText),
+                            selectedItem = if (telegramChatName.isEmpty() || chats.none { it.title == telegramChatName }) selectChatOptionText else "Group: " + telegramChatName,
                             onItemSelected = { selectedItem ->
                                 if (selectedItem == otherOptionText) {
                                     telegramChatName = ""; telegramChatId = ""; selectedChat = null
                                     showChatTypeDialog = true; isAddingNewChat = true
                                 } else {
-                                    val title = selectedItem.removePrefix("Group: ").removePrefix("User: ")
+                                    val title = selectedItem.removePrefix("Group: ")
                                     chats.find { it.title == title }?.let { chat ->
                                         telegramChatId = chat.chatId
                                         telegramChatName = chat.title
