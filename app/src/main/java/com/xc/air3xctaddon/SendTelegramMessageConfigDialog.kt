@@ -32,11 +32,11 @@ import com.xc.air3xctaddon.TelegramChat
 import com.xc.air3xctaddon.TelegramChatManager
 import com.xc.air3xctaddon.ui.components.DropdownMenuSpinner
 import com.xc.air3xctaddon.ui.components.SpinnerItem
-import kotlinx.coroutines.launch
 import com.xc.air3xctaddon.R
-import android.util.Log
 import com.xc.air3xctaddon.isOnline
-
+import android.util.Log
+import com.xc.air3xctaddon.ui.AddMessageDialog
+import kotlinx.coroutines.launch
 
 @Composable
 fun SendTelegramMessageConfigDialog(
@@ -546,9 +546,14 @@ fun SendTelegramMessageConfigDialog(
                                     }
                                     Spacer(modifier = Modifier.height(8.dp))
                                     Button(
-                                        onClick = { showMessageDialog = true },
+                                        onClick = {
+                                            Log.d("SendTelegramMessageConfigDialog", "Add Message button clicked, showing message dialog")
+                                            showMessageDialog = true
+                                        },
                                         modifier = Modifier.fillMaxWidth(),
-                                        enabled = chat.isBotMember && chat.isBotActive && (chat.isUserMember || !chat.isGroup)
+                                        enabled = chat.isBotMember && chat.isBotActive && (chat.isUserMember || !chat.isGroup).also {
+                                            Log.d("SendTelegramMessageConfigDialog", "Add Message button enabled: $it, isBotMember=${chat.isBotMember}, isBotActive=${chat.isBotActive}, isUserMember=${chat.isUserMember}, isGroup=${chat.isGroup}")
+                                        }
                                     ) {
                                         Text(stringResource(R.string.add_message_to_send))
                                     }
@@ -687,6 +692,7 @@ fun SendTelegramMessageConfigDialog(
                     )
                 }
 
+
                 if (showUserIdPromptDialog) {
                     AlertDialog(
                         onDismissRequest = { showUserIdPromptDialog = false; onDismiss() },
@@ -739,6 +745,18 @@ fun SendTelegramMessageConfigDialog(
                                 Text(stringResource(R.string.cancel))
                             }
                         }
+                    )
+                }
+
+                if (showMessageDialog) {
+                    AddMessageDialog(
+                        onMessageSelected = { title, content ->
+                            selectedMessageTitle = title
+                            selectedMessageContent = content
+                            Log.d("SendTelegramMessageConfigDialog", "Selected message: title=$title, content=$content")
+                            showMessageDialog = false
+                        },
+                        onDismiss = { showMessageDialog = false }
                     )
                 }
 
