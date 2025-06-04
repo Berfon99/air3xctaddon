@@ -24,50 +24,57 @@ class TelegramChatManager(
         maxRetries: Int = 3
     ) {
         if (retryCount > maxRetries) {
+            Log.e("TelegramChatManager", "Max retries ($maxRetries) exceeded for fetching chats")
             onError(context.getString(R.string.failed_to_fetch_groups_retries, maxRetries))
             return
         }
         CoroutineScope(Dispatchers.IO).launch {
-            delay(2000L)
+            Log.d("TelegramChatManager", "Fetching chats, attempt ${retryCount + 1}/$maxRetries")
+            delay(500L) // Reduced delay for faster retries
             val userId = SettingsRepository.getUserId()
             if (userId == null) {
+                Log.e("TelegramChatManager", "User ID not found")
                 withContext(Dispatchers.Main) {
                     onError(context.getString(R.string.user_id_not_found_prompt))
                 }
                 return@launch
             }
             fetchChatsWithOffset(0, { rawChats ->
+                Log.d("TelegramChatManager", "Fetched ${rawChats.size} raw chats")
                 validateChats(rawChats, { validatedChats ->
                     CoroutineScope(Dispatchers.IO).launch {
                         val cachedChats = SettingsRepository.getCachedChats()
                         val allChats = (validatedChats + cachedChats)
                             .distinctBy { it.chatId }
                             .filter { it.isUserMember || !it.isGroup }
+                        Log.d("TelegramChatManager", "Saving ${allChats.size} chats to repository")
                         SettingsRepository.saveChats(allChats)
                         withContext(Dispatchers.Main) {
                             onResult(allChats.sortedBy { it.title })
                         }
                     }
                 }, { error ->
+                    Log.e("TelegramChatManager", "Error validating chats: $error")
                     CoroutineScope(Dispatchers.IO).launch {
                         if (retryCount < maxRetries) {
                             delay(1000L * (retryCount + 1))
                             fetchChats(onResult, onError, retryCount + 1, maxRetries)
                         } else {
                             withContext(Dispatchers.Main) {
-                                onError(context.getString(R.string.failed_to_fetch_groups_error, error))
+                                onError(context.getString(R.string.failed_to_fetch_groups_error, error ?: "Unknown error"))
                             }
                         }
                     }
                 })
             }, { error ->
+                Log.e("TelegramChatManager", "Error fetching chats with offset: $error")
                 CoroutineScope(Dispatchers.IO).launch {
                     if (retryCount < maxRetries) {
                         delay(1000L * (retryCount + 1))
                         fetchChats(onResult, onError, retryCount + 1, maxRetries)
                     } else {
                         withContext(Dispatchers.Main) {
-                            onError(context.getString(R.string.failed_to_fetch_groups_error, error))
+                            onError(context.getString(R.string.failed_to_fetch_groups_error, error ?: "Unknown error"))
                         }
                     }
                 }
@@ -83,18 +90,22 @@ class TelegramChatManager(
         onChatSelected: (TelegramChat) -> Unit,
         onChatNotFound: () -> Unit
     ) {
+        Log.d("TelegramChatManager", "Handling chat selection: isAddingNewChat=$isAddingNewChat, currentChatId=$currentChatId")
         when {
             isAddingNewChat && pendingGroupChat != null -> {
                 fetchedChats.find { it.chatId == pendingGroupChat.chatId }?.let { chat ->
+                    Log.d("TelegramChatManager", "Selected pending group chat: ${chat.title}")
                     onChatSelected(chat)
                 }
             }
             isAddingNewChat && fetchedChats.isNotEmpty() -> {
                 fetchedChats.maxByOrNull { it.chatId.toLongOrNull() ?: Long.MAX_VALUE }?.let { chat ->
+                    Log.d("TelegramChatManager", "Selected newest chat: ${chat.title}")
                     onChatSelected(chat)
                 }
             }
             currentChatId.isNotEmpty() && fetchedChats.none { it.chatId == currentChatId } -> {
+                Log.d("TelegramChatManager", "Chat ID $currentChatId not found in fetched chats")
                 onChatNotFound()
             }
         }
@@ -105,6 +116,7 @@ class TelegramChatManager(
         onResult: (Boolean, Boolean, Boolean) -> Unit = { _, _, _ -> },
         onError: (String?) -> Unit = {}
     ) {
+        Log.d("TelegramChatManager", "Checking bot access for chat: ${chat.title} (${chat.chatId})")
         telegramBotHelper.checkBotAccess(
             chatId = chat.chatId,
             isGroup = chat.isGroup,
@@ -118,7 +130,10 @@ class TelegramChatManager(
         onResult: (List<TelegramChat>) -> Unit,
         onError: (String?) -> Unit
     ) {
-        val url = "${context.getString(R.string.telegram_api_base_url)}${context.getString(R.string.telegram_get_updates_endpoint)}?offset=$offset&timeout=10&limit=1000"
+        // Use bot token from TelegramBotHelper
+        val botToken = telegramBotHelper.botToken
+        val url = "https://api.telegram.org/bot$botToken/getUpdates?offset=$offset&timeout=10&limit=1000"
+        Log.d("TelegramChatManager", "Fetching chats with URL: ${url.replace(botToken, "<REDACTED>")}")
         val request = Request.Builder()
             .url(url)
             .get()
@@ -126,27 +141,37 @@ class TelegramChatManager(
 
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
-                Log.e("TelegramChatManager", context.getString(R.string.log_failed_fetch_chats, e.message ?: ""))
-                onError(context.getString(R.string.failed_to_fetch_groups_error, e.message ?: ""))
+                Log.e("TelegramChatManager", "Failed to fetch chats: ${e.message}", e)
+                onError(e.message ?: "Network error")
             }
 
             override fun onResponse(call: Call, response: Response) {
                 if (!response.isSuccessful) {
-                    Log.e("TelegramChatManager", context.getString(R.string.log_error_fetching_chats, response.message))
-                    onError(context.getString(R.string.failed_to_fetch_groups_error, response.message))
+                    val errorBody = response.body?.string()
+                    Log.e("TelegramChatManager", "Error fetching chats: ${response.message}, code: ${response.code}, body: $errorBody")
+                    onError("HTTP error: ${response.message} (code: ${response.code})")
                     response.close()
                     return
                 }
 
                 val json = response.body?.string() ?: run {
-                    Log.e("TelegramChatManager", context.getString(R.string.error_response_body_null))
-                    onError(context.getString(R.string.error_response_body_null))
+                    Log.e("TelegramChatManager", "Response body is null")
+                    onError("Response body is null")
                     response.close()
                     return
                 }
 
+                Log.d("TelegramChatManager", "Raw response: $json")
                 try {
                     val jsonObject = JSONObject(json)
+                    if (!jsonObject.getBoolean("ok")) {
+                        val errorDescription = jsonObject.optString("description", "Unknown error")
+                        Log.e("TelegramChatManager", "Telegram API error: $errorDescription")
+                        onError("Telegram API error: $errorDescription")
+                        response.close()
+                        return
+                    }
+
                     val updates = jsonObject.getJSONArray("result")
                     val chats = mutableListOf<TelegramChat>()
                     val seenChatIds = mutableSetOf<String>()
@@ -157,9 +182,8 @@ class TelegramChatManager(
                         val updateId = update.optInt("update_id", 0)
                         if (updateId > maxUpdateId) maxUpdateId = updateId
 
-                        if (update.has("message")) {
-                            val message = update.getJSONObject("message")
-                            val chat = message.getJSONObject("chat")
+                        if (update.has("message") && update.getJSONObject("message").has("chat")) {
+                            val chat = update.getJSONObject("message").getJSONObject("chat")
                             val chatId = chat.getLong("id").toString()
                             val chatType = chat.getString("type")
                             if (chatId !in seenChatIds) {
@@ -176,20 +200,92 @@ class TelegramChatManager(
                                 }
                                 chats.add(TelegramChat(chatId, title, isGroup))
                                 seenChatIds.add(chatId)
+                                Log.d("TelegramChatManager", "Added chat: $title ($chatId, isGroup=$isGroup)")
                             }
                         }
                     }
 
                     if (updates.length() == 1000) {
+                        Log.d("TelegramChatManager", "More updates available, fetching with offset ${maxUpdateId + 1}")
                         fetchChatsWithOffset(maxUpdateId + 1, { newChats ->
                             onResult(chats + newChats)
                         }, onError)
                     } else {
+                        Log.d("TelegramChatManager", "Finished fetching chats, total: ${chats.size}")
                         onResult(chats)
                     }
                 } catch (e: Exception) {
-                    Log.e("TelegramChatManager", context.getString(R.string.log_error_parsing_chats, e.message ?: ""))
-                    onError(context.getString(R.string.failed_to_fetch_groups_error, e.message ?: ""))
+                    Log.e("TelegramChatManager", "Error parsing chats: ${e.message}", e)
+                    onError("Parsing error: ${e.message}")
+                } finally {
+                    response.close()
+                }
+            }
+        })
+    }
+
+    private fun fetchGroupChat(
+        chatId: String,
+        onResult: (TelegramChat?) -> Unit,
+        onError: (String?) -> Unit
+    ) {
+        val botToken = telegramBotHelper.botToken
+        val url = "https://api.telegram.org/bot$botToken/getChat?chat_id=$chatId"
+        val request = Request.Builder()
+            .url(url)
+            .get()
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                Log.e("TelegramChatManager", "Failed to fetch group chat $chatId: ${e.message}")
+                onError(e.message)
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                if (!response.isSuccessful) {
+                    val errorBody = response.body?.string()
+                    Log.e("TelegramChatManager", "Error fetching group chat $chatId: ${response.message}, code: ${response.code}, body: $errorBody")
+                    onError("HTTP error: ${response.message} (code: ${response.code})")
+                    response.close()
+                    return
+                }
+
+                val json = response.body?.string() ?: run {
+                    Log.e("TelegramChatManager", "Response body is null for chat $chatId")
+                    onError("Response body is null")
+                    response.close()
+                    return
+                }
+
+                try {
+                    val jsonObject = JSONObject(json)
+                    if (!jsonObject.getBoolean("ok")) {
+                        val errorDescription = jsonObject.optString("description", "Unknown error")
+                        Log.e("TelegramChatManager", "Telegram API error for chat $chatId: $errorDescription")
+                        onError("Telegram API error: $errorDescription")
+                        response.close()
+                        return
+                    }
+
+                    val chat = jsonObject.getJSONObject("result")
+                    val chatId = chat.getLong("id").toString()
+                    val chatType = chat.getString("type")
+                    val isGroup = chatType in listOf(
+                        context.getString(R.string.telegram_group_type),
+                        context.getString(R.string.telegram_supergroup_type)
+                    )
+                    val title = if (isGroup) {
+                        chat.optString("title", context.getString(R.string.unknown_group))
+                    } else {
+                        val firstName = chat.optString("first_name", "")
+                        val lastName = chat.optString("last_name", "")
+                        (firstName + " " + lastName).trim().ifEmpty { context.getString(R.string.unknown_user) }
+                    }
+                    onResult(TelegramChat(chatId, title, isGroup))
+                } catch (e: Exception) {
+                    Log.e("TelegramChatManager", "Error parsing group chat $chatId: ${e.message}")
+                    onError("Parsing error: ${e.message}")
                 } finally {
                     response.close()
                 }
@@ -202,8 +298,90 @@ class TelegramChatManager(
         onResult: (List<TelegramChat>) -> Unit,
         onError: (String?) -> Unit
     ) {
+        Log.d("TelegramChatManager", "Validating ${rawChats.size} chats")
         if (rawChats.isEmpty()) {
-            onResult(SettingsRepository.getCachedChats().filter { it.isUserMember || !it.isGroup })
+            // Try fetching cached chats or known group chats
+            val cachedChats = SettingsRepository.getCachedChats().filter { it.isUserMember || !it.isGroup }
+            Log.d("TelegramChatManager", "No raw chats, checking ${cachedChats.size} cached chats")
+            if (cachedChats.isEmpty()) {
+                onResult(emptyList())
+                return
+            }
+
+            val validatedChats = mutableListOf<TelegramChat>()
+            var chatsProcessed = 0
+            cachedChats.forEach { chat ->
+                if (chat.isGroup) {
+                    fetchGroupChat(
+                        chatId = chat.chatId,
+                        onResult = { fetchedChat ->
+                            if (fetchedChat != null) {
+                                telegramBotHelper.checkBotAccess(
+                                    chatId = fetchedChat.chatId,
+                                    isGroup = fetchedChat.isGroup,
+                                    onResult = { isBotMember, isBotActive, isUserMember ->
+                                        Log.d("TelegramChatManager", "Validated cached chat ${fetchedChat.title}: isBotMember=$isBotMember, isBotActive=$isBotActive, isUserMember=$isUserMember")
+                                        if (isBotMember && (isUserMember || !fetchedChat.isGroup)) {
+                                            validatedChats.add(fetchedChat.copy(isBotMember = isBotMember, isBotActive = isBotActive, isUserMember = isUserMember))
+                                        }
+                                        chatsProcessed++
+                                        if (chatsProcessed == cachedChats.size) {
+                                            Log.d("TelegramChatManager", "Validation complete, returning ${validatedChats.size} chats")
+                                            onResult(validatedChats.sortedBy { it.title })
+                                        }
+                                    },
+                                    onError = { error ->
+                                        Log.e("TelegramChatManager", "Error validating cached chat ${chat.title}: $error")
+                                        chatsProcessed++
+                                        if (chatsProcessed == cachedChats.size) {
+                                            Log.d("TelegramChatManager", "Validation complete with errors, returning ${validatedChats.size} chats")
+                                            onResult(validatedChats.sortedBy { it.title })
+                                        }
+                                    }
+                                )
+                            } else {
+                                chatsProcessed++
+                                if (chatsProcessed == cachedChats.size) {
+                                    Log.d("TelegramChatManager", "Validation complete, returning ${validatedChats.size} chats")
+                                    onResult(validatedChats.sortedBy { it.title })
+                                }
+                            }
+                        },
+                        onError = { error ->
+                            Log.e("TelegramChatManager", "Error fetching cached chat ${chat.chatId}: $error")
+                            chatsProcessed++
+                            if (chatsProcessed == cachedChats.size) {
+                                Log.d("TelegramChatManager", "Validation complete with errors, returning ${validatedChats.size} chats")
+                                onResult(validatedChats.sortedBy { it.title })
+                            }
+                        }
+                    )
+                } else {
+                    telegramBotHelper.checkBotAccess(
+                        chatId = chat.chatId,
+                        isGroup = chat.isGroup,
+                        onResult = { isBotMember, isBotActive, isUserMember ->
+                            Log.d("TelegramChatManager", "Validated cached chat ${chat.title}: isBotMember=$isBotMember, isBotActive=$isBotActive, isUserMember=$isUserMember")
+                            if (isBotMember && (isUserMember || !chat.isGroup)) {
+                                validatedChats.add(chat.copy(isBotMember = isBotMember, isBotActive = isBotActive, isUserMember = isUserMember))
+                            }
+                            chatsProcessed++
+                            if (chatsProcessed == cachedChats.size) {
+                                Log.d("TelegramChatManager", "Validation complete, returning ${validatedChats.size} chats")
+                                onResult(validatedChats.sortedBy { it.title })
+                            }
+                        },
+                        onError = { error ->
+                            Log.e("TelegramChatManager", "Error validating cached chat ${chat.title}: $error")
+                            chatsProcessed++
+                            if (chatsProcessed == cachedChats.size) {
+                                Log.d("TelegramChatManager", "Validation complete with errors, returning ${validatedChats.size} chats")
+                                onResult(validatedChats.sortedBy { it.title })
+                            }
+                        }
+                    )
+                }
+            }
             return
         }
 
@@ -215,17 +393,21 @@ class TelegramChatManager(
                 chatId = chat.chatId,
                 isGroup = chat.isGroup,
                 onResult = { isBotMember: Boolean, isBotActive: Boolean, isUserMember: Boolean ->
+                    Log.d("TelegramChatManager", "Validated chat ${chat.title}: isBotMember=$isBotMember, isBotActive=$isBotActive, isUserMember=$isUserMember")
                     if (isBotMember && (isUserMember || !chat.isGroup)) {
                         validatedChats.add(chat.copy(isBotMember = isBotMember, isBotActive = isBotActive, isUserMember = isUserMember))
                     }
                     chatsProcessed++
                     if (chatsProcessed == rawChats.size) {
+                        Log.d("TelegramChatManager", "Validation complete, returning ${validatedChats.size} chats")
                         onResult(validatedChats.sortedBy { it.title })
                     }
                 },
                 onError = { error: String? ->
+                    Log.e("TelegramChatManager", "Error validating chat ${chat.title}: $error")
                     chatsProcessed++
                     if (chatsProcessed == rawChats.size) {
+                        Log.d("TelegramChatManager", "Validation complete with errors, returning ${validatedChats.size} chats")
                         onResult(validatedChats.sortedBy { it.title })
                     }
                 }

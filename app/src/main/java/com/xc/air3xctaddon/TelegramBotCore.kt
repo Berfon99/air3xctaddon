@@ -14,15 +14,15 @@ import java.io.IOException
 
 class TelegramBotHelper(
     private val context: Context,
-    private val botToken: String,
+    val botToken: String,
     private val fusedLocationClient: FusedLocationProviderClient
 ) {
     private val client = OkHttpClient()
 
-    fun openTelegramToAddBot(context: Context, botUsername: String, groupTitle: String? = null) {
+    fun openTelegramToAddBot(context: Context, botUsername: String, isGroup: Boolean = false) {
         val cleanUsername = botUsername.removePrefix("@")
         try {
-            val uri = if (groupTitle != null) {
+            val uri = if (isGroup) {
                 Uri.parse("tg://resolve?domain=$cleanUsername&startgroup")
             } else {
                 Uri.parse("tg://resolve?domain=$cleanUsername")
@@ -31,11 +31,11 @@ class TelegramBotHelper(
             intent.setPackage("org.telegram.messenger")
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(intent)
-            Log.d("TelegramBotHelper", "Opening Telegram for bot: $botUsername")
+            Log.d("TelegramBotHelper", "Opening Telegram for bot: $botUsername, isGroup: $isGroup")
         } catch (e: Exception) {
             Log.e("TelegramBotHelper", "Failed to open Telegram: ${e.message}")
             try {
-                val fallbackUri = Uri.parse("https://t.me/$cleanUsername${if (groupTitle != null) "?startgroup" else ""}")
+                val fallbackUri = Uri.parse("https://t.me/$cleanUsername${if (isGroup) "?startgroup" else ""}")
                 val fallbackIntent = Intent(Intent.ACTION_VIEW, fallbackUri)
                 fallbackIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 context.startActivity(fallbackIntent)

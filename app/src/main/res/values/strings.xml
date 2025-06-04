@@ -580,6 +580,6 @@
     <string name="telegram_test_message">Test message</string>
     <string name="failed_to_check_user_status">Failed to check user status: %s</string>
     <string name="failed_to_access_private_chat">Failed to access private chat: %s</string>
-
+    <string name="check_bot_privacy_settings">Ensure bot privacy is disabled in BotFather (/setprivacy -> Disable).</string>
 
 </resources>

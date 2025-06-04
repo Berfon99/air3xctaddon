@@ -284,6 +284,11 @@ fun SendTelegramPositionConfigDialog(
                                 Text(stringResource(R.string.add_the_bot_to_that_chat), style = MaterialTheme.typography.body2)
                                 Text(stringResource(R.string.send_start_in_the_chat), style = MaterialTheme.typography.body2)
                                 Text(stringResource(R.string.come_back_here_and_refresh), style = MaterialTheme.typography.body2)
+                                Text(
+                                    text = stringResource(R.string.check_bot_privacy_settings),
+                                    style = MaterialTheme.typography.body2,
+                                    color = MaterialTheme.colors.error
+                                )
                                 Row(
                                     modifier = Modifier.padding(top = 12.dp),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -297,7 +302,7 @@ fun SendTelegramPositionConfigDialog(
                                     Button(
                                         onClick = {
                                             botInfo?.let { info ->
-                                                telegramBotHelper.openTelegramToAddBot(context, info.username)
+                                                telegramBotHelper.openTelegramToAddBot(context, info.username, isGroup = true)
                                                 isAddingNewChat = true
                                             } ?: run { chatError = context.getString(R.string.bot_info_unavailable) }
                                         },
@@ -601,7 +606,7 @@ fun SendTelegramPositionConfigDialog(
                                 onClick = {
                                     isAddingNewChat = true
                                     botInfo?.let { info ->
-                                        telegramBotHelper.openTelegramToAddBot(context, info.username)
+                                        telegramBotHelper.openTelegramToAddBot(context, info.username, isGroup = true)
                                     } ?: run { chatError = context.getString(R.string.bot_info_unavailable) }
                                     showGroupSetupDialog = false
                                 }
