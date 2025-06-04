@@ -119,7 +119,6 @@ class TelegramChatManager(
         Log.d("TelegramChatManager", "Checking bot access for chat: ${chat.title} (${chat.chatId})")
         telegramBotHelper.checkBotAccess(
             chatId = chat.chatId,
-            isGroup = chat.isGroup,
             onResult = onResult,
             onError = onError
         )
@@ -318,7 +317,6 @@ class TelegramChatManager(
                             if (fetchedChat != null) {
                                 telegramBotHelper.checkBotAccess(
                                     chatId = fetchedChat.chatId,
-                                    isGroup = fetchedChat.isGroup,
                                     onResult = { isBotMember, isBotActive, isUserMember ->
                                         Log.d("TelegramChatManager", "Validated cached chat ${fetchedChat.title}: isBotMember=$isBotMember, isBotActive=$isBotActive, isUserMember=$isUserMember")
                                         if (isBotMember && (isUserMember || !fetchedChat.isGroup)) {
@@ -359,7 +357,6 @@ class TelegramChatManager(
                 } else {
                     telegramBotHelper.checkBotAccess(
                         chatId = chat.chatId,
-                        isGroup = chat.isGroup,
                         onResult = { isBotMember, isBotActive, isUserMember ->
                             Log.d("TelegramChatManager", "Validated cached chat ${chat.title}: isBotMember=$isBotMember, isBotActive=$isBotActive, isUserMember=$isUserMember")
                             if (isBotMember && (isUserMember || !chat.isGroup)) {
@@ -391,7 +388,6 @@ class TelegramChatManager(
         rawChats.forEach { chat ->
             telegramBotHelper.checkBotAccess(
                 chatId = chat.chatId,
-                isGroup = chat.isGroup,
                 onResult = { isBotMember: Boolean, isBotActive: Boolean, isUserMember: Boolean ->
                     Log.d("TelegramChatManager", "Validated chat ${chat.title}: isBotMember=$isBotMember, isBotActive=$isBotActive, isUserMember=$isUserMember")
                     if (isBotMember && (isUserMember || !chat.isGroup)) {

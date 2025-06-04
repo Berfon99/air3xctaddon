@@ -19,52 +19,24 @@ class TelegramBotHelper(
 ) {
     private val client = OkHttpClient()
 
-    fun openTelegramToAddBot(context: Context, botUsername: String, isGroup: Boolean = false) {
+    fun openTelegramToAddBot(context: Context, botUsername: String) {
         val cleanUsername = botUsername.removePrefix("@")
         try {
-            val uri = if (isGroup) {
-                Uri.parse("tg://resolve?domain=$cleanUsername&startgroup")
-            } else {
-                Uri.parse("tg://resolve?domain=$cleanUsername")
-            }
+            val uri = Uri.parse("tg://resolve?domain=$cleanUsername&startgroup")
             val intent = Intent(Intent.ACTION_VIEW, uri)
             intent.setPackage("org.telegram.messenger")
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(intent)
-            Log.d("TelegramBotHelper", "Opening Telegram for bot: $botUsername, isGroup: $isGroup")
+            Log.d("TelegramBotHelper", "Opening Telegram to add bot to group: $botUsername")
         } catch (e: Exception) {
             Log.e("TelegramBotHelper", "Failed to open Telegram: ${e.message}")
             try {
-                val fallbackUri = Uri.parse("https://t.me/$cleanUsername${if (isGroup) "?startgroup" else ""}")
+                val fallbackUri = Uri.parse("https://t.me/$cleanUsername?startgroup")
                 val fallbackIntent = Intent(Intent.ACTION_VIEW, fallbackUri)
                 fallbackIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 context.startActivity(fallbackIntent)
             } catch (e: Exception) {
                 Log.e("TelegramBotHelper", "Failed to open Telegram fallback: ${e.message}")
-            }
-        }
-    }
-
-    fun shareBotLink(context: Context, botUsername: String) {
-        val cleanUsername = botUsername.removePrefix("@")
-        try {
-            val botLink = "https://t.me/$cleanUsername"
-            val intent = Intent(Intent.ACTION_SEND).apply {
-                type = "text/plain"
-                putExtra(Intent.EXTRA_TEXT, botLink)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            context.startActivity(Intent.createChooser(intent, "Share Bot Link"))
-            Log.d("TelegramBotHelper", "Sharing bot link for: $botUsername")
-        } catch (e: Exception) {
-            Log.e("TelegramBotHelper", "Failed to share bot link: ${e.message}")
-            try {
-                val fallbackUri = Uri.parse("https://t.me/$cleanUsername")
-                val fallbackIntent = Intent(Intent.ACTION_VIEW, fallbackUri)
-                fallbackIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                context.startActivity(Intent.createChooser(fallbackIntent, "Share Bot"))
-            } catch (e: Exception) {
-                Log.e("TelegramBotHelper", "Failed to share bot link fallback: ${e.message}")
             }
         }
     }
@@ -288,26 +260,11 @@ class TelegramBotHelper(
         })
     }
 
-    /**
-     * Checks if the bot has access to the specified chat and determines bot/user membership status
-     * @param chatId The chat ID to check
-     * @param isGroup Whether the chat is a group chat
-     * @param onResult Callback with (isBotMember, isBotActive, isUserMember) status
-     * @param onError Callback for error handling
-     */
     fun checkBotAccess(
         chatId: String,
-        isGroup: Boolean,
         onResult: (Boolean, Boolean, Boolean) -> Unit,
         onError: (String?) -> Unit
     ) {
-        // For private chats, assume user is member and bot can send messages
-        if (!isGroup) {
-            onResult(true, true, true)
-            return
-        }
-
-        // For group chats, check if bot is a member by trying to get chat info
         val url = context.getString(R.string.telegram_api_base_url) + botToken + "/getChat"
         val json = JSONObject()
             .put("chat_id", chatId)
@@ -342,22 +299,14 @@ class TelegramBotHelper(
                     val isSuccess = jsonObject.getBoolean("ok")
 
                     if (isSuccess) {
-                        // Bot can access chat info, so it's likely a member
-                        // Check if bot can send messages by attempting to get chat member info
                         checkBotMembershipStatus(chatId, onResult, onError)
                     } else {
-                        // Bot cannot access chat info, likely not a member or kicked
                         val errorCode = jsonObject.optInt("error_code", 0)
                         val description = jsonObject.optString("description", "Unknown error")
-
                         Log.d("TelegramBotHelper", "Bot access check failed for chat $chatId: $description (code: $errorCode)")
-
-                        // Common error codes:
-                        // 400: Bad Request (chat not found, bot not in chat)
-                        // 403: Forbidden (bot was kicked or chat is private)
                         when (errorCode) {
-                            400, 403 -> onResult(false, false, false) // Bot not in chat
-                            else -> onResult(false, false, true) // Assume user is member but bot has issues
+                            400, 403 -> onResult(false, false, false)
+                            else -> onResult(false, false, true)
                         }
                     }
                 } catch (e: Exception) {
@@ -375,7 +324,6 @@ class TelegramBotHelper(
         onResult: (Boolean, Boolean, Boolean) -> Unit,
         onError: (String?) -> Unit
     ) {
-        // Get bot info to get bot user ID
         getBotInfo({ botInfo ->
             val url = context.getString(R.string.telegram_api_base_url) + botToken + "/getChatMember"
             val json = JSONObject()
@@ -396,7 +344,6 @@ class TelegramBotHelper(
             client.newCall(request).enqueue(object : Callback {
                 override fun onFailure(call: Call, e: IOException) {
                     Log.e("TelegramBotHelper", "Failed to check bot membership status: ${e.message}")
-                    // Fallback: assume bot is member but status unknown
                     onResult(true, false, true)
                 }
 
@@ -415,24 +362,18 @@ class TelegramBotHelper(
                         if (isSuccess) {
                             val result = jsonObject.getJSONObject("result")
                             val status = result.getString("status")
-
                             val isBotMember = status in listOf("member", "administrator", "creator")
                             val isBotActive = status in listOf("member", "administrator", "creator")
-
                             Log.d("TelegramBotHelper", "Bot status in chat $chatId: $status")
-
-                            // For group chats, we assume user is member since they can see the chat
-                            // In a real implementation, you might want to check user membership too
                             onResult(isBotMember, isBotActive, true)
                         } else {
                             val description = jsonObject.optString("description", "Unknown error")
                             Log.e("TelegramBotHelper", "Failed to get bot membership status: $description")
-                            // Fallback: assume not member
                             onResult(false, false, true)
                         }
                     } catch (e: Exception) {
                         Log.e("TelegramBotHelper", "Error parsing bot membership response: ${e.message}")
-                        onResult(true, false, true) // Fallback
+                        onResult(true, false, true)
                     } finally {
                         response.close()
                     }
@@ -440,7 +381,7 @@ class TelegramBotHelper(
             })
         }, { error ->
             Log.e("TelegramBotHelper", "Failed to get bot info for membership check: $error")
-            onResult(true, false, true) // Fallback
+            onResult(true, false, true)
         })
     }
 }

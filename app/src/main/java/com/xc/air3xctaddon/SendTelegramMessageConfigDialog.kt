@@ -297,7 +297,7 @@ fun SendTelegramMessageConfigDialog(
                                     Button(
                                         onClick = {
                                             botInfo?.let { info ->
-                                                telegramBotHelper.openTelegramToAddBot(context, info.username, isGroup = true)
+                                                telegramBotHelper.openTelegramToAddBot(context, info.username)
                                                 isAddingNewChat = true
                                             } ?: run { chatError = context.getString(R.string.bot_info_unavailable) }
                                         },
@@ -583,7 +583,7 @@ fun SendTelegramMessageConfigDialog(
                                 onClick = {
                                     isAddingNewChat = true
                                     botInfo?.let { info ->
-                                        telegramBotHelper.openTelegramToAddBot(context, info.username, isGroup = true)
+                                        telegramBotHelper.openTelegramToAddBot(context, info.username)
                                     } ?: run { chatError = context.getString(R.string.bot_info_unavailable) }
                                     showGroupSetupDialog = false
                                 }
