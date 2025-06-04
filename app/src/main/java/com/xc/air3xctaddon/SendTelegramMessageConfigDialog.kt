@@ -334,7 +334,7 @@ fun SendTelegramMessageConfigDialog(
                             onItemSelected = { selectedItem ->
                                 if (selectedItem == otherOptionText) {
                                     telegramChatName = ""; telegramChatId = ""; selectedChat = null
-                                    showChatTypeDialog = true; isAddingNewChat = true
+                                    showGroupSetupDialog = true; isAddingNewChat = true
                                 } else {
                                     val title = selectedItem.removePrefix("Group: ")
                                     chats.find { it.title == title }?.let { chat ->

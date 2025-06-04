@@ -326,11 +326,11 @@ fun SendTelegramPositionConfigDialog(
                             items = chats
                                 .filter { it.isGroup && it.isBotMember && it.isBotActive && it.isUserMember }
                                 .map { SpinnerItem.Item("Group: " + it.title) } + SpinnerItem.Item(otherOptionText),
-                            selectedItem = if (telegramChatName.isEmpty() || chats.none { it.title == telegramChatName }) selectChatOptionText else ("Group: " + telegramChatName),
+                            selectedItem = if (telegramChatName.isEmpty() || chats.none { it.title == telegramChatName }) selectChatOptionText else "Group: " + telegramChatName,
                             onItemSelected = { selectedItem ->
                                 if (selectedItem == otherOptionText) {
                                     telegramChatName = ""; telegramChatId = ""; selectedChat = null
-                                    showChatTypeDialog = true; isAddingNewChat = true
+                                    showGroupSetupDialog = true; isAddingNewChat = true
                                 } else {
                                     val title = selectedItem.removePrefix("Group: ")
                                     chats.find { it.title == title }?.let { chat ->
