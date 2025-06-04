@@ -340,6 +340,7 @@ fun SendTelegramMessageConfigDialog(
                                         telegramChatName = chat.title
                                         selectedChat = chat
                                         isAddingNewChat = false
+                                        Log.d("SendTelegramMessageConfigDialog", "Selected chat: title=${chat.title}, chatId=${chat.chatId}, isGroup=${chat.isGroup}")
                                         coroutineScope.launch {
                                             telegramChatManager.checkBotInSelectedChat(chat)
                                         }
@@ -692,7 +693,6 @@ fun SendTelegramMessageConfigDialog(
                     )
                 }
 
-
                 if (showUserIdPromptDialog) {
                     AlertDialog(
                         onDismissRequest = { showUserIdPromptDialog = false; onDismiss() },
@@ -765,7 +765,7 @@ fun SendTelegramMessageConfigDialog(
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TextButton(onClick = onDismiss) {
+                    TextButton(onClick = { onDismiss() }) {
                         Text(stringResource(R.string.cancel))
                     }
                     Spacer(modifier = Modifier.width(8.dp))
@@ -773,21 +773,29 @@ fun SendTelegramMessageConfigDialog(
                         onClick = {
                             selectedChat?.let { chat ->
                                 if (chat.isBotMember && chat.isBotActive && (chat.isUserMember || !chat.isGroup) && selectedMessageContent.isNotEmpty()) {
-                                    coroutineScope.launch {
-                                        val taskData = "${chat.chatId}|${selectedMessageContent}"
-                                        val task = Task(
-                                            taskType = "SendTelegramMessage",
-                                            taskData = taskData,
-                                            taskName = "${selectedMessageTitle.take(20)} - ${chat.title}",
-                                            launchInBackground = false
-                                        )
-                                        taskDao.insert(task)
-                                        onConfirm()
+                                    if (chat.chatId.startsWith("@")) {
+                                        chatError = context.getString(R.string.invalid_chat_id_message)
+                                        Log.e("SendTelegramMessageConfigDialog", "Invalid chat ID for task: ${chat.chatId}, likely bot ID")
+                                    } else {
+                                        Log.d("SendTelegramMessageConfigDialog", "Creating task with chatId: ${chat.chatId}, title=${chat.title}")
+                                        coroutineScope.launch {
+                                            val taskData = "${chat.chatId}|${selectedMessageContent}"
+                                            val task = Task(
+                                                taskType = "SendTelegramMessage",
+                                                taskData = taskData,
+                                                taskName = "${selectedMessageTitle.take(20)} - ${chat.title}",
+                                                launchInBackground = false
+                                            )
+                                            taskDao.insert(task)
+                                            onConfirm()
+                                        }
                                     }
                                 }
                             }
                         },
-                        enabled = selectedChat?.let { it.isBotMember && it.isBotActive && (it.isUserMember || !it.isGroup) && selectedMessageContent.isNotEmpty() } ?: false
+                        enabled = selectedChat?.let { chat ->
+                            chat.isBotMember && chat.isBotActive && (chat.isUserMember || !chat.isGroup) && selectedMessageContent.isNotEmpty() && !chat.chatId.startsWith("@")
+                        } ?: false
                     ) {
                         Text(stringResource(R.string.confirm))
                     }
