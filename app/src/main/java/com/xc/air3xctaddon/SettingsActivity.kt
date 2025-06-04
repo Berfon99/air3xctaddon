@@ -191,7 +191,7 @@ class SettingsActivity : ComponentActivity() {
                 }
 
                 if (showTelegramPositionDialog) {
-                    SendTelegramConfigDialog(
+                    SendTelegramPositionConfigDialog(
                         onConfirm = { showTelegramPositionDialog = false },
                         onDismiss = { showTelegramPositionDialog = false }
                     )

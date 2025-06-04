@@ -323,7 +323,7 @@ fun ConfigRow(
         }
 
         if (telegramDialogOpen) {
-            SendTelegramConfigDialog(
+            SendTelegramPositionConfigDialog(
                 onConfirm = {
                     telegramDialogOpen = false
                 },

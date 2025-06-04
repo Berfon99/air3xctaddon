@@ -453,7 +453,6 @@
         <!-- LogMonitorService.kt -->
         <string name="log_invalid_task_data">Invalid task data for task type %1$s, config ID %2$d</string>
 
-        <!-- SendTelegramConfigDialog.kt and SendTelegramMessageConfigDialog.kt (shared strings) -->
         <string name="select_chat_option">Select a chat</string>
         <string name="searching_for_available_chats">Searching for available chats...</string>
         <string name="error_loading_chats">Error loading chats</string>
@@ -470,10 +469,8 @@
         <string name="add_bot_to_chat_title">Add Bot to Chat</string>
         <string name="select_chat_to_add_bot">Select a chat to add the bot</string>
 
-        <!-- SendTelegramConfigDialog.kt (specific) -->
         <string name="select_the_chat_where_you_want_to_send_position_updates">Select the chat where you want to send position updates.</string>
 
-        <!-- TelegramBotHelper.kt -->
         <string name="log_raw_chats_fetched">Raw chats fetched: %1$s</string>
         <string name="log_validated_chats">Validated chats: %1$s</string>
         <string name="log_no_raw_chats_validate">No raw chats to validate</string>
@@ -573,6 +570,16 @@
     <string name="clear_telegram_authentication">Clear Telegram authentication</string>
     <string name="telegram_authentication_required_title">Authentication Required</string>
     <string name="telegram_authentication_required_message">To use Telegram tasks, you first need to be authenticated. Please authenticate first.</string>
+
+    <string name="share_bot_message_template">Hi! Please click this link to start chatting with my location bot, then click the "Start" button: %1$s</string>
+    <string name="telegram_bot_share_subject">Location Bot Link</string>
+    <string name="share_bot_with_contact">Share bot link with contact</string>
+    <string name="bot_link_copied_fallback">Bot link copied to clipboard. Please share it with your contact manually.</string>
+
+    <string name="share_bot_message">Share Bot</string>
+    <string name="telegram_test_message">Test message</string>
+    <string name="failed_to_check_user_status">Failed to check user status: %s</string>
+    <string name="failed_to_access_private_chat">Failed to access private chat: %s</string>
 
 
 </resources>
