@@ -45,7 +45,7 @@ fun ControlButtons(
                 when (taskType) {
                     "Sound" -> {
                         if (taskData.isNotEmpty()) {
-                            Log.d("ControlButtons", context.getString(R.string.log_play_sound_clicked, taskData))
+                            Log.d("ControlButtons", "Main play button clicked for sound: $taskData")
                             onPlaySound()
                         } else {
                             Log.w("ControlButtons", "Sound taskData is empty")
@@ -53,7 +53,7 @@ fun ControlButtons(
                     }
                     "SendTelegramPosition" -> {
                         if (taskData.isNotEmpty()) {
-                            Log.d("ControlButtons", context.getString(R.string.log_play_telegram_clicked, taskData, config.event))
+                            Log.d("ControlButtons", "Main play button clicked for SendTelegramPosition: chatId=$taskData, event=${config.event}")
                             telegramBotHelper.getCurrentLocation(
                                 onResult = { latitude, longitude ->
                                     telegramBotHelper.sendLocationMessage(
@@ -62,10 +62,10 @@ fun ControlButtons(
                                         longitude = longitude,
                                         event = config.event
                                     )
-                                    Log.d("ControlButtons", context.getString(R.string.log_sent_telegram_location, latitude, longitude, config.event))
+                                    Log.d("ControlButtons", "Sent location message to Telegram: lat=$latitude, lon=$longitude, event=${config.event}")
                                 },
                                 onError = { error ->
-                                    Log.e("ControlButtons", context.getString(R.string.log_failed_get_location, error))
+                                    Log.e("ControlButtons", "Failed to get location: $error")
                                 }
                             )
                         } else {
@@ -74,12 +74,12 @@ fun ControlButtons(
                     }
                     "LaunchApp" -> {
                         if (taskData.isNotEmpty()) {
-                            Log.d("ControlButtons", context.getString(R.string.log_play_launch_app_clicked, taskData))
+                            Log.d("ControlButtons", "Main play button clicked for LaunchApp: package=$taskData")
                             val launchIntent = context.packageManager.getLaunchIntentForPackage(taskData)
                             if (launchIntent != null) {
                                 context.startActivity(launchIntent)
                             } else {
-                                Log.e("ControlButtons", context.getString(R.string.log_no_launch_intent, taskData))
+                                Log.e("ControlButtons", "No launch intent for package: $taskData")
                             }
                         } else {
                             Log.w("ControlButtons", "LaunchApp taskData is empty")
@@ -91,9 +91,9 @@ fun ControlButtons(
                                 putExtra("com.zello.stayHidden", true)
                             }
                             context.sendBroadcast(zelloIntent)
-                            Log.d("ControlButtons", context.getString(R.string.log_play_zello_ptt_clicked))
+                            Log.d("ControlButtons", "Main play button clicked for ZELLO_PTT: sent com.zello.ptt.up")
                         } catch (e: Exception) {
-                            Log.e("ControlButtons", context.getString(R.string.log_failed_zello_intent), e)
+                            Log.e("ControlButtons", "Failed to send Zello PTT intent for event: ${config.event}, configId=${config.id}", e)
                         }
                     }
                     "SendTelegramMessage" -> {
@@ -101,16 +101,16 @@ fun ControlButtons(
                         if (taskData.isNotEmpty() && taskData.contains("|")) {
                             val (chatId, message) = taskData.split("|", limit = 2)
                             if (chatId.isNotEmpty() && message.isNotEmpty()) {
-                                Log.d("ControlButtons", context.getString(R.string.log_play_telegram_message_clicked, chatId, message))
+                                Log.d("ControlButtons", "Playing Telegram message for chatId: $chatId, message: $message")
                                 telegramBotHelper.sendMessage(
                                     chatId = chatId,
                                     message = message
                                 )
                             } else {
-                                Log.e("ControlButtons", context.getString(R.string.log_invalid_telegram_message_config))
+                                Log.e("ControlButtons", "Invalid Telegram message config")
                             }
                         } else {
-                            Log.e("ControlButtons", context.getString(R.string.log_invalid_telegram_message_format, config.event, config.id, taskData))
+                            Log.e("ControlButtons", "Invalid Telegram message taskData format for event ${config.event}, id ${config.id}: $taskData")
                         }
                     }
                     else -> {
@@ -139,7 +139,7 @@ fun ControlButtons(
         IconButton(
             onClick = {
                 if (taskType == "Sound") {
-                    Log.d("ControlButtons", context.getString(R.string.log_stop_sound_clicked, taskData))
+                    Log.d("ControlButtons", "Main stop button clicked for sound: $taskData")
                     onStopSound()
                 }
             },
@@ -155,7 +155,7 @@ fun ControlButtons(
 
         IconButton(
             onClick = {
-                Log.d("ControlButtons", context.getString(R.string.log_delete_clicked))
+                Log.d("ControlButtons", "Delete button clicked")
                 onDelete()
             }
         ) {

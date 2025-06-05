@@ -31,6 +31,7 @@ import com.xc.air3xctaddon.ui.components.TaskSelector
 import com.xc.air3xctaddon.ui.components.ControlButtons
 import com.xc.air3xctaddon.ui.components.SoundConfigDialog
 
+
 @Composable
 fun ConfigRow(
     config: EventConfig,
@@ -53,6 +54,7 @@ fun ConfigRow(
     var telegramDialogOpen by remember { mutableStateOf(false) }
     var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
 
+
     val context = LocalContext.current
     LaunchedEffect(Unit) { SettingsRepository.initialize(context) }
     val telegramBotHelper = remember {
@@ -63,37 +65,36 @@ fun ConfigRow(
         )
     }
 
+
     var soundFile by remember { mutableStateOf(if (taskType == "Sound") taskData else "") }
     var volumeType by remember { mutableStateOf(config.volumeType) }
     var volumePercentage by remember { mutableStateOf(config.volumePercentage) }
     var playCount by remember { mutableStateOf(config.playCount) }
 
+
     val launchAppTasks by AppDatabase.getDatabase(context).taskDao()
         .getAllTasks()
         .collectAsState(initial = emptyList<Task>())
 
+
     LaunchedEffect(launchAppTasks) {
-        Log.d("ConfigRow", context.getString(R.string.log_launch_app_tasks_updated, launchAppTasks.size))
+        Log.d("ConfigRow", "launchAppTasks updated: ${launchAppTasks.size} tasks")
         launchAppTasks.forEach { task ->
-            Log.d("ConfigRow", context.getString(
-                R.string.log_task_details,
-                task.id, task.taskType, task.taskData, task.taskName, task.launchInBackground
-            ))
+            Log.d("ConfigRow", "Task: id=${task.id}, type=${task.taskType}, data=${task.taskData}, name=${task.taskName}, background=${task.launchInBackground}")
         }
     }
 
+
     fun playSound(fileName: String, volumeType: VolumeType?, volumePercentage: Int?, playCount: Int?) {
         if (fileName.isEmpty()) {
-            Log.d("ConfigRow", context.getString(R.string.log_no_sound_file_selected))
+            Log.d("ConfigRow", "Cannot play sound: No sound file selected")
             return
         }
         try {
             val soundsDir = java.io.File(context.getExternalFilesDir(null), "Sounds")
             val soundFilePath = java.io.File(soundsDir, fileName).absolutePath
-            Log.d("ConfigRow", context.getString(
-                R.string.log_playing_sound_file,
-                soundFilePath, volumeType.toString(), volumePercentage ?: 100, playCount ?: 1
-            ))
+            Log.d("ConfigRow", "Playing sound file: $soundFilePath, volumeType: ${volumeType.toString()}, volumePercentage: ${volumePercentage ?: 100}%, playCount: ${playCount ?: 1}")
+
 
             val volume = when (volumeType) {
                 VolumeType.MAXIMUM -> 1.0f
@@ -107,6 +108,7 @@ fun ConfigRow(
                 null -> 1.0f
             }
 
+
             val currentPlayCount = intArrayOf(0)
             mediaPlayer?.release()
             val newMediaPlayer = MediaPlayer().apply {
@@ -115,12 +117,10 @@ fun ConfigRow(
                 setVolume(volume, volume)
                 start()
                 currentPlayCount[0]++
-                Log.d("ConfigRow", context.getString(
-                    R.string.log_started_playback,
-                    currentPlayCount[0], playCount ?: 1, fileName
-                ))
+                Log.d("ConfigRow", "Started playback ${currentPlayCount[0]}/${playCount ?: 1} for: $fileName")
             }
             mediaPlayer = newMediaPlayer
+
 
             newMediaPlayer.setOnCompletionListener {
                 if (currentPlayCount[0] < (playCount ?: 1)) {
@@ -131,50 +131,44 @@ fun ConfigRow(
                         newMediaPlayer.setVolume(volume, volume)
                         newMediaPlayer.start()
                         currentPlayCount[0]++
-                        Log.d("ConfigRow", context.getString(
-                            R.string.log_started_playback,
-                            currentPlayCount[0], playCount ?: 1, fileName
-                        ))
+                        Log.d("ConfigRow", "Started playback ${currentPlayCount[0]}/${playCount ?: 1} for: $fileName")
                     } catch (e: Exception) {
-                        Log.e("ConfigRow", context.getString(
-                            R.string.log_error_restarting_playback,
-                            currentPlayCount[0], playCount ?: 1, fileName
-                        ), e)
+                        Log.e("ConfigRow", "Error restarting playback ${currentPlayCount[0]}/${playCount ?: 1} for: $fileName", e)
                         newMediaPlayer.release()
                         mediaPlayer = null
                     }
                 } else {
-                    Log.d("ConfigRow", context.getString(
-                        R.string.log_playback_completed,
-                        currentPlayCount[0], playCount ?: 1, fileName
-                    ))
+                    Log.d("ConfigRow", "Playback completed ${currentPlayCount[0]}/${playCount ?: 1} for: $fileName")
                     newMediaPlayer.release()
                     mediaPlayer = null
                 }
             }
 
+
             newMediaPlayer.setOnErrorListener { _, what, extra ->
-                Log.e("ConfigRow", context.getString(R.string.log_mediaplayer_error, what, extra))
+                Log.e("ConfigRow", "MediaPlayer error: what=$what, extra=$extra")
                 newMediaPlayer.release()
                 mediaPlayer = null
                 true
             }
         } catch (e: Exception) {
-            Log.e("ConfigRow", context.getString(R.string.log_error_playing_sound_file, fileName), e)
+            Log.e("ConfigRow", "Error playing sound file: $fileName", e)
             mediaPlayer = null
         }
     }
+
 
     fun stopSound() {
         mediaPlayer?.let { player ->
             if (player.isPlaying) {
                 player.stop()
-                Log.d("ConfigRow", context.getString(R.string.log_stopped_playback, soundFile))
+                Log.d("ConfigRow", "Stopped playback for: $soundFile")
             }
             player.release()
             mediaPlayer = null
         }
     }
+
 
     Box(
         modifier = Modifier
@@ -202,6 +196,7 @@ fun ConfigRow(
                     }
             )
 
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -214,12 +209,14 @@ fun ConfigRow(
                     onEventSelected = { selectedEvent ->
                         event = selectedEvent
                         onUpdate(config.copy(event = selectedEvent))
-                        Log.d("ConfigRow", context.getString(R.string.log_selected_event, selectedEvent))
+                        Log.d("ConfigRow", "Selected event: $selectedEvent")
                     },
                     modifier = Modifier.weight(1f)
                 )
 
+
                 Spacer(modifier = Modifier.width(4.dp))
+
 
                 TaskSelector(
                     taskType = taskType,
@@ -243,10 +240,7 @@ fun ConfigRow(
                             playCount = 1,
                             launchInBackground = appTask.launchInBackground
                         ))
-                        Log.d("ConfigRow", context.getString(
-                            R.string.log_selected_launch_app,
-                            appTask.taskName, appTask.launchInBackground
-                        ))
+                        Log.d("ConfigRow", "Selected task: LaunchApp, app: ${appTask.taskName}, launchInBackground=${appTask.launchInBackground}")
                     },
                     onZelloPttSelected = {
                         taskType = "ZELLO_PTT"
@@ -263,12 +257,14 @@ fun ConfigRow(
                             playCount = 1,
                             launchInBackground = true
                         ))
-                        Log.d("ConfigRow", context.getString(R.string.log_selected_zello_ptt))
+                        Log.d("ConfigRow", "Selected task: ZELLO_PTT")
                     },
                     modifier = Modifier.weight(1f)
                 )
 
+
                 Spacer(modifier = Modifier.width(4.dp))
+
 
                 ControlButtons(
                     taskType = taskType,
@@ -287,6 +283,7 @@ fun ConfigRow(
                 )
             }
         }
+
 
         if (soundDialogOpen) {
             SoundConfigDialog(
@@ -314,14 +311,12 @@ fun ConfigRow(
                         telegramGroupName = null
                     ))
                     soundDialogOpen = false
-                    Log.d("ConfigRow", context.getString(
-                        R.string.log_sound_config_saved,
-                        soundFile, volumeType.toString(), volumePercentage ?: 100, playCount ?: 1
-                    ))
+                    Log.d("ConfigRow", "Sound config saved: $soundFile, ${volumeType.toString()}, ${volumePercentage ?: 100}, ${playCount ?: 1}")
                 },
                 onDismiss = { soundDialogOpen = false }
             )
         }
+
 
         if (telegramDialogOpen) {
             SendTelegramPositionConfigDialog(

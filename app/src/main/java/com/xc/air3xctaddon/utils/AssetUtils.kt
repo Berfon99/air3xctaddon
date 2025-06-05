@@ -12,26 +12,26 @@ private const val TAG = "SoundFilesUtils"
 
 fun AssetManager.copySoundFilesFromAssets(context: Context, externalFilesDir: File?): Boolean {
     if (externalFilesDir == null) {
-        Log.e(TAG, context.getString(R.string.log_external_files_dir_null))
+        Log.e(TAG, "External files directory is null")
         return false
     }
 
     val soundsDir = externalFilesDir
     try {
         if (!soundsDir.exists() && !soundsDir.mkdirs()) {
-            Log.e(TAG, context.getString(R.string.log_failed_create_sounds_dir, soundsDir.absolutePath))
+            Log.e(TAG, "Failed to create Sounds directory: ${soundsDir.absolutePath}")
             return false
         }
-        Log.d(TAG, context.getString(R.string.log_sounds_dir_status, soundsDir.absolutePath, soundsDir.exists()))
+        Log.d(TAG, "Sounds directory: ${soundsDir.absolutePath}, exists: ${soundsDir.exists()}")
 
         // Check for existing files
         val existingFiles = soundsDir.listFiles()
             ?.map { it.name }
             ?.filter { it.endsWith(".mp3", true) || it.endsWith(".wav", true) }
             ?.sorted() ?: emptyList()
-        Log.d(TAG, context.getString(R.string.log_existing_sound_files_list, existingFiles.toString()))
+        Log.d(TAG, "Existing sound files: $existingFiles")
         if (existingFiles.isNotEmpty()) {
-            Log.d(TAG, context.getString(R.string.log_skip_copy_files_exist))
+            Log.d(TAG, "Skipping copy as sound files already exist")
             return true // Return true since files exist
         }
 
@@ -40,9 +40,9 @@ fun AssetManager.copySoundFilesFromAssets(context: Context, externalFilesDir: Fi
         val assetFiles = list(assetSoundsPath)
             ?.filter { it.endsWith(".mp3", true) || it.endsWith(".wav", true) }
             ?.sorted() ?: emptyList()
-        Log.d(TAG, context.getString(R.string.log_asset_sound_files, assetSoundsPath, assetFiles.toString()))
+        Log.d(TAG, "Asset sound files in $assetSoundsPath: $assetFiles")
         if (assetFiles.isEmpty()) {
-            Log.w(TAG, context.getString(R.string.log_no_sound_files_in_assets_path, assetSoundsPath))
+            Log.w(TAG, "No sound files found in assets path: $assetSoundsPath")
             return false
         }
 
@@ -54,10 +54,10 @@ fun AssetManager.copySoundFilesFromAssets(context: Context, externalFilesDir: Fi
                     FileOutputStream(outputFile).use { output ->
                         input.copyTo(output)
                     }
-                    Log.d(TAG, context.getString(R.string.log_copied_sound_file_to, fileName, outputFile.absolutePath))
+                    Log.d(TAG, "Copied sound file: $fileName to ${outputFile.absolutePath}")
                 }
             } catch (e: IOException) {
-                Log.e(TAG, context.getString(R.string.log_failed_copy_sound_file, fileName), e)
+                Log.e(TAG, "Failed to copy sound file: $fileName", e)
                 return false
             }
         }
@@ -66,25 +66,25 @@ fun AssetManager.copySoundFilesFromAssets(context: Context, externalFilesDir: Fi
         logDirectoryContents(context, soundsDir)
         return true
     } catch (e: Exception) {
-        Log.e(TAG, context.getString(R.string.log_error_copying_sound_files), e)
+        Log.e(TAG, "Error copying sound files", e)
         return false
     }
 }
 
 fun logDirectoryContents(context: Context, directory: File) {
     if (!directory.exists()) {
-        Log.d(TAG, context.getString(R.string.log_dir_not_exists, directory.absolutePath))
+        Log.d(TAG, "Directory does not exist: ${directory.absolutePath}")
         return
     }
 
     val files = directory.listFiles()?.filter { it.isFile && it.canRead() } ?: emptyList()
     if (files.isEmpty()) {
-        Log.d(TAG, context.getString(R.string.log_dir_is_empty, directory.absolutePath))
+        Log.d(TAG, "Directory is empty: ${directory.absolutePath}")
         return
     }
 
-    Log.d(TAG, context.getString(R.string.log_dir_contents_list, directory.absolutePath))
+    Log.d(TAG, "Directory contents: ${directory.absolutePath}")
     files.forEach { file ->
-        Log.d(TAG, context.getString(R.string.log_file_details, file.name, file.length(), file.canRead()))
+        Log.d(TAG, "File: ${file.name}, size: ${file.length()}, readable: ${file.canRead()}")
     }
 }

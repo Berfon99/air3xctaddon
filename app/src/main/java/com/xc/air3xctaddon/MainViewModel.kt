@@ -72,16 +72,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             configDao.getAllConfigs().collect { configs ->
                 _configs.value = configs
-                Log.d("MainViewModel", context.getString(R.string.log_loaded_configs, configs.size))
+                Log.d("MainViewModel", "Loaded configs: ${configs.size}")
             }
         }
         viewModelScope.launch {
             _events.value = CATEGORIZED_EVENTS
-            Log.d("MainViewModel", context.getString(
-                R.string.log_initialized_events,
-                CATEGORIZED_EVENTS.size,
-                CATEGORIZED_EVENTS.filterIsInstance<EventItem.Category>().size
-            ))
+            Log.d("MainViewModel", "Initialized with CATEGORIZED_EVENTS: ${CATEGORIZED_EVENTS.size}, Categories: ${CATEGORIZED_EVENTS.filterIsInstance<EventItem.Category>().size}")
 
             eventDao.getAllEvents().collect { dbEvents ->
                 val updatedItems = mutableListOf<EventItem>()
@@ -98,7 +94,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
                 dbEvents.filter { it.type == "event" }.forEach { dbEvent ->
                     if (dbEvent.name !in CATEGORIZED_EVENTS.filterIsInstance<EventItem.Event>().map { it.name }) {
-                        val targetCategory = dbEvent.category ?: context.getString(R.string.category_others)
+                        val targetCategory = dbEvent.category ?: "Others"
                         val insertIndex = updatedItems.indexOfFirst { it is EventItem.Category && it.name == targetCategory }
                             .takeIf { it >= 0 }?.let { it + 1 } ?: updatedItems.size
                         updatedItems.add(insertIndex, EventItem.Event(dbEvent.name))
@@ -106,35 +102,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
 
                 _events.value = updatedItems
-                Log.d("MainViewModel", context.getString(
-                    R.string.log_updated_events,
-                    updatedItems.size,
-                    updatedItems.filterIsInstance<EventItem.Category>().size,
-                    dbEvents.size
-                ))
+                Log.d("MainViewModel", "Updated events: ${updatedItems.size}, Categories: ${updatedItems.filterIsInstance<EventItem.Category>().size}, DB events: ${dbEvents.size}")
             }
         }
     }
 
     fun getAvailableEvents(): List<EventItem> {
         val available = _events.value
-        Log.d("MainViewModel", context.getString(
-            R.string.log_available_events,
-            available.size,
-            available.filterIsInstance<EventItem.Category>().size
-        ))
+        Log.d("MainViewModel", "Available events: ${available.size}, Categories: ${available.filterIsInstance<EventItem.Category>().size}")
         return available
     }
 
     fun addEvent(category: String, eventName: String) {
         viewModelScope.launch {
             if (_events.value.any { it is EventItem.Event && it.name == eventName }) {
-                Log.w("MainViewModel", context.getString(R.string.log_event_exists, eventName))
+                Log.w("MainViewModel", "Event '$eventName' already exists, skipping")
                 return@launch
             }
             val newEvent = EventEntity(type = "event", name = eventName, category = category)
             eventDao.insert(newEvent)
-            Log.d("MainViewModel", context.getString(R.string.log_added_event, eventName, category))
+            Log.d("MainViewModel", "Added event '$eventName' to category '$category'")
         }
     }
 
@@ -182,7 +169,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 .forEachIndexed { index, eventConfig ->
                     configDao.updatePosition(eventConfig.id, index)
                 }
-            Log.d("MainViewModel", context.getString(R.string.log_deleted_config, config.id))
+            Log.d("MainViewModel", "Deleted config: id=${config.id}")
         }
     }
 
@@ -196,7 +183,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     configDao.updatePosition(config.id, index)
                 }
                 _configs.value = configs
-                Log.d("MainViewModel", context.getString(R.string.log_reordered_configs, fromIndex, toIndex))
+                Log.d("MainViewModel", "Reordered configs: from=$fromIndex, to=$toIndex")
             }
         }
     }

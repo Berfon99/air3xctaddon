@@ -1,22 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- App information -->
     <string name="app_name">AIR³ XCT Addon</string>
     <string name="copyright">© 2025 Bertrand Fontaine - AIR³</string>
     <string name="app_version">Version</string>
-
-    <!-- Main navigation -->
     <string name="menu_settings">Settings</string>
     <string name="menu_about">About</string>
     <string name="close_app">Close</string>
-
-    <!-- Activity titles -->
     <string name="title_settings">Settings</string>
     <string name="title_about">About</string>
     <string name="title_add_event">Add New Event</string>
     <string name="title_main">AIR3 XCT Addon</string>
-
-    <!-- Configuration actions -->
     <string name="add_config">Add Configuration</string>
     <string name="select_event">Select Event</string>
     <string name="select_sound">Select Sound</string>
@@ -32,118 +25,53 @@
     <string name="confirm">Confirm</string>
     <string name="cancel">Cancel</string>
     <string name="select_task">Select Task</string>
-
-    <!-- Event management -->
     <string name="add_new_event">Add a new event</string>
     <string name="event_name">Event Name</string>
     <string name="event_count">Total Events: %1$d</string>
     <string name="no_items_available">No items available</string>
-
-    <!-- Status messages -->
     <string name="loading">Loading...</string>
     <string name="no_sound_files">No sound files</string>
     <string name="no_categories">No categories available</string>
     <string name="no_categories_retry">No categories available. Please try again later.</string>
     <string name="category_event_required">Please select a category and enter an event name.</string>
     <string name="debug_events">Debug - Current Events: %1$d, Categories: %2$d</string>
-
-    <!-- Permission messages -->
     <string name="notification_permission_required">Notification permission is required for full functionality.</string>
     <string name="storage_permission_required">Storage permission is required to copy sound files.</string>
     <string name="sound_files_copy_failed">Failed to copy sound files. Some features may not work.</string>
     <string name="sound_files_not_found">No sound files found. Some features may not work.</string>
     <string name="sound_files_error">Error copying sound files.</string>
     <string name="overlay_permission_required">Overlay permission is required to launch apps in the background</string>
-
-    <!-- Notification strings -->
     <string name="notification_channel_name">Log Monitor Service</string>
     <string name="notification_channel_description">Channel for LogMonitorService notifications</string>
     <string name="notification_title">AIR3 XCT Addon</string>
     <string name="notification_text">Monitoring XCTrack events</string>
-
-    <!-- Log message strings -->
-    <string name="log_service_started">Service started</string>
-    <string name="log_started_foreground">Started foreground service</string>
-    <string name="log_registered_receiver">Registered event receiver</string>
-    <string name="log_unregistered_receiver">Unregistered event receiver</string>
-    <string name="log_error_unregistering">Error unregistering receiver</string>
-    <string name="log_received_event">Received event: %1$s</string>
-    <string name="log_found_config">Found config for %1$s: %2$s</string>
-    <string name="log_no_config">No config for %1$s</string>
-    <string name="log_loaded_configs">Loaded configs: %1$d</string>
-    <string name="log_initialized_events">Initialized with CATEGORIZED_EVENTS: %1$d, Categories: %2$d</string>
-    <string name="log_updated_events">Updated events: %1$d, Categories: %2$d, DB events: %3$d</string>
-    <string name="log_available_events">Available events: %1$d, Categories: %2$d</string>
-    <string name="log_event_exists">Event \'%1$s\' already exists, skipping</string>
-    <string name="log_added_event">Added event \'%1$s\' to category \'%2$s\'</string>
-    <string name="log_added_config">Added config: event=%1$s, soundFile=%2$s</string>
-    <string name="log_updated_config">Updated config: id=%1$d</string>
-    <string name="log_deleted_config">Deleted config: id=%1$d</string>
-    <string name="log_reordered_configs">Reordered configs: from=%1$d, to=%2$d</string>
-    <string name="log_inserting_config">Inserting config: event=%1$s, soundFile=%2$s</string>
-    <string name="log_updating_config">Updating config: id=%1$d, event=%2$s</string>
-    <string name="log_deleting_config">Deleting config: id=%1$d, event=%2$s</string>
-    <string name="log_updating_position">Updating position: id=%1$d, position=%2$d</string>
-    <string name="log_retrieved_configs">getAllConfigsSync retrieved %1$d configs: %2$s</string>
-    <string name="log_error_configs">Error in getAllConfigsSync</string>
-
-    <!-- XCTrackEventReceiver strings -->
-    <string name="log_xctrack_event">Received event: %1$s, formatArgs: %2$s</string>
-    <string name="log_handling_event">Handling %1$s, formatArgs: %2$s</string>
-    <string name="log_new_event">New or unhandled event: %1$s, formatArgs: %2$s</string>
-
-    <!-- Asset Utils strings -->
-    <string name="log_external_dir_null">External files directory is null</string>
-    <string name="log_failed_create_dir">Failed to create sounds directory: %1$s</string>
-    <string name="log_sounds_dir_info">Sounds directory: %1$s, exists: %2$b</string>
-    <string name="log_existing_sound_files">Existing sound files: %1$s</string>
-    <string name="log_skipping_copy">Skipping copy, sound files already exist</string>
-    <string name="log_asset_files">Sound files in assets/%1$s: %2$s</string>
-    <string name="log_no_sound_files_in_assets">No .mp3 or .wav files found in assets/%1$s</string>
-    <string name="log_copied_sound_file">Copied sound file: %1$s to %2$s</string>
-    <string name="log_failed_copy_sound">Failed to copy sound file: %1$s</string>
-    <string name="log_error_copying">Error copying sound files from assets</string>
-    <string name="log_dir_not_exist">Directory does not exist: %1$s</string>
-    <string name="log_dir_empty">Directory is empty: %1$s</string>
-    <string name="log_dir_contents">Contents of %1$s:</string>
-    <string name="log_file_info">  - %1$s (%2$d bytes, readable: %3$b)</string>
-
-    <!-- Event category names -->
     <string name="category_battery">Battery</string>
     <string name="category_flight">Flight</string>
     <string name="category_competition">Competition</string>
     <string name="category_airspace">Airspace</string>
     <string name="category_others">Others</string>
-
     <string name="configure_telegram_position">Configure Telegram Position</string>
     <string name="telegram_group_instructions">To select a group, send /start to @AIR3SendPositionBot in the desired group, then select it below.</string>
     <string name="select_group">Select Group</string>
     <string name="retry">Retry</string>
-
-    <!-- New strings for pilot name -->
     <string name="add_pilot_name">Add Pilot Name</string>
     <string name="pilot_name_label">Pilot Name</string>
     <string name="current_pilot_name">Current Pilot Name: %s</string>
-
     <string name="brand_limit_message">This app has no limitations with AIR³ devices. Other devices are limited to one action.</string>
     <string name="zello_not_installed">Please install Zello to use PTT task</string>
-
     <string name="add_task">Add Task</string>
     <string name="select_app_to_launch">Select App to Launch</string>
     <string name="selected_app">Selected: %s</string>
     <string name="launch_in_background">Launch in background (keep XCTrack in foreground)</string>
     <string name="select_app">Select App</string>
-
     <string name="cannot_launch_app">Cannot launch app: %s</string>
     <string name="app_not_found">App not found: %s</string>
     <string name="failed_to_launch_app">Failed to launch app: %s</string>
     <string name="no_app_specified_to_launch">No app specified to launch</string>
-
     <string name="overlay_permission_granted">Overlay permission granted</string>
     <string name="overlay_permission_denied">Overlay permission denied. If the app isn\'t listed in Settings, try reinstalling or use ADB: \'adb shell appops set com.xc.air3xctaddon SYSTEM_ALERT_WINDOW allow\'</string>
     <string name="overlay_permission_description">This app needs permission to display over other apps to launch applications in the background while keeping XCTrack active. Please enable \'Display over other apps\' in Settings.</string>
     <string name="go_to_settings">Go to Settings</string>
-
     <string name="searching_for_available_groups">Searching for available groups...</string>
     <string name="error_loading_groups">Error loading groups</string>
     <string name="no_groups_found_with_the_bot">No groups found with the bot</string>
@@ -164,16 +92,13 @@
     <string name="the_bot_is_in_the_group_but_needs_to_be_activated">The bot is in the group but needs to be activated.</string>
     <string name="activating_bot">Activating bot...</string>
     <string name="ready_to_send_position_updates">Ready to send position updates!</string>
-
     <string name="add_bot_to_group_title">Add Bot to Group</string>
     <string name="select_group_to_add_bot">Select the Group to which you want to add the bot to.</string>
     <string name="open_telegram_prompt">Would you like to open Telegram to add the bot to an existing group?</string>
     <string name="return_and_refresh_instructions">After adding the bot, return here and refresh to continue.</string>
     <string name="open_telegram_button">Open Telegram</string>
-    <string name="failed_to_get_bot_info">Failed to get bot info: %1$s</string>
     <string name="location_permission_denied">Location permission denied. Please grant permission to continue.</string>
-
-    <!-- Additional strings for SendTelegramConfigDialog -->
+    <string name="failed_to_get_bot_info">Failed to get bot info: %1$s</string>
     <string name="failed_to_fetch_groups_retries">Failed to fetch groups after %1$d retries</string>
     <string name="failed_to_fetch_groups_error">Failed to fetch groups: %1$s</string>
     <string name="failed_to_check_bot_status">Failed to check bot status: %1$s</string>
@@ -181,15 +106,12 @@
     <string name="telegram_group_label">Telegram Group</string>
     <string name="select_group_option">Select Group</string>
     <string name="other_option">Other...</string>
-
     <string name="add_new_task">Add a new task</string>
     <string name="clear_all_tasks">Clear All Tasks</string>
     <string name="configured_tasks">Configured Tasks</string>
     <string name="launch_app_background">Launch %1$s (Background)</string>
     <string name="launch_app_foreground">Launch %1$s (Foreground)</string>
     <string name="delete_task">Delete Task</string>
-
-    <!-- TelegramBotHelper strings -->
     <string name="telegram_api_base_url">https://api.telegram.org/bot</string>
     <string name="telegram_send_location_endpoint">/sendLocation</string>
     <string name="telegram_send_message_endpoint">/sendMessage</string>
@@ -211,188 +133,21 @@
     <string name="telegram_member_status">member</string>
     <string name="telegram_admin_status">administrator</string>
     <string name="telegram_creator_status">creator</string>
-
-    <!-- Error messages for TelegramBotHelper -->
     <string name="error_location_null">Location is null</string>
     <string name="error_failed_get_location">Failed to get location: %s</string>
     <string name="error_location_permission_not_granted">Location permission not granted</string>
     <string name="error_response_body_null">Response body is null</string>
     <string name="error_failed_open_telegram">Failed to open Telegram: %s</string>
-
-    <!-- Log messages for TelegramBotHelper -->
-    <string name="log_sending_live_location_json">Sending live location JSON: %1$s, pilotName=%2$s</string>
-    <string name="log_failed_send_live_location">Failed to send live location to chat %1$s, pilotName=%2$s: %3$s</string>
-    <string name="log_live_location_sent">Live location sent to chat %1$s, pilotName=%2$s</string>
-    <string name="log_error_sending_live_location">Error sending live location to chat %1$s, pilotName=%2$s: %3$s, code=%4$d</string>
-    <string name="log_response_body">Response body: %s</string>
-    <string name="log_sending_location_message_json">Sending location message JSON: %1$s, pilotName=%2$s, event=%3$s</string>
-    <string name="log_failed_send_location_message">Failed to send location message to chat %1$s, pilotName=%2$s, event=%3$s: %4$s</string>
-    <string name="log_location_message_sent">Location message sent to chat %1$s, pilotName=%2$s, event=%3$s</string>
-    <string name="log_error_sending_location_message">Error sending location message to chat %1$s, pilotName=%2$s, event=%3$s: %4$s, code=%5$d</string>
-    <string name="log_failed_get_bot_info">Failed to get bot info: %s</string>
-    <string name="log_error_getting_bot_info">Error getting bot info: %s</string>
-    <string name="log_error_parsing_bot_info">Error parsing bot info: %s</string>
-    <string name="log_bot_info_fetched">Bot info fetched: %1$s, %2$s</string>
-    <string name="log_failed_check_bot_status">Failed to check bot status for chat %1$s: %2$s</string>
-    <string name="log_bot_not_in_group">Bot not in group %1$s: %2$s (code=%3$d)</string>
-    <string name="log_bot_status_in_chat">Bot status in chat %1$s: isMember=%2$b, status=%3$s</string>
-    <string name="log_bot_not_in_group_response_not_ok">Bot not in group %1$s: Response not ok, json=%2$s</string>
-    <string name="log_error_parsing_bot_status">Error parsing bot status for chat %1$s: %2$s, json=%3$s</string>
-    <string name="log_failed_get_bot_info_for_check">Failed to get bot info for checkBotInGroup: %s</string>
-    <string name="log_failed_send_start_command">Failed to send start command: %s</string>
-    <string name="log_start_command_sent">Start command sent to chat %s</string>
-    <string name="log_error_sending_start_command">Error sending start command: %s</string>
-    <string name="log_opening_telegram_deeplink">Opening Telegram with deep link: %s</string>
-    <string name="log_raw_groups_fetched">Raw groups fetched: %s</string>
-    <string name="log_validated_groups">Validated groups: %s</string>
-    <string name="log_no_raw_groups_validate">No raw groups to validate</string>
-    <string name="log_validated_group">Validated group %1$s: isMember=%2$b, isActive=%3$b</string>
-    <string name="log_error_validating_group">Error validating group %1$s: %2$s</string>
-    <string name="log_failed_fetch_groups">Failed to fetch groups: %s</string>
-    <string name="log_error_fetching_groups">Error fetching groups: %s</string>
-    <string name="log_getupdates_response">getUpdates response: %s</string>
-    <string name="log_found_group">Found group: %1$s, chatId=%2$s</string>
-    <string name="log_error_parsing_groups">Error parsing groups: %s</string>
-
-    <!-- Asset Utils strings -->
     <string name="asset_sounds_path">sounds</string>
-    <string name="log_external_files_dir_null">External files directory is null</string>
-    <string name="log_failed_create_sounds_dir">Failed to create sounds directory: %1$s</string>
-    <string name="log_sounds_dir_status">Sounds directory: %1$s, exists: %2$b</string>
-    <string name="log_existing_sound_files_list">Existing sound files: %1$s</string>
-    <string name="log_skip_copy_files_exist">Skipping copy, sound files already exist</string>
-    <string name="log_asset_sound_files">Sound files in assets/%1$s: %2$s</string>
-    <string name="log_no_sound_files_in_assets_path">No .mp3 or .wav files found in assets/%1$s</string>
-    <string name="log_copied_sound_file_to">Copied sound file: %1$s to %2$s</string>
-    <string name="log_failed_copy_sound_file">Failed to copy sound file: %1$s</string>
-    <string name="log_error_copying_sound_files">Error copying sound files from assets</string>
-    <string name="log_dir_not_exists">Directory does not exist: %1$s</string>
-    <string name="log_dir_is_empty">Directory is empty: %1$s</string>
-    <string name="log_dir_contents_list">Contents of %1$s:</string>
-    <string name="log_file_details">  - %1$s (%2$d bytes, readable: %3$b)</string>
-
-    <!-- MainScreen Dialog Strings -->
     <string name="device_compatibility_title">Device Compatibility</string>
     <string name="brand_limit_restriction">This app has no restrictions with AIR³ devices. Other devices are restricted to one action.</string>
     <string name="ok_button">OK</string>
-    <!-- MainScreen Log Messages -->
-    <string name="log_filtered_configs">Filtered Configs: %1$s, AvailableEvents: %2$s</string>
-    <string name="log_add_config_clicked">Add button clicked, adding config: event=%1$s, taskType=%2$s, taskData=%3$s</string>
-    <string name="log_no_event_item">Add button clicked, but no EventItem.Event found in availableEvents</string>
-    <string name="log_non_air3_limit">Non-AIR³ device with %1$d rows, showing limitation dialog</string>
-
-    <!-- LogMonitorService Constants -->
     <string name="notification_channel_id">LogMonitorServiceChannel</string>
     <string name="action_prefix">org.xcontest.XCTrack.Event.</string>
-    <!-- LogMonitorService Log Messages -->
-    <string name="log_intent_received">Intent received: action=%1$s, extras=%2$s</string>
-    <string name="log_format_args_extra">, formatArgs: %1$s</string>
-    <string name="log_launch_app_configs">LaunchApp configs in database: %1$s</string>
-    <string name="log_found_configs">Found %1$d configs for event \'%2$s\': %3$s</string>
-    <string name="log_config_details">, taskType=%1$s, id=%2$d, launchInBackground=%3$b</string>
-    <string name="log_no_sound_file">No sound file specified for event: %1$s, configId=%2$d</string>
-    <string name="log_sending_position">Sending position for event: %1$s, configId=%2$d</string>
-    <string name="log_sending_telegram_position">Sending Telegram position to chatId: %1$s, configId=%2$d</string>
-    <string name="log_sent_telegram_position">Sent Telegram position for event: %1$s, lat=%2$f, lon=%3$f</string>
-    <string name="log_error_getting_location">Error getting location for event: %1$s, configId=%2$d, error: %3$s</string>
-    <string name="log_no_chat_id">No chat ID specified for event: %1$s, configId=%2$d</string>
-    <string name="log_preparing_launch_app">Preparing to launch app: %1$s, configId=%2$d, launchInBackground=%3$b</string>
-    <string name="log_started_launch_activity">Started LaunchActivity for app: %1$s, configId=%2$d, launchInBackground=%3$b</string>
-    <string name="log_failed_launch_activity">Failed to start LaunchActivity for app: %1$s, configId=%2$d, error: %3$s</string>
-    <string name="log_no_package_name">No package name specified for event: %1$s, configId=%2$d</string>
-    <string name="log_sent_zello_intent">Sent Zello intent: com.zello.ptt.up for event: %1$s, configId=%2$d</string>
-    <string name="log_failed_zello_intent">Failed to send Zello PTT intent for event: %1$s, configId=%2$d</string>
-    <string name="log_unknown_task_type">Unknown or null taskType: %1$s for event: %2$s, configId=%3$d</string>
-    <string name="log_no_configs_found">No configs found for event: %1$s</string>
-    <string name="log_no_event_extracted">No event name extracted from action: %1$s</string>
-    <string name="log_playing_sound">Playing sound: %1$s, volumeType: %2$s, volumePercentage: %3$d%%, playCount: %4$d</string>
-    <string name="log_started_playback">Started playback %1$d/%2$d for: %3$s</string>
-    <string name="log_error_restarting_playback">Error restarting playback %1$d/%2$d for: %3$s</string>
-    <string name="log_playback_completed">Playback completed %1$d/%2$d for: %3$s</string>
-    <string name="log_mediaplayer_error">MediaPlayer error: what=%1$d, extra=%2$d</string>
-    <string name="log_error_playing_sound">Error playing sound file: %1$s</string>
-
-    <!-- MainActivity Constants -->
     <string name="brand_air3">AIR3</string>
-    <!-- MainActivity Log Messages -->
-    <string name="log_system_alert_window_check">SYSTEM_ALERT_WINDOW check: canDrawOverlays=%1$b</string>
-    <string name="log_saved_air3_status">Saved AIR³ device status to DataStore: %1$b</string>
-    <string name="log_requesting_storage_permission">Requesting WRITE_EXTERNAL_STORAGE permission</string>
-    <string name="log_location_permission_needed">ACCESS_FINE_LOCATION permission needed</string>
-    <string name="log_notification_permission_needed">POST_NOTIFICATIONS permission needed</string>
-    <string name="log_requesting_permissions">Requesting permissions: %1$s</string>
-    <string name="log_system_alert_window_needed">SYSTEM_ALERT_WINDOW permission needed</string>
-    <string name="log_requesting_system_alert_window">Requesting SYSTEM_ALERT_WINDOW for package: %1$s</string>
-    <string name="log_failed_copy_sound_files">Failed to copy sound files</string>
-    <string name="log_no_sound_files_found">No files found in %1$s</string>
-    <string name="log_sound_directory_contents">External sound directory (%1$s) contains: %2$d files</string>
-    <string name="log_sound_file_details">  - %1$s (%2$d bytes, readable: %3$b, exists: %4$b)</string>
-    <string name="log_error_setting_up_sound_files">Error setting up sound files</string>
-    <string name="log_requesting_notification_permission">Requesting POST_NOTIFICATIONS permission</string>
-    <string name="log_notification_permission_granted">POST_NOTIFICATIONS permission granted</string>
-    <string name="log_notification_permission_denied">POST_NOTIFICATIONS permission denied</string>
-    <string name="log_storage_permission_granted">WRITE_EXTERNAL_STORAGE permission granted</string>
-    <string name="log_storage_permission_denied">WRITE_EXTERNAL_STORAGE permission denied</string>
-    <string name="log_location_permission_granted">ACCESS_FINE_LOCATION permission granted</string>
-    <string name="log_location_permission_denied">ACCESS_FINE_LOCATION permission denied</string>
-    <string name="log_location_permission_required">Location permission required for Telegram position</string>
-    <string name="log_started_log_monitor_service">Started LogMonitorService</string>
-    <!-- MainActivity Toast Messages -->
     <string name="toast_location_permission_required">Location permission required for Telegram position</string>
-
-    <!-- SendTelegramConfigDialog Log Messages -->
-    <string name="log_fetch_groups_called">fetchGroups called: retryCount=%1$d, maxRetries=%2$d</string>
-    <string name="log_max_retries_reached">Max retries reached for fetchGroups</string>
-    <string name="log_fetched_groups">Fetched groups: %1$s</string>
-    <string name="log_auto_selected_group">Auto-selected group: %1$s, isAddingNewGroup=%2$b</string>
-    <string name="log_fetch_groups_error">Fetch groups error (retry %1$d/%2$d): %3$s</string>
-    <string name="log_checked_group">Checked group %1$s: isMember=%2$b, isActive=%3$b</string>
-    <string name="log_error_checking_bot">Error checking bot in group %1$s: %2$s</string>
-    <string name="log_bot_activated">Bot activated in group %1$s, chatId=%2$s</string>
-    <string name="log_error_activating_bot">Error activating bot in group %1$s: %2$s</string>
-    <string name="log_permission_granted">Permission granted, fetching groups</string>
-    <string name="log_network_permission_denied">Network state permission denied</string>
-    <string name="log_manual_refresh">Manual refresh triggered</string>
-    <string name="log_retry_fetch">Retry fetch triggered</string>
-    <string name="log_empty_groups_refresh">Empty groups refresh triggered</string>
-    <string name="log_selected_other">Selected \'Other...\', opening bot setup dialog</string>
-    <string name="log_selected_group">Selected group: %1$s</string>
-
-    <!-- ConfigRow Log Messages -->
-    <string name="log_launch_app_tasks_updated">launchAppTasks updated: %1$d tasks</string>
-    <string name="log_task_details">Task: id=%1$d, type=%2$s, data=%3$s, name=%4$s, background=%5$b</string>
-    <string name="log_no_sound_file_selected">Cannot play sound: No sound file selected</string>
-    <string name="log_playing_sound_file">Playing sound file: %1$s, volumeType: %2$s, volumePercentage: %3$d%%, playCount: %4$d</string>
-    <string name="log_error_playing_sound_file">Error playing sound file: %1$s</string>
-    <string name="log_stopped_playback">Stopped playback for: %1$s</string>
-    <string name="log_selected_event">Selected event: %1$s</string>
-    <string name="log_selected_launch_app">Selected task: LaunchApp, app: %1$s, launchInBackground=%2$b</string>
-    <string name="log_selected_zello_ptt">Selected task: ZELLO_PTT</string>
-    <string name="log_sound_config_saved">Sound config saved: %1$s, %2$s, %3$d, %4$d</string>
-    <string name="log_telegram_config_saved">Telegram config saved: chatId=%1$s, groupName=%2$s</string>
-
-    <!-- ControlButtons Log Messages -->
-    <string name="log_play_sound_clicked">Main play button clicked for sound: %1$s</string>
-    <string name="log_play_telegram_clicked">Main play button clicked for SendTelegramPosition: chatId=%1$s, event=%2$s</string>
-    <string name="log_sent_telegram_location">Sent location message to Telegram: lat=%1$f, lon=%2$f, event=%3$s</string>
-    <string name="log_failed_get_location">Failed to get location: %1$s</string>
-    <string name="log_play_launch_app_clicked">Main play button clicked for LaunchApp: package=%1$s</string>
-    <string name="log_no_launch_intent">No launch intent for package: %1$s</string>
-    <string name="log_play_zello_ptt_clicked">Main play button clicked for ZELLO_PTT: sent com.zello.ptt.up</string>
-    <string name="log_stop_sound_clicked">Main stop button clicked for sound: %1$s</string>
-    <string name="log_delete_clicked">Delete button clicked</string>
-
-    <!-- DropdownMenuSpinner Log Messages -->
-    <string name="log_dropdown_rendering">Rendering DropdownMenuSpinner with Items: %1$s, Selected: %2$s, Expanded: %3$b</string>
-    <string name="log_dropdown_text_clicked">Text clicked, expanded set to true</string>
-    <string name="log_dropdown_dismissed">Dropdown dismissed, expanded set to false</string>
-    <string name="log_dropdown_no_items_clicked">No items available clicked</string>
-    <string name="log_dropdown_item_selected">Item selected: %1$s</string>
-
     <string name="volume_label">Volume:</string>
     <string name="count_label">Count:</string>
-
-    <!-- TaskSelector UI Strings -->
     <string name="task_send_telegram_position">Send Telegram Position: %1$s</string>
     <string name="task_launch_app">Launch: %1$s (%2$s)</string>
     <string name="task_zello_ptt">Zello PTT</string>
@@ -401,19 +156,13 @@
     <string name="task_launch_app_item">Launch: %1$s (%2$s)</string>
     <string name="background">Background</string>
     <string name="foreground">Foreground</string>
-
-    <!-- SendTelegramConfigDialog UI Strings -->
     <string name="select_telegram_chat">Select Telegram Chat</string>
     <string name="select_chat">Select Chat</string>
     <string name="no_telegram_chats">No Telegram Chats Available</string>
     <string name="chat_label">Chat</string>
-
     <string name="select_task_type">Select Task Type</string>
     <string name="send_position_to_telegram">Send Position to Telegram</string>
     <string name="launch_an_app">Launch an App</string>
-    <string name="log_no_task_found">No task found for type=%s, data=%s, event=%s, configId=%d</string>
-    <string name="log_selected_task">Selected task: type=%s, name=%s, launchInBackground=%b</string>
-
     <string name="task_send_message_to_telegram">Send message to Telegram</string>
     <string name="configure_telegram_message">Configure Telegram Message</string>
     <string name="select_group_message_prompt">Select the group where you want to send the message</string>
@@ -430,103 +179,52 @@
     <string name="ready_to_send_updates">Ready to send updates</string>
     <string name="selected_group">Selected Group</string>
     <string name="change">Change</string>
-
     <string name="delete_message_title">Delete Message</string>
     <string name="delete_message_confirmation">Are you sure you want to delete the message "%1$s"?</string>
     <string name="failed_to_delete_message">Failed to delete message: %1$s</string>
-    <string name="log_play_telegram_message_clicked">Playing Telegram message for chatId: %s, message: %s</string>
-
     <string name="telegram_message_from_pilot">Message from %1$s: %2$s</string>
-    <string name="log_sending_message_json">Sending message JSON: %1$s, pilot: %2$s</string>
-    <string name="log_failed_send_message">Failed to send message to chat %1$s, pilot: %2$s, error: %3$s</string>
-    <string name="log_message_sent">Message sent to chat %1$s, pilot: %2$s</string>
-    <string name="log_error_sending_message">Error sending message to chat %1$s, pilot: %2$s, message: %3$s, code: %4$d</string>
-
-    <string name="log_sent_telegram_message">Sent Telegram message for event %1$s to chat %2$s: %3$s</string>
-    <string name="log_invalid_telegram_message_config">Invalid Telegram message config for event %1$s, id %2$d: chatId or message missing</string>
-    <string name="log_invalid_telegram_message_format">Invalid Telegram message taskData format for event %1$s, id %2$d: %3$s</string>
-
     <string name="select_chat_message_prompt">Select the chat where you want to send the message and choose a message to send.</string>
     <string name="selected_message">Selected Message</string>
     <string name="create_or_choose_a_telegram_chat">1. Create or choose a Telegram chat (group or private).</string>
-
-        <!-- LogMonitorService.kt -->
-        <string name="log_invalid_task_data">Invalid task data for task type %1$s, config ID %2$d</string>
-
-        <string name="select_chat_option">Select a chat</string>
-        <string name="searching_for_available_chats">Searching for available chats...</string>
-        <string name="error_loading_chats">Error loading chats</string>
-        <string name="no_chats_found_with_the_bot">No chats found with the bot</string>
-        <string name="add_the_bot_to_that_chat">Add the bot to that chat</string>
-        <string name="send_start_in_the_chat">Send /start in the chat</string>
-        <string name="add_bot_to_chat">Add Bot to Chat</string>
-        <string name="log_empty_chats_refresh">Empty chats, refreshing chats</string>
-        <string name="log_selected_chat">Selected chat: %1$s</string>
-        <string name="telegram_chat_label">Telegram Chat</string>
-        <string name="the_bot_needs_to_be_added_to_this_chat">The bot needs to be added to this chat.</string>
-        <string name="the_bot_is_in_the_chat_but_needs_to_be_activated">The bot is in the chat but needs to be activated.</string>
-        <string name="selected_chat">Selected Chat</string>
-        <string name="add_bot_to_chat_title">Add Bot to Chat</string>
-        <string name="select_chat_to_add_bot">Select a chat to add the bot</string>
-
-        <string name="select_the_chat_where_you_want_to_send_position_updates">Select the chat where you want to send position updates.</string>
-
-        <string name="log_raw_chats_fetched">Raw chats fetched: %1$s</string>
-        <string name="log_validated_chats">Validated chats: %1$s</string>
-        <string name="log_no_raw_chats_validate">No raw chats to validate</string>
-    <string name="log_validated_chat">Validated chat: %1$s, isMember=%2$b, isActive=%3$b</string>
-    <string name="log_error_validating_chat">Error validating chat %1$s: %2$s</string>
-    <string name="log_failed_fetch_chats">Failed to fetch chats: %1$s</string>
-        <string name="log_error_fetching_chats">Error fetching chats: %1$s</string>
-        <string name="unknown_user">Unknown User</string>
-    <string name="log_found_chat">Found chat: %1$s, chatId=%2$s, type=%3$s</string>
-        <string name="log_error_parsing_chats">Error parsing chats: %1$s</string>
-
-    <!-- Add these to your strings.xml file -->
+    <string name="select_chat_option">Select a chat</string>
+    <string name="searching_for_available_chats">Searching for available chats...</string>
+    <string name="error_loading_chats">Error loading chats</string>
+    <string name="no_chats_found_with_the_bot">No chats found with the bot</string>
+    <string name="add_the_bot_to_that_chat">Add the bot to that chat</string>
+    <string name="send_start_in_the_chat">Send /start in the chat</string>
+    <string name="add_bot_to_chat">Add Bot to Chat</string>
+    <string name="telegram_chat_label">Telegram Chat</string>
+    <string name="the_bot_needs_to_be_added_to_this_chat">The bot needs to be added to this chat.</string>
+    <string name="the_bot_is_in_the_chat_but_needs_to_be_activated">The bot is in the chat but needs to be activated.</string>
+    <string name="selected_chat">Selected Chat</string>
+    <string name="add_bot_to_chat_title">Add Bot to Chat</string>
+    <string name="select_chat_to_add_bot">Select a chat to add the bot</string>
+    <string name="select_the_chat_where_you_want_to_send_position_updates">Select the chat where you want to send position updates.</string>
+    <string name="unknown_user">Unknown User</string>
     <string name="bot_no_access_private_chat">The bot doesn\'t have access to this private chat. The user needs to start a conversation with the bot first.</string>
     <string name="start_conversation_with_bot">Start conversation with bot</string>
     <string name="private_chat_instructions">To enable the bot to send messages to this private chat:\n1. Open Telegram\n2. Search for the bot\n3. Send /start to the bot\n4. Come back and refresh</string>
-
     <string name="select_telegram_group">Select a Telegram group</string>
-
-    <!-- Group setup dialog -->
     <string name="add_bot_to_group_prompt">Select a group in Telegram to add the bot.</string>
     <string name="open_telegram_group_prompt">Open Telegram, choose a group, add the bot, and send /start to activate it.</string>
-
-    <!-- Share bot link logs -->
-    <string name="log_sharing_bot_link">Sharing bot link for %1$s</string>
-    <string name="log_failed_share_bot_link">Failed to share bot link: %1$s</string>
-    <string name="log_failed_share_bot_link_fallback">Failed to share bot link fallback: %1$s</string>
-
-    <string name="log_opening_telegram">Opening Telegram for bot %1$s</string>
-    <string name="log_failed_open_telegram">Failed to open Telegram: %1$s</string>
-    <string name="log_failed_open_telegram_fallback">Failed to open Telegram fallback: %1$s</string>
-
     <string name="the_bot_needs_to_be_added_to_group">The bot needs to be added to the group to send messages.</string>
-
     <string name="offline_mode_using_cached_chats">No internet connection. Using previously saved chats.</string>
     <string name="offline_mode_warning">You are offline. The task will be saved, but it may fail if the bot is not added or activated in the selected chat.</string>
     <string name="cannot_add_new_chat_offline">Cannot add a new chat while offline. Please connect to the internet.</string>
     <string name="offline_task_warning_title">Offline Task Creation</string>
     <string name="offline_task_warning_message">You are creating a task without internet access. The task may fail if the bot is not properly set up in the selected chat. Proceed anyway?</string>
-
     <string name="no_internet_title">No Internet Connection</string>
     <string name="no_internet_message">Internet connection is required to setup this task, connect to internet and retry.</string>
-
     <string name="bot_description">This bot allows you to send position or message updates from the AIR3 XCT addon.</string>
     <string name="bot_share_additional_message">Please click on the link to start a conversation with the bot and click start in the bottom or send /start to the bot.</string>
     <string name="share_bot_link">Share Bot Link</string>
-
     <string name="pilot_name_required_title">Pilot Name Required</string>
     <string name="pilot_name_required_message">Telegram features require a pilot name. Please set your pilot name.</string>
-
     <string name="task_other">Other</string>
     <string name="add_task_required_title">You want to add another task?</string>
     <string name="add_task_required_message">Add task in the Settings</string>
-
     <string name="telegram_not_installed_title">Telegram Required</string>
     <string name="telegram_not_installed_message">A Telegram app must be installed on your device to set up Telegram tasks. Please install Telegram from Google Play Store or use an APK file, then try again.</string>
-
     <string name="user_id_prompt_title">User Authentication Required</string>
     <string name="user_id_prompt_message">To use this feature, you need to send /start to the bot in a private chat.</string>
     <string name="user_id_prompt_instructions">Click below to open the bot in Telegram and send /start. Then send return here and refresh.</string>
@@ -537,33 +235,26 @@
     <string name="user_not_in_group">You are not a member of this group</string>
     <string name="user_must_be_in_group">You must be a member of the group to send position updates.</string>
     <string name="join_group">Join Group</string>
-
     <string name="bot_info_unavailable">Unable to fetch bot information. Please check your bot token and try again.</string>
-
     <string name="telegram_validation">Telegram Validation</string>
     <string name="telegram_validated">User ID - Telegram validated</string>
     <string name="clear_telegram_validation">Clear Telegram Validation</string>
-
     <string name="telegram_validation_title">Telegram Validation</string>
     <string name="telegram_validation_message">Please send the command /start" to the bot %s in a private Telegram chat to validate your user ID.</string>
     <string name="waiting_for_validation">Waiting for you to send /start command...</string>
     <string name="open_telegram">Open Telegram</string>
-
     <string name="open_telegram_with_start">Open Telegram with /start</string>
     <string name="telegram_validated_with_id">%s - Telegram validated</string>
     <string name="telegram_validation_initial_message">Click below to open Telegram and send /start to %s to authenticate.</string>
-
     <string name="telegram_authentication">Telegram Authentication</string>
     <string name="telegram_authenticated_with_id">%s - Telegram authenticated</string>
     <string name="clear_telegram_authentication">Clear Telegram authentication</string>
     <string name="telegram_authentication_required_title">Authentication Required</string>
     <string name="telegram_authentication_required_message">To use Telegram tasks, you first need to be authenticated. Please authenticate first.</string>
-
     <string name="share_bot_message_template">Hi! Please click this link to start chatting with my location bot, then click the "Start" button: %1$s</string>
     <string name="telegram_bot_share_subject">Location Bot Link</string>
     <string name="share_bot_with_contact">Share bot link with contact</string>
     <string name="bot_link_copied_fallback">Bot link copied to clipboard. Please share it with your contact manually.</string>
-
     <string name="share_bot_message">Share Bot</string>
     <string name="telegram_test_message">Test message</string>
     <string name="failed_to_check_user_status">Failed to check user status: %s</string>
@@ -587,6 +278,5 @@ Or\n
     <string name="select_group_button">Select</string>
     <string name="no_groups_available">No groups with the bot active are available.</string>
     <string name="start_command_required">Please send /start in the bot chat to complete authentication.</string>
-
 
 </resources>

@@ -89,10 +89,10 @@ fun SendTelegramMessageConfigDialog(
         hasNetworkPermission = permissions[android.Manifest.permission.ACCESS_NETWORK_STATE] == true
         if (!hasLocationPermission) {
             chatError = context.getString(R.string.location_permission_denied)
-            Log.e("SendTelegramMessageConfigDialog", context.getString(R.string.location_permission_denied))
+            Log.e("SendTelegramMessageConfigDialog", "Location permission denied")
         }
         if (!hasNetworkPermission) {
-            Log.w("SendTelegramMessageConfigDialog", context.getString(R.string.log_network_permission_denied))
+            Log.w("SendTelegramMessageConfigDialog", "Network state permission denied")
         }
         if (hasLocationPermission) {
             coroutineScope.launch {

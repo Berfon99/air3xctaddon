@@ -41,7 +41,7 @@ class LogMonitorService : Service() {
             .setSmallIcon(R.mipmap.ic_launcher)
             .build()
         startForeground(NOTIFICATION_ID, notification)
-        Log.d("LogMonitorService", getString(R.string.log_started_foreground))
+        Log.d("LogMonitorService", "Started foreground service")
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         SettingsRepository.initialize(this) // Initialize singleton
@@ -51,10 +51,10 @@ class LogMonitorService : Service() {
             override fun onReceive(context: Context?, intent: Intent?) {
                 intent?.let {
                     val extrasString = it.extras?.keySet()?.joinToString() ?: "none"
-                    Log.d("LogMonitorService", getString(R.string.log_intent_received, it.action, extrasString))
+                    Log.d("LogMonitorService", "Received intent: action=${it.action}, extras=$extrasString")
                     val event = it.action?.removePrefix(getString(R.string.action_prefix))
                     val formatArgs = it.getSerializableExtra("formatArgs")
-                    Log.d("LogMonitorService", getString(R.string.log_received_event, event) + getString(R.string.log_format_args_extra, formatArgs.toString()))
+                    Log.d("LogMonitorService", "Received event: $event, formatArgs=$formatArgs")
                     if (event != null) {
                         scope.launch {
                             val db = AppDatabase.getDatabase(applicationContext)
@@ -64,10 +64,10 @@ class LogMonitorService : Service() {
                                 .filter { it.event.equals(event, ignoreCase = true) }
                                 .sortedBy { it.position }
                             val tasks = taskDao.getAllTasksSync()
-                            Log.d("LogMonitorService", getString(R.string.log_found_configs, configs.size, event, configs.map { "id=${it.id}, taskData=${it.taskData}, taskType=${it.taskType}" }))
+                            Log.d("LogMonitorService", "Found ${configs.size} configs for event $event: ${configs.map { "id=${it.id}, taskData=${it.taskData}, taskType=${it.taskType}" }}")
                             if (configs.isNotEmpty()) {
                                 configs.forEach { config ->
-                                    Log.d("LogMonitorService", getString(R.string.log_found_config, event, config.taskData) + getString(R.string.log_config_details, config.taskType, config.id, config.launchInBackground))
+                                    Log.d("LogMonitorService", "Found config for event $event: taskData=${config.taskData}, taskType=${config.taskType}, id=${config.id}, launchInBackground=${config.launchInBackground}")
                                     when (config.taskType) {
                                         "Sound" -> {
                                             if (!config.taskData.isNullOrEmpty()) {
@@ -78,12 +78,12 @@ class LogMonitorService : Service() {
                                                     config.playCount
                                                 )
                                             } else {
-                                                Log.w("LogMonitorService", getString(R.string.log_no_sound_file, event, config.id))
+                                                Log.w("LogMonitorService", "No sound file specified for event $event, configId=${config.id}")
                                             }
                                         }
                                         "SendTelegramPosition" -> {
                                             if (!config.taskData.isNullOrEmpty()) {
-                                                Log.d("LogMonitorService", getString(R.string.log_sending_telegram_position, config.taskData, config.id))
+                                                Log.d("LogMonitorService", "Sending Telegram position: chatId=${config.taskData}, configId=${config.id}")
                                                 telegramBotHelper.getCurrentLocation(
                                                     onResult = { latitude, longitude ->
                                                         telegramBotHelper.sendLocationMessage(
@@ -92,20 +92,20 @@ class LogMonitorService : Service() {
                                                             longitude = longitude,
                                                             event = config.event
                                                         )
-                                                        Log.d("LogMonitorService", getString(R.string.log_sent_telegram_position, event, latitude, longitude))
+                                                        Log.d("LogMonitorService", "Sent Telegram position for event $event: lat=$latitude, lon=$longitude")
                                                     },
                                                     onError = { error ->
-                                                        Log.e("LogMonitorService", getString(R.string.log_error_getting_location, event, config.id, error))
+                                                        Log.e("LogMonitorService", "Error getting location for event $event, configId=${config.id}: $error")
                                                     }
                                                 )
                                             } else {
-                                                Log.w("LogMonitorService", getString(R.string.log_invalid_task_data, config.taskType, config.id))
+                                                Log.w("LogMonitorService", "Invalid taskData for ${config.taskType}, configId=${config.id}")
                                             }
                                         }
                                         "LaunchApp" -> {
                                             val task = tasks.find { it.taskType == config.taskType && it.taskData == config.taskData }
                                             if (task != null) {
-                                                Log.d("LogMonitorService", getString(R.string.log_preparing_launch_app, config.taskData, config.id, config.launchInBackground))
+                                                Log.d("LogMonitorService", "Preparing to launch app: packageName=${config.taskData}, configId=${config.id}, launchInBackground=${config.launchInBackground}")
                                                 val launchIntent = Intent(this@LogMonitorService, LaunchActivity::class.java).apply {
                                                     putExtra("packageName", config.taskData)
                                                     putExtra("configId", config.id)
@@ -114,12 +114,12 @@ class LogMonitorService : Service() {
                                                 }
                                                 try {
                                                     startActivity(launchIntent)
-                                                    Log.d("LogMonitorService", getString(R.string.log_started_launch_activity, config.taskData, config.id, config.launchInBackground))
+                                                    Log.d("LogMonitorService", "Started LaunchActivity: packageName=${config.taskData}, configId=${config.id}, launchInBackground=${config.launchInBackground}")
                                                 } catch (e: SecurityException) {
-                                                    Log.e("LogMonitorService", getString(R.string.log_failed_launch_activity, config.taskData, config.id, e.toString()))
+                                                    Log.e("LogMonitorService", "Failed to start LaunchActivity: packageName=${config.taskData}, configId=${config.id}, error=$e")
                                                 }
                                             } else {
-                                                Log.w("LogMonitorService", getString(R.string.log_no_task_found, config.taskType, config.taskData, event, config.id))
+                                                Log.w("LogMonitorService", "No task found for type=${config.taskType}, taskData=${config.taskData}, event=$event, configId=${config.id}")
                                             }
                                         }
                                         "ZELLO_PTT" -> {
@@ -128,9 +128,9 @@ class LogMonitorService : Service() {
                                                     putExtra("com.zello.stayHidden", true)
                                                 }
                                                 sendBroadcast(zelloIntent)
-                                                Log.d("LogMonitorService", getString(R.string.log_sent_zello_intent, event, config.id))
+                                                Log.d("LogMonitorService", "Sent Zello PTT intent for event $event, configId=${config.id}")
                                             } catch (e: Exception) {
-                                                Log.e("LogMonitorService", getString(R.string.log_failed_zello_intent, event, config.id), e)
+                                                Log.e("LogMonitorService", "Failed to send Zello PTT intent for event $event, configId=${config.id}", e)
                                             }
                                         }
                                         "SendTelegramMessage" -> {
@@ -141,25 +141,25 @@ class LogMonitorService : Service() {
                                                         chatId = chatId,
                                                         message = message
                                                     )
-                                                    Log.d("LogMonitorService", getString(R.string.log_sent_telegram_message, event, chatId, message))
+                                                    Log.d("LogMonitorService", "Sent Telegram message for event $event: chatId=$chatId, message=$message")
                                                 } else {
-                                                    Log.e("LogMonitorService", getString(R.string.log_invalid_telegram_message_config, event, config.id))
+                                                    Log.e("LogMonitorService", "Invalid Telegram message config for event $event, configId=${config.id}")
                                                 }
                                             } else {
-                                                Log.e("LogMonitorService", getString(R.string.log_invalid_telegram_message_format, event, config.id, config.taskData ?: "null"))
+                                                Log.e("LogMonitorService", "Invalid Telegram message format for event $event, configId=${config.id}: ${config.taskData ?: "null"}")
                                             }
                                         }
                                         else -> {
-                                            Log.w("LogMonitorService", getString(R.string.log_unknown_task_type, config.taskType ?: "null", event, config.id))
+                                            Log.w("LogMonitorService", "Unknown task type: ${config.taskType ?: "null"} for event $event, configId=${config.id}")
                                         }
                                     }
                                 }
                             } else {
-                                Log.w("LogMonitorService", getString(R.string.log_no_configs_found, event))
+                                Log.w("LogMonitorService", "No configs found for event: $event")
                             }
                         }
                     } else {
-                        Log.w("LogMonitorService", getString(R.string.log_no_event_extracted, it.action ?: "null"))
+                        Log.w("LogMonitorService", "No event extracted from action: ${it.action ?: "null"}")
                     }
                 }
             }
@@ -207,7 +207,7 @@ class LogMonitorService : Service() {
             null,
             Context.RECEIVER_EXPORTED
         )
-        Log.d("LogMonitorService", getString(R.string.log_registered_receiver))
+        Log.d("LogMonitorService", "Registered event receiver")
     }
 
     private fun createNotificationChannel() {
@@ -228,7 +228,7 @@ class LogMonitorService : Service() {
         try {
             val soundsDir = File(getExternalFilesDir(null), "Sounds")
             val soundFilePath = File(soundsDir, fileName).absolutePath
-            Log.d("LogMonitorService", getString(R.string.log_playing_sound, soundFilePath, volumeType.toString(), volumePercentage ?: 100, playCount ?: 1))
+            Log.d("LogMonitorService", "Playing sound: $soundFilePath, volumeType=${volumeType.toString()}, volumePercentage=${volumePercentage ?: 100}%, playCount=${playCount ?: 1}")
 
             val volume = when (volumeType) {
                 VolumeType.MAXIMUM -> 1.0f
@@ -249,7 +249,7 @@ class LogMonitorService : Service() {
                 setVolume(volume, volume)
                 start()
                 currentPlayCount++
-                Log.d("LogMonitorService", getString(R.string.log_started_playback, currentPlayCount, playCount ?: 1, fileName))
+                Log.d("LogMonitorService", "Started playback $currentPlayCount/${playCount ?: 1} for: $fileName")
             }
 
             mediaPlayer.setOnCompletionListener {
@@ -261,29 +261,29 @@ class LogMonitorService : Service() {
                         mediaPlayer.setVolume(volume, volume)
                         mediaPlayer.start()
                         currentPlayCount++
-                        Log.d("LogMonitorService", getString(R.string.log_started_playback, currentPlayCount, playCount ?: 1, fileName))
+                        Log.d("LogMonitorService", "Started playback $currentPlayCount/${playCount ?: 1} for: $fileName")
                     } catch (e: Exception) {
-                        Log.e("LogMonitorService", getString(R.string.log_error_restarting_playback, currentPlayCount, playCount ?: 1, fileName), e)
+                        Log.e("LogMonitorService", "Error restarting playback $currentPlayCount/${playCount ?: 1} for: $fileName", e)
                         mediaPlayer.release()
                     }
                 } else {
-                    Log.d("LogMonitorService", getString(R.string.log_playback_completed, currentPlayCount, playCount ?: 1, fileName))
+                    Log.d("LogMonitorService", "Playback completed $currentPlayCount/${playCount ?: 1} for: $fileName")
                     mediaPlayer.release()
                 }
             }
 
             mediaPlayer.setOnErrorListener { _, what, extra ->
-                Log.e("LogMonitorService", getString(R.string.log_mediaplayer_error, what, extra))
+                Log.e("LogMonitorService", "MediaPlayer error: what=$what, extra=$extra")
                 mediaPlayer.release()
                 true
             }
         } catch (e: Exception) {
-            Log.e("LogMonitorService", getString(R.string.log_error_playing_sound, fileName), e)
+            Log.e("LogMonitorService", "Error playing sound: $fileName", e)
         }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Log.d("LogMonitorService", getString(R.string.log_service_started))
+        Log.d("LogMonitorService", "Service started")
         return START_STICKY
     }
 
@@ -291,9 +291,9 @@ class LogMonitorService : Service() {
         super.onDestroy()
         try {
             unregisterReceiver(eventReceiver)
-            Log.d("LogMonitorService", getString(R.string.log_unregistered_receiver))
+            Log.d("LogMonitorService", "Unregistered event receiver")
         } catch (e: Exception) {
-            Log.e("LogMonitorService", getString(R.string.log_error_unregistering), e)
+            Log.e("LogMonitorService", "Error unregistering receiver", e)
         }
     }
 

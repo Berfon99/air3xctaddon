@@ -54,7 +54,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
     // Filter out TASK_CONFIG entries for display
     val filteredConfigs = configs.filter { it.event != "TASK_CONFIG" }
 
-    Log.d("MainScreen", context.getString(R.string.log_filtered_configs, filteredConfigs.toString(), availableEvents.toString()))
+    Log.d("MainScreen", "Filtered Configs: $filteredConfigs, AvailableEvents: $availableEvents")
 
     Scaffold(
         topBar = {
@@ -171,7 +171,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
                                     // Always create the row regardless of Zello installation
                                     val selectedEvent = availableEvents.firstOrNull { item -> item is MainViewModel.EventItem.Event } as? MainViewModel.EventItem.Event
                                     if (selectedEvent != null) {
-                                        Log.d("MainScreen", context.getString(R.string.log_add_config_clicked, selectedEvent.name, "", ""))
+                                        Log.d("MainScreen", "Add button clicked, adding config: event=${selectedEvent.name}, taskType=, taskData=")
                                         viewModel.addConfig(
                                             event = selectedEvent.name,
                                             taskType = "",
@@ -182,11 +182,11 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
                                             telegramChatId = null
                                         )
                                     } else {
-                                        Log.w("MainScreen", context.getString(R.string.log_no_event_item))
+                                        Log.w("MainScreen", "Add button clicked, but no EventItem.Event found in availableEvents")
                                     }
                                 } else {
                                     showBrandLimitDialog = true
-                                    Log.d("MainScreen", context.getString(R.string.log_non_air3_limit, filteredConfigs.size))
+                                    Log.d("MainScreen", "Non-AIR³ device with ${filteredConfigs.size} rows, showing limitation dialog")
                                 }
                             }
                         },

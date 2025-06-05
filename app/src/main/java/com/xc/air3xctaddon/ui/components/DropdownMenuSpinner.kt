@@ -47,7 +47,7 @@ fun DropdownMenuSpinner(
     var expanded by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf(selectedItem) }
 
-    Log.d("DropdownMenuSpinner", context.getString(R.string.log_dropdown_rendering, items.toString(), selected, expanded))
+    Log.d("DropdownMenuSpinner", "Rendering DropdownMenuSpinner with Items: $items, Selected: $selected, Expanded: $expanded")
 
     Box(
         modifier = modifier
@@ -62,7 +62,7 @@ fun DropdownMenuSpinner(
                 .padding(8.dp)
                 .clickable {
                     expanded = true
-                    Log.d("DropdownMenuSpinner", context.getString(R.string.log_dropdown_text_clicked))
+                    Log.d("DropdownMenuSpinner", "Text clicked, expanded set to true")
                 },
             fontSize = 14.sp,
             textAlign = TextAlign.Start
@@ -71,7 +71,7 @@ fun DropdownMenuSpinner(
             expanded = expanded,
             onDismissRequest = {
                 expanded = false
-                Log.d("DropdownMenuSpinner", context.getString(R.string.log_dropdown_dismissed))
+                Log.d("DropdownMenuSpinner", "Dropdown dismissed, expanded set to false")
             },
             modifier = Modifier
                 .width(800.dp)
@@ -82,7 +82,7 @@ fun DropdownMenuSpinner(
                     content = { Text(stringResource(R.string.no_items_available)) },
                     onClick = {
                         expanded = false
-                        Log.d("DropdownMenuSpinner", context.getString(R.string.log_dropdown_no_items_clicked))
+                        Log.d("DropdownMenuSpinner", "No items available clicked")
                     }
                 )
             } else {
@@ -113,7 +113,7 @@ fun DropdownMenuSpinner(
                                         selected = item.name
                                         onItemSelected(item.name)
                                         expanded = false
-                                        Log.d("DropdownMenuSpinner", context.getString(R.string.log_dropdown_item_selected, item.name))
+                                        Log.d("DropdownMenuSpinner", "Item selected: ${item.name}")
                                     }
                                 )
                             }

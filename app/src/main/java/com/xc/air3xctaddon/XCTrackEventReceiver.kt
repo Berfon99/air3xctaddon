@@ -18,25 +18,25 @@ class XCTrackEventReceiver : BroadcastReceiver() {
         // Handle formatArgs (likely String, String[], or Serializable)
         val formatArgs = intent.getSerializableExtra(EventConstants.EXTRA_FORMAT_ARGS)
         val formatArgsStr = formatArgs?.toString() ?: "null"
-        Log.d(TAG, context.getString(R.string.log_xctrack_event, event, formatArgsStr))
+        Log.d(TAG, "Received event: $event, formatArgs: $formatArgsStr")
 
         // Handle known events
         when (event) {
             "TAKEOFF" -> {
                 // TODO: Add logic for TAKEOFF (e.g., update flight status)
-                Log.d(TAG, context.getString(R.string.log_handling_event, event, formatArgsStr))
+                Log.d(TAG, "Handling $event, formatArgs: $formatArgsStr")
             }
             "LANDING" -> {
                 // TODO: Add logic for LANDING
-                Log.d(TAG, context.getString(R.string.log_handling_event, event, formatArgsStr))
+                Log.d(TAG, "Handling $event, formatArgs: $formatArgsStr")
             }
             "BATTERY20" -> {
                 // TODO: Add logic for BATTERY20 (e.g., show low battery warning)
-                Log.d(TAG, context.getString(R.string.log_handling_event, event, formatArgsStr))
+                Log.d(TAG, "Handling $event, formatArgs: $formatArgsStr")
             }
             "AIRSPACE_CROSSED_SOON" -> {
                 // TODO: Add logic for AIRSPACE_CROSSED_SOON (e.g., alert pilot)
-                Log.d(TAG, context.getString(R.string.log_handling_event, event, formatArgsStr))
+                Log.d(TAG, "Handling $event, formatArgs: $formatArgsStr")
             }
             "BATTERY50", "BATTERY40", "BATTERY30", "BATTERY10", "BATTERY5",
             "BATTERY_CHARGING", "BATTERY_DISCHARGING", "START_THERMALING",
@@ -47,15 +47,15 @@ class XCTrackEventReceiver : BroadcastReceiver() {
             "CALL_REJECTED", "COMP_TURNPOINT_PREV", "LIVETRACK_ENABLED",
             "_LANDING_CONFIRMATION_NEEDED", "BUTTON_CLICK" -> {
                 // TODO: Add logic for other known events
-                Log.d(TAG, context.getString(R.string.log_handling_event, event, formatArgsStr))
+                Log.d(TAG, "Handling $event, formatArgs: $formatArgsStr")
             }
             "TEST" -> {
                 // Handle TEST event for verification
-                Log.d(TAG, context.getString(R.string.log_handling_event, event, formatArgsStr))
+                Log.d(TAG, "Handling $event, formatArgs: $formatArgsStr")
             }
             else -> {
                 // Log new or unhandled events for future implementation
-                Log.i(TAG, context.getString(R.string.log_new_event, event, formatArgsStr))
+                Log.i(TAG, "New or unhandled event: $event, formatArgs: $formatArgsStr")
             }
         }
     }
