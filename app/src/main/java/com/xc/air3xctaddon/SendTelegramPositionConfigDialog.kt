@@ -712,7 +712,7 @@ fun SendTelegramPositionConfigDialog(
                                         val task = Task(
                                             taskType = "SendTelegramPosition",
                                             taskData = chat.chatId,
-                                            taskName = "Position to ${chat.title}",
+                                            taskName = chat.title,
                                             launchInBackground = false
                                         )
                                         taskDao.insert(task)

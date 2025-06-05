@@ -1,8 +1,12 @@
 package com.xc.air3xctaddon.ui
 
 import android.content.Context
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -17,7 +21,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -34,7 +40,6 @@ import com.xc.air3xctaddon.ui.components.DropdownMenuSpinner
 import com.xc.air3xctaddon.ui.components.SpinnerItem
 import com.xc.air3xctaddon.R
 import com.xc.air3xctaddon.isOnline
-import android.util.Log
 import com.xc.air3xctaddon.ui.AddMessageDialog
 import kotlinx.coroutines.launch
 
@@ -55,7 +60,10 @@ fun SendTelegramMessageConfigDialog(
     var botInfo by remember { mutableStateOf<TelegramBotInfo?>(null) }
     var selectedChat by remember { mutableStateOf<TelegramChat?>(null) }
     var showGroupSetupDialog by remember { mutableStateOf(false) }
+    var showSelectGroupDialog by remember { mutableStateOf(false) }
     var isAddingNewChat by remember { mutableStateOf(false) }
+    var isSelectingExistingGroup by remember { mutableStateOf(false) }
+    var pendingGroupChat by remember { mutableStateOf<TelegramChat?>(null) }
     var showMessageDialog by remember { mutableStateOf(false) }
     var selectedMessageTitle by remember { mutableStateOf("") }
     var selectedMessageContent by remember { mutableStateOf("") }
@@ -81,6 +89,7 @@ fun SendTelegramMessageConfigDialog(
         hasNetworkPermission = permissions[android.Manifest.permission.ACCESS_NETWORK_STATE] == true
         if (!hasLocationPermission) {
             chatError = context.getString(R.string.location_permission_denied)
+            Log.e("SendTelegramMessageConfigDialog", context.getString(R.string.location_permission_denied))
         }
         if (!hasNetworkPermission) {
             Log.w("SendTelegramMessageConfigDialog", context.getString(R.string.log_network_permission_denied))
@@ -92,20 +101,6 @@ fun SendTelegramMessageConfigDialog(
                         chats = fetchedChats
                         SettingsRepository.saveChats(fetchedChats)
                         isLoadingChats = false
-                        telegramChatManager.handleChatSelection(
-                            isAddingNewChat,
-                            null,
-                            fetchedChats,
-                            telegramChatId,
-                            { chat ->
-                                telegramChatId = chat.chatId
-                                telegramChatName = chat.title
-                                selectedChat = chat
-                                isAddingNewChat = false
-                                coroutineScope.launch { telegramChatManager.checkBotInSelectedChat(chat) }
-                            },
-                            { telegramChatId = ""; telegramChatName = ""; selectedChat = null }
-                        )
                     },
                     onError = { error ->
                         isLoadingChats = false
@@ -141,27 +136,21 @@ fun SendTelegramMessageConfigDialog(
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME && isAddingNewChat) {
+            if (event == Lifecycle.Event.ON_RESUME && (isAddingNewChat || isSelectingExistingGroup)) {
                 coroutineScope.launch {
                     telegramChatManager.fetchChats(
                         onResult = { fetchedChats ->
                             chats = fetchedChats
                             SettingsRepository.saveChats(fetchedChats)
                             isLoadingChats = false
-                            telegramChatManager.handleChatSelection(
-                                isAddingNewChat,
-                                null,
-                                fetchedChats,
-                                telegramChatId,
-                                { chat ->
-                                    telegramChatId = chat.chatId
-                                    telegramChatName = chat.title
-                                    selectedChat = chat
-                                    isAddingNewChat = false
-                                    coroutineScope.launch { telegramChatManager.checkBotInSelectedChat(chat) }
-                                },
-                                { telegramChatId = ""; telegramChatName = ""; selectedChat = null }
-                            )
+                            isAddingNewChat = false
+                            isSelectingExistingGroup = false
+                            pendingGroupChat = null
+                            if (fetchedChats.any { it.isGroup && it.isBotMember && it.isBotActive }) {
+                                showSelectGroupDialog = true
+                            } else {
+                                chatError = "No groups with the bot active are available."
+                            }
                         },
                         onError = { error ->
                             isLoadingChats = false
@@ -177,6 +166,7 @@ fun SendTelegramMessageConfigDialog(
 
     LaunchedEffect(Unit) {
         SettingsRepository.initialize(context)
+        SettingsRepository.clearCachedChats()
         initBotAndFetchChats()
     }
 
@@ -284,6 +274,11 @@ fun SendTelegramMessageConfigDialog(
                                 Text(stringResource(R.string.add_the_bot_to_that_chat), style = MaterialTheme.typography.body2)
                                 Text(stringResource(R.string.send_start_in_the_chat), style = MaterialTheme.typography.body2)
                                 Text(stringResource(R.string.come_back_here_and_refresh), style = MaterialTheme.typography.body2)
+                                Text(
+                                    text = stringResource(R.string.check_bot_privacy_settings),
+                                    style = MaterialTheme.typography.body2,
+                                    color = MaterialTheme.colors.error
+                                )
                                 Row(
                                     modifier = Modifier.padding(top = 12.dp),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -315,6 +310,19 @@ fun SendTelegramMessageConfigDialog(
                         }
                     }
                     else -> {
+                        if (telegramChatName.isEmpty() && !isLoadingChats && chatError == null) {
+                            Card(
+                                backgroundColor = MaterialTheme.colors.primary.copy(alpha = 0.1f),
+                                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.select_chat_hint),
+                                    style = MaterialTheme.typography.body2,
+                                    color = MaterialTheme.colors.primary,
+                                    modifier = Modifier.padding(8.dp)
+                                )
+                            }
+                        }
                         Text(stringResource(R.string.select_chat_message_prompt))
                         DropdownMenuSpinner(
                             context = context,
@@ -324,15 +332,17 @@ fun SendTelegramMessageConfigDialog(
                             selectedItem = if (telegramChatName.isEmpty() || chats.none { it.title == telegramChatName }) selectChatOptionText else "Group: " + telegramChatName,
                             onItemSelected = { selectedItem ->
                                 if (selectedItem == otherOptionText) {
-                                    telegramChatName = ""; telegramChatId = ""; selectedChat = null
-                                    showGroupSetupDialog = true; isAddingNewChat = true
+                                    telegramChatName = ""; telegramChatId = ""; selectedChat = null; pendingGroupChat = null
+                                    showGroupSetupDialog = true; isAddingNewChat = false; isSelectingExistingGroup = false
                                 } else {
                                     val title = selectedItem.removePrefix("Group: ")
                                     chats.find { it.title == title }?.let { chat ->
                                         telegramChatId = chat.chatId
                                         telegramChatName = chat.title
                                         selectedChat = chat
+                                        pendingGroupChat = null
                                         isAddingNewChat = false
+                                        isSelectingExistingGroup = false
                                         Log.d("SendTelegramMessageConfigDialog", "Selected chat: title=${chat.title}, chatId=${chat.chatId}, isGroup=${chat.isGroup}")
                                         coroutineScope.launch {
                                             telegramChatManager.checkBotInSelectedChat(chat)
@@ -371,7 +381,10 @@ fun SendTelegramMessageConfigDialog(
                                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                                             ) {
                                                 Button(
-                                                    onClick = { showGroupSetupDialog = true }
+                                                    onClick = {
+                                                        pendingGroupChat = chat
+                                                        showGroupSetupDialog = true
+                                                    }
                                                 ) {
                                                     Text(stringResource(R.string.add_bot_to_chat))
                                                 }
@@ -401,7 +414,10 @@ fun SendTelegramMessageConfigDialog(
                                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                                             ) {
                                                 Button(
-                                                    onClick = { showGroupSetupDialog = true }
+                                                    onClick = {
+                                                        pendingGroupChat = chat
+                                                        showGroupSetupDialog = true
+                                                    }
                                                 ) {
                                                     Text(stringResource(R.string.join_group))
                                                 }
@@ -568,31 +584,120 @@ fun SendTelegramMessageConfigDialog(
                 if (showGroupSetupDialog) {
                     AlertDialog(
                         onDismissRequest = { showGroupSetupDialog = false },
-                        title = { Text(stringResource(R.string.add_bot_to_group_title)) },
+                        title = { Text(stringResource(R.string.telegram_group_title)) },
                         text = {
                             Column {
-                                Text(stringResource(R.string.add_bot_to_group_prompt))
+                                Text(
+                                    text = stringResource(R.string.group_setup_message),
+                                    style = MaterialTheme.typography.body2
+                                )
+                            }
+                        },
+                        buttons = {
+                            Column(
+                                modifier = Modifier.padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Button(
+                                    onClick = {
+                                        isAddingNewChat = true
+                                        isSelectingExistingGroup = false
+                                        botInfo?.let { info ->
+                                            telegramBotHelper.openTelegramToAddBot(context, info.username)
+                                        } ?: run { chatError = context.getString(R.string.bot_info_unavailable) }
+                                        showGroupSetupDialog = false
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(stringResource(R.string.add_bot_to_group))
+                                }
+                                OutlinedButton(
+                                    onClick = {
+                                        isSelectingExistingGroup = true
+                                        isAddingNewChat = false
+                                        botInfo?.let { info ->
+                                            telegramBotHelper.openTelegramToSelectGroup(context)
+                                        } ?: run { chatError = context.getString(R.string.bot_info_unavailable) }
+                                        showGroupSetupDialog = false
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(stringResource(R.string.select_group_with_bot))
+                                }
+                                TextButton(
+                                    onClick = { showGroupSetupDialog = false },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(stringResource(R.string.cancel))
+                                }
+                            }
+                        }
+                    )
+                }
+
+                if (showSelectGroupDialog) {
+                    var selectedGroup by remember { mutableStateOf<TelegramChat?>(null) }
+                    AlertDialog(
+                        onDismissRequest = { showSelectGroupDialog = false },
+                        title = { Text(stringResource(R.string.select_your_group_title)) },
+                        text = {
+                            Column {
+                                Text(stringResource(R.string.select_your_group_message))
                                 Spacer(modifier = Modifier.height(8.dp))
-                                Text(stringResource(R.string.open_telegram_group_prompt))
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(stringResource(R.string.return_and_refresh_instructions), style = MaterialTheme.typography.caption)
+                                if (chats.any { it.isGroup && it.isBotMember && it.isBotActive }) {
+                                    LazyColumn(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .heightIn(max = 200.dp)
+                                    ) {
+                                        items(
+                                            items = chats.filter { it.isGroup && it.isBotMember && it.isBotActive },
+                                            key = { it.chatId }
+                                        ) { chat ->
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clickable { selectedGroup = chat }
+                                                    .padding(8.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                RadioButton(
+                                                    selected = selectedGroup?.chatId == chat.chatId,
+                                                    onClick = { selectedGroup = chat }
+                                                )
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text(
+                                                    text = chat.title,
+                                                    style = TextStyle(fontSize = 16.sp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    Text(stringResource(R.string.no_groups_available))
+                                }
                             }
                         },
                         confirmButton = {
                             Button(
                                 onClick = {
-                                    isAddingNewChat = true
-                                    botInfo?.let { info ->
-                                        telegramBotHelper.openTelegramToAddBot(context, info.username)
-                                    } ?: run { chatError = context.getString(R.string.bot_info_unavailable) }
-                                    showGroupSetupDialog = false
-                                }
+                                    selectedGroup?.let { chat ->
+                                        telegramChatId = chat.chatId
+                                        telegramChatName = chat.title
+                                        selectedChat = chat
+                                        coroutineScope.launch {
+                                            telegramChatManager.checkBotInSelectedChat(chat)
+                                        }
+                                    }
+                                    showSelectGroupDialog = false
+                                },
+                                enabled = selectedGroup != null
                             ) {
-                                Text(stringResource(R.string.open_telegram_button))
+                                Text(stringResource(R.string.select_group_button))
                             }
                         },
                         dismissButton = {
-                            TextButton(onClick = { showGroupSetupDialog = false }) {
+                            TextButton(onClick = { showSelectGroupDialog = false }) {
                                 Text(stringResource(R.string.cancel))
                             }
                         }
