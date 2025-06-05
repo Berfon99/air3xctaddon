@@ -26,6 +26,7 @@ class TelegramValidation(
     private val settingsRepository: SettingsRepository
 ) {
     private val client = OkHttpClient()
+    private var validationStartTime: Long = 0
 
     fun fetchUserId(
         onResult: (String) -> Unit,
@@ -40,10 +41,12 @@ class TelegramValidation(
             return
         }
 
-        // Clear previous validation state only on first attempt
+        // Only clear on first attempt and set validation start time
         if (retryCount == 0) {
             settingsRepository.clearUserId()
             settingsRepository.clearTelegramValidated()
+            validationStartTime = System.currentTimeMillis() / 1000
+            Log.d("TelegramValidation", "Starting new validation session at: $validationStartTime")
         }
 
         val urlBuilder = StringBuilder(context.getString(R.string.telegram_api_base_url) + botToken + context.getString(R.string.telegram_get_updates_endpoint) + "?timeout=10&limit=100")
@@ -100,8 +103,6 @@ class TelegramValidation(
 
                     val updates = jsonObject.getJSONArray("result")
                     var latestUpdateId: Long? = null
-                    val currentTime = System.currentTimeMillis() / 1000 // Current time in seconds
-                    val timeThreshold = currentTime - 60 // Check messages from last 60 seconds
 
                     for (i in 0 until updates.length()) {
                         val update = updates.getJSONObject(i)
@@ -110,17 +111,26 @@ class TelegramValidation(
 
                         if (update.has("message")) {
                             val message = update.getJSONObject("message")
-                            val date = message.getLong("date")
-                            if (date < timeThreshold) continue // Skip old messages
+                            val messageDate = message.getLong("date")
+
+                            // Only process messages sent AFTER validation started
+                            if (messageDate < validationStartTime) {
+                                Log.d("TelegramValidation", "Skipping old message from: $messageDate (validation started: $validationStartTime)")
+                                continue
+                            }
 
                             val chat = message.getJSONObject("chat")
                             val chatType = chat.getString("type")
                             if (chatType == "private" && message.has("text") && message.getString("text") == "/start") {
                                 val user = message.getJSONObject("from")
                                 val userId = user.getLong("id").toString()
+                                val username = user.optString("username", "")
+                                val firstName = user.optString("first_name", "")
+
+                                Log.d("TelegramValidation", "Found valid /start from user: $userId (username: $username, name: $firstName) at: $messageDate")
+
                                 settingsRepository.saveUserId(userId)
                                 settingsRepository.setTelegramValidated(true)
-                                Log.d("TelegramValidation", "Fetched user ID: $userId")
                                 onResult(userId)
                                 response.close()
                                 return
@@ -129,6 +139,7 @@ class TelegramValidation(
                     }
 
                     // No valid /start found, retry with the latest update ID as offset
+                    Log.d("TelegramValidation", "No valid /start found in this batch, retrying...")
                     CoroutineScope(Dispatchers.IO).launch {
                         delay(2000L * (retryCount + 1))
                         fetchUserId(onResult, onError, retryCount + 1, maxRetries, latestUpdateId?.plus(1))
@@ -188,6 +199,7 @@ fun TelegramValidationDialog(
     val context = LocalContext.current
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var isValidating by remember { mutableStateOf(false) }
+    var hasAttemptedValidation by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = { if (!isValidating) onDismiss() },
@@ -208,36 +220,71 @@ fun TelegramValidationDialog(
                         color = MaterialTheme.colors.error
                     )
                 }
+                if (!isValidating && hasAttemptedValidation && settingsRepository.getUserId().isNullOrEmpty()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = stringResource(R.string.start_command_required),
+                        color = MaterialTheme.colors.error
+                    )
+                }
             }
         },
         confirmButton = {
-            Button(
-                onClick = {
-                    telegramValidation.openTelegramChat(botUsername, "/start")
-                    isValidating = true
-                    onValidationStarted { userId ->
-                        onValidationSuccess(userId)
+            if (isValidating) {
+                // Show "Stop" button when validating
+                Button(
+                    onClick = {
                         isValidating = false
+                        errorMessage = "Validation stopped by user"
+                        settingsRepository.clearUserId()
+                        settingsRepository.clearTelegramValidated()
                     }
-                    telegramValidation.fetchUserId(
-                        onResult = { userId ->
+                ) {
+                    Text("Stop")
+                }
+            } else {
+                // Show "Open Telegram" button when not validating
+                Button(
+                    onClick = {
+                        hasAttemptedValidation = true
+                        isValidating = true
+                        errorMessage = null
+
+                        // Clear any existing state before starting new validation
+                        settingsRepository.clearUserId()
+                        settingsRepository.clearTelegramValidated()
+
+                        telegramValidation.openTelegramChat(botUsername, "/start")
+                        onValidationStarted { userId ->
                             onValidationSuccess(userId)
                             isValidating = false
-                        },
-                        onError = { error ->
-                            errorMessage = error
-                            isValidating = false
                         }
-                    )
-                },
-                enabled = !isValidating
-            ) {
-                Text(stringResource(R.string.open_telegram_with_start))
+                        telegramValidation.fetchUserId(
+                            onResult = { userId ->
+                                onValidationSuccess(userId)
+                                isValidating = false
+                            },
+                            onError = { error ->
+                                errorMessage = error
+                                isValidating = false
+                            }
+                        )
+                    }
+                ) {
+                    Text(stringResource(R.string.open_telegram_with_start))
+                }
             }
         },
         dismissButton = {
             Button(
-                onClick = { if (!isValidating) onDismiss() },
+                onClick = {
+                    if (!isValidating) {
+                        // Clear user ID if validation is incomplete
+                        settingsRepository.clearUserId()
+                        settingsRepository.clearTelegramValidated()
+                        onDismiss()
+                    }
+                },
                 enabled = !isValidating
             ) {
                 Text(stringResource(android.R.string.cancel))

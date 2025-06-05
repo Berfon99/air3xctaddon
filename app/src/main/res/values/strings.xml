@@ -586,5 +586,7 @@ Or\n
     <string name="select_your_group_message">Please select the group where you want to send updates:</string>
     <string name="select_group_button">Select</string>
     <string name="no_groups_available">No groups with the bot active are available.</string>
+    <string name="start_command_required">Please send /start in the bot chat to complete authentication.</string>
+
 
 </resources>
