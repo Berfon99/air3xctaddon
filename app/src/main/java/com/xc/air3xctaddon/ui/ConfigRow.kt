@@ -225,6 +225,7 @@ fun ConfigRow(
                     taskType = taskType,
                     taskData = taskData,
                     telegramGroupName = telegramGroupName,
+                    launchInBackground = config.launchInBackground, // Pass launchInBackground
                     launchAppTasks = launchAppTasks,
                     onSoundDialogOpen = { soundDialogOpen = true },
                     onLaunchAppSelected = { appTask ->

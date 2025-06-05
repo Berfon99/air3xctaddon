@@ -24,6 +24,7 @@ fun TaskSelector(
     taskType: String,
     taskData: String,
     telegramGroupName: String?,
+    launchInBackground: Boolean?, // Add this parameter
     launchAppTasks: List<Task>,
     onSoundDialogOpen: () -> Unit,
     onLaunchAppSelected: (Task) -> Unit,
@@ -57,7 +58,10 @@ fun TaskSelector(
                     "SendTelegramPosition" -> telegramGroupName?.let { stringResource(id = R.string.task_send_telegram_position, it) } ?: stringResource(id = R.string.select_task)
                     "SendTelegramMessage" -> telegramGroupName?.let { stringResource(id = R.string.task_send_telegram_message, it) } ?: stringResource(id = R.string.select_task)
                     "LaunchApp" -> {
-                        val task = launchAppTasks.find { it.taskData == taskData }
+                        // Find task by taskData and launchInBackground to ensure uniqueness
+                        val task = launchAppTasks.find {
+                            it.taskType == taskType && it.taskData == taskData && it.launchInBackground == launchInBackground
+                        }
                         task?.let {
                             val backgroundText = if (it.launchInBackground) stringResource(id = R.string.background) else stringResource(id = R.string.foreground)
                             stringResource(id = R.string.task_launch_app, it.taskName, backgroundText)
@@ -115,7 +119,7 @@ fun TaskSelector(
                     onClick = {
                         onLaunchAppSelected(task)
                         taskMenuExpanded = false
-                        Log.d("TaskSelector", "Selected task: ${task.taskType}, taskName=${task.taskName}")
+                        Log.d("TaskSelector", "Selected task: ${task.taskType}, taskName=${task.taskName}, launchInBackground=${task.launchInBackground}")
                     }
                 )
             }
