@@ -90,22 +90,85 @@ class TelegramChatManager(
         onChatSelected: (TelegramChat) -> Unit,
         onChatNotFound: () -> Unit
     ) {
-        Log.d("TelegramChatManager", "Handling chat selection: isAddingNewChat=$isAddingNewChat, currentChatId=$currentChatId")
+        Log.d("TelegramChatManager", "Handling chat selection: isAddingNewChat=$isAddingNewChat, pendingGroupChat=${pendingGroupChat?.title}, currentChatId=$currentChatId")
         when {
-            isAddingNewChat && pendingGroupChat != null -> {
-                fetchedChats.find { it.chatId == pendingGroupChat.chatId }?.let { chat ->
-                    Log.d("TelegramChatManager", "Selected pending group chat: ${chat.title}")
-                    onChatSelected(chat)
+            pendingGroupChat != null -> {
+                // Check if the pending group chat exists in fetched chats and is a group
+                fetchedChats.find { it.chatId == pendingGroupChat.chatId && it.isGroup }?.let { chat ->
+                    Log.d("TelegramChatManager", "Selected pending group chat: ${chat.title} (${chat.chatId})")
+                    telegramBotHelper.checkBotAccess(
+                        chatId = chat.chatId,
+                        onResult = { isBotMember, isBotActive, isUserMember ->
+                            val updatedChat = chat.copy(
+                                isBotMember = isBotMember,
+                                isBotActive = isBotActive,
+                                isUserMember = isUserMember
+                            )
+                            onChatSelected(updatedChat)
+                        },
+                        onError = { error ->
+                            Log.e("TelegramChatManager", "Error checking bot access for pending chat ${chat.title}: $error")
+                            onChatNotFound()
+                        }
+                    )
+                } ?: run {
+                    Log.d("TelegramChatManager", "Pending group chat ${pendingGroupChat.chatId} not found or not a group")
+                    onChatNotFound()
                 }
             }
-            isAddingNewChat && fetchedChats.isNotEmpty() -> {
-                fetchedChats.maxByOrNull { it.chatId.toLongOrNull() ?: Long.MAX_VALUE }?.let { chat ->
-                    Log.d("TelegramChatManager", "Selected newest chat: ${chat.title}")
-                    onChatSelected(chat)
+            isAddingNewChat -> {
+                // Prioritize group chats where the bot is a member
+                val groupChat = fetchedChats
+                    .filter { it.isGroup && it.isBotMember }
+                    .maxByOrNull { it.chatId.toLongOrNull() ?: 0L }
+                if (groupChat != null) {
+                    Log.d("TelegramChatManager", "Selected newest group chat with bot: ${groupChat.title} (${groupChat.chatId})")
+                    telegramBotHelper.checkBotAccess(
+                        chatId = groupChat.chatId,
+                        onResult = { isBotMember, isBotActive, isUserMember ->
+                            val updatedChat = groupChat.copy(
+                                isBotMember = isBotMember,
+                                isBotActive = isBotActive,
+                                isUserMember = isUserMember
+                            )
+                            onChatSelected(updatedChat)
+                        },
+                        onError = { error ->
+                            Log.e("TelegramChatManager", "Error checking bot access for group chat ${groupChat.title}: $error")
+                            onChatNotFound()
+                        }
+                    )
+                } else {
+                    Log.d("TelegramChatManager", "No group chats with bot found")
+                    onChatNotFound()
                 }
             }
-            currentChatId.isNotEmpty() && fetchedChats.none { it.chatId == currentChatId } -> {
-                Log.d("TelegramChatManager", "Chat ID $currentChatId not found in fetched chats")
+            currentChatId.isNotEmpty() -> {
+                // Check if the current chat ID corresponds to a group chat
+                fetchedChats.find { it.chatId == currentChatId && it.isGroup }?.let { chat ->
+                    Log.d("TelegramChatManager", "Selected current group chat: ${chat.title} (${chat.chatId})")
+                    telegramBotHelper.checkBotAccess(
+                        chatId = chat.chatId,
+                        onResult = { isBotMember, isBotActive, isUserMember ->
+                            val updatedChat = chat.copy(
+                                isBotMember = isBotMember,
+                                isBotActive = isBotActive,
+                                isUserMember = isUserMember
+                            )
+                            onChatSelected(updatedChat)
+                        },
+                        onError = { error ->
+                            Log.e("TelegramChatManager", "Error checking bot access for current chat ${chat.title}: $error")
+                            onChatNotFound()
+                        }
+                    )
+                } ?: run {
+                    Log.d("TelegramChatManager", "Current chat ID $currentChatId not found or not a group")
+                    onChatNotFound()
+                }
+            }
+            else -> {
+                Log.d("TelegramChatManager", "No chat selection criteria met")
                 onChatNotFound()
             }
         }
@@ -129,7 +192,6 @@ class TelegramChatManager(
         onResult: (List<TelegramChat>) -> Unit,
         onError: (String?) -> Unit
     ) {
-        // Use bot token from TelegramBotHelper
         val botToken = telegramBotHelper.botToken
         val url = "https://api.telegram.org/bot$botToken/getUpdates?offset=$offset&timeout=10&limit=1000"
         Log.d("TelegramChatManager", "Fetching chats with URL: ${url.replace(botToken, "<REDACTED>")}")
@@ -176,6 +238,10 @@ class TelegramChatManager(
                     val seenChatIds = mutableSetOf<String>()
                     var maxUpdateId = offset
 
+                    // Prioritize group chats
+                    val groupChats = mutableListOf<TelegramChat>()
+                    val privateChats = mutableListOf<TelegramChat>()
+
                     for (i in 0 until updates.length()) {
                         val update = updates.getJSONObject(i)
                         val updateId = update.optInt("update_id", 0)
@@ -197,12 +263,21 @@ class TelegramChatManager(
                                     val lastName = chat.optString("last_name", "")
                                     (firstName + " " + lastName).trim().ifEmpty { context.getString(R.string.unknown_user) }
                                 }
-                                chats.add(TelegramChat(chatId, title, isGroup))
+                                val telegramChat = TelegramChat(chatId, title, isGroup)
+                                if (isGroup) {
+                                    groupChats.add(telegramChat)
+                                } else {
+                                    privateChats.add(telegramChat)
+                                }
                                 seenChatIds.add(chatId)
                                 Log.d("TelegramChatManager", "Added chat: $title ($chatId, isGroup=$isGroup)")
                             }
                         }
                     }
+
+                    // Combine group chats first, then private chats
+                    chats.addAll(groupChats)
+                    chats.addAll(privateChats)
 
                     if (updates.length() == 1000) {
                         Log.d("TelegramChatManager", "More updates available, fetching with offset ${maxUpdateId + 1}")
@@ -210,7 +285,7 @@ class TelegramChatManager(
                             onResult(chats + newChats)
                         }, onError)
                     } else {
-                        Log.d("TelegramChatManager", "Finished fetching chats, total: ${chats.size}")
+                        Log.d("TelegramChatManager", "Finished fetching chats, total: ${chats.size} (groups: ${groupChats.size}, private: ${privateChats.size})")
                         onResult(chats)
                     }
                 } catch (e: Exception) {

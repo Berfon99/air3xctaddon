@@ -314,6 +314,19 @@ fun SendTelegramPositionConfigDialog(
                         }
                     }
                     else -> {
+                        if (telegramChatName.isEmpty() && !isLoadingChats && chatError == null) {
+                            Card(
+                                backgroundColor = MaterialTheme.colors.primary.copy(alpha = 0.1f),
+                                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.select_chat_hint),
+                                    style = MaterialTheme.typography.body2,
+                                    color = MaterialTheme.colors.primary,
+                                    modifier = Modifier.padding(8.dp)
+                                )
+                            }
+                        }
                         Text(stringResource(R.string.select_the_chat_where_you_want_to_send_position_updates))
                         DropdownMenuSpinner(
                             context = context,
@@ -541,24 +554,18 @@ fun SendTelegramPositionConfigDialog(
                 if (showGroupSetupDialog) {
                     AlertDialog(
                         onDismissRequest = { showGroupSetupDialog = false },
-                        title = { Text(stringResource(R.string.add_bot_to_group_title)) },
+                        title = { Text(stringResource(R.string.telegram_group_title)) },
                         text = {
                             Column {
-                                Text(stringResource(R.string.select_group_option_prompt))
-                                Spacer(modifier = Modifier.height(12.dp))
                                 Text(
-                                    text = stringResource(R.string.add_bot_to_new_group_description),
-                                    style = MaterialTheme.typography.body2
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = stringResource(R.string.select_existing_group_description),
+                                    text = stringResource(R.string.group_setup_message),
                                     style = MaterialTheme.typography.body2
                                 )
                             }
                         },
-                        confirmButton = {
+                        buttons = {
                             Column(
+                                modifier = Modifier.padding(16.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 Button(
@@ -587,11 +594,12 @@ fun SendTelegramPositionConfigDialog(
                                 ) {
                                     Text(stringResource(R.string.select_group_with_bot))
                                 }
-                            }
-                        },
-                        dismissButton = {
-                            TextButton(onClick = { showGroupSetupDialog = false }) {
-                                Text(stringResource(R.string.cancel))
+                                TextButton(
+                                    onClick = { showGroupSetupDialog = false },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(stringResource(R.string.cancel))
+                                }
                             }
                         }
                     )

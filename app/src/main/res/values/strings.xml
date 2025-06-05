@@ -574,5 +574,13 @@
     <string name="add_bot_to_new_group_description">Add the bot to a new group and activate it with /start</string>
     <string name="select_existing_group_description">Select a group where the bot is already active</string>
     <string name="select_group_with_bot">Select Group with Bot</string>
+    <string name="select_chat_hint">Please select a chat to configure where position updates will be sent.</string>
+    <string name="telegram_group_title">Telegram Group</string>
+    <string name="group_setup_message">
+Choose how you want to configure your Telegram group:\n
+- Add the bot to a new group and activate it with /start.\n
+Or\n
+- Select a group where the bot is already present and activate it for you with /start
+</string>
 
 </resources>
