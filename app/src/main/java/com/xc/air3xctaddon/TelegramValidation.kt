@@ -156,32 +156,65 @@ class TelegramValidation(
 
     fun openTelegramChat(botUsername: String, prefillText: String? = null) {
         val cleanUsername = botUsername.removePrefix("@")
-        try {
-            val uriString = if (prefillText != null) {
-                "tg://msg?to=$cleanUsername&text=${Uri.encode(prefillText)}"
-            } else {
+
+        // Try multiple approaches in order of preference
+        val approaches = if (prefillText != null) {
+            listOf(
+                // Approach 1: Direct resolve with start parameter (most reliable for bots)
+                "tg://resolve?domain=$cleanUsername&start=${Uri.encode(prefillText.removePrefix("/"))}",
+                // Approach 2: Message with text
+                "tg://msg?to=$cleanUsername&text=${Uri.encode(prefillText)}",
+                // Approach 3: Simple resolve
                 "tg://resolve?domain=$cleanUsername"
+            )
+        } else {
+            listOf(
+                // Simple resolve for no prefill
+                "tg://resolve?domain=$cleanUsername"
+            )
+        }
+
+        var success = false
+
+        for (uriString in approaches) {
+            try {
+                Log.d("TelegramValidation", "Trying Telegram URI: $uriString")
+                val uri = Uri.parse(uriString)
+                val intent = Intent(Intent.ACTION_VIEW, uri)
+                intent.setPackage(context.getString(R.string.telegram_package_name))
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+
+                // Check if Telegram can handle this intent
+                val packageManager = context.packageManager
+                if (intent.resolveActivity(packageManager) != null) {
+                    context.startActivity(intent)
+                    Log.d("TelegramValidation", "Successfully opened Telegram with: $uriString")
+                    success = true
+                    break
+                }
+            } catch (e: Exception) {
+                Log.w("TelegramValidation", "Failed to open Telegram with $uriString: ${e.message}")
+                continue
             }
-            val uri = Uri.parse(uriString)
-            val intent = Intent(Intent.ACTION_VIEW, uri)
-            intent.setPackage(context.getString(R.string.telegram_package_name))
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(intent)
-            Log.d("TelegramValidation", "Opening Telegram for bot: $botUsername, prefill: $prefillText")
-        } catch (e: Exception) {
-            Log.e("TelegramValidation", "Failed to open Telegram: ${e.message}")
+        }
+
+        // If all deep link approaches failed, try web fallback
+        if (!success) {
+            Log.w("TelegramValidation", "All Telegram deep links failed, trying web fallback")
             try {
                 val fallbackUrl = if (prefillText != null) {
-                    "https://t.me/$cleanUsername?text=${Uri.encode(prefillText)}"
+                    "https://t.me/$cleanUsername?start=${Uri.encode(prefillText.removePrefix("/"))}"
                 } else {
                     "https://t.me/$cleanUsername"
                 }
+                Log.d("TelegramValidation", "Trying web fallback: $fallbackUrl")
                 val fallbackUri = Uri.parse(fallbackUrl)
                 val fallbackIntent = Intent(Intent.ACTION_VIEW, fallbackUri)
                 fallbackIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 context.startActivity(fallbackIntent)
+                Log.d("TelegramValidation", "Opened web fallback successfully")
             } catch (e: Exception) {
-                Log.e("TelegramValidation", "Failed to open Telegram fallback: ${e.message}")
+                Log.e("TelegramValidation", "All approaches failed: ${e.message}")
             }
         }
     }
