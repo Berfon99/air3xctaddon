@@ -16,8 +16,8 @@ android {
         applicationId = "com.xc.air3xctaddon"
         minSdk = 33
         targetSdk = 34
-        versionCode = 106
-        versionName = "1.0.6" // Telegram individual, tasks in settings
+        versionCode = 107
+        versionName = "1.0.7" // remove individual Telegram and reinforcing groups. telegram validation
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
