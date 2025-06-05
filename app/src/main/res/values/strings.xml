@@ -582,5 +582,9 @@ Choose how you want to configure your Telegram group:\n
 Or\n
 - Select a group where the bot is already present and activate it for you with /start
 </string>
+    <string name="select_your_group_title">Select your group</string>
+    <string name="select_your_group_message">Please select the group where you want to send position updates:</string>
+    <string name="select_group_button">Select</string>
+    <string name="no_groups_available">No groups with the bot active are available.</string>
 
 </resources>

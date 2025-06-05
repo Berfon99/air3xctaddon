@@ -26,6 +26,11 @@ import com.google.android.gms.location.LocationServices
 import com.xc.air3xctaddon.ui.components.DropdownMenuSpinner
 import com.xc.air3xctaddon.ui.components.SpinnerItem
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.sp
 
 @Composable
 fun SendTelegramPositionConfigDialog(
@@ -44,11 +49,11 @@ fun SendTelegramPositionConfigDialog(
     var botInfo by remember { mutableStateOf<TelegramBotInfo?>(null) }
     var selectedChat by remember { mutableStateOf<TelegramChat?>(null) }
     var showGroupSetupDialog by remember { mutableStateOf(false) }
+    var showSelectGroupDialog by remember { mutableStateOf(false) }
     var isAddingNewChat by remember { mutableStateOf(false) }
     var showNoInternetDialog by remember { mutableStateOf(false) }
     var pendingGroupChat by remember { mutableStateOf<TelegramChat?>(null) }
     var isSelectingExistingGroup by remember { mutableStateOf(false) }
-
     val otherOptionText = stringResource(R.string.other_option)
     val selectChatOptionText = stringResource(R.string.select_chat_option)
 
@@ -139,22 +144,14 @@ fun SendTelegramPositionConfigDialog(
                             chats = fetchedChats
                             SettingsRepository.saveChats(fetchedChats)
                             isLoadingChats = false
-                            telegramChatManager.handleChatSelection(
-                                isAddingNewChat || isSelectingExistingGroup,
-                                pendingGroupChat,
-                                fetchedChats,
-                                telegramChatId,
-                                { chat ->
-                                    telegramChatId = chat.chatId
-                                    telegramChatName = chat.title
-                                    selectedChat = chat
-                                    pendingGroupChat = null
-                                    isAddingNewChat = false
-                                    isSelectingExistingGroup = false
-                                    coroutineScope.launch { telegramChatManager.checkBotInSelectedChat(chat) }
-                                },
-                                { telegramChatId = ""; telegramChatName = ""; selectedChat = null }
-                            )
+                            isAddingNewChat = false
+                            isSelectingExistingGroup = false
+                            pendingGroupChat = null
+                            if (fetchedChats.any { it.isGroup && it.isBotMember && it.isBotActive }) {
+                                showSelectGroupDialog = true
+                            } else {
+                                chatError = "No groups with the bot active are available."
+                            }
                         },
                         onError = { error ->
                             isLoadingChats = false
@@ -336,7 +333,7 @@ fun SendTelegramPositionConfigDialog(
                             selectedItem = if (telegramChatName.isEmpty() || chats.none { it.title == telegramChatName }) selectChatOptionText else "Group: " + telegramChatName,
                             onItemSelected = { selectedItem ->
                                 if (selectedItem == otherOptionText) {
-                                    telegramChatName = ""; telegramChatId = ""; selectedChat = null
+                                    telegramChatName = ""; telegramChatId = ""; selectedChat = null; pendingGroupChat = null
                                     showGroupSetupDialog = true; isAddingNewChat = false; isSelectingExistingGroup = false
                                 } else {
                                     val title = selectedItem.removePrefix("Group: ")
@@ -344,6 +341,7 @@ fun SendTelegramPositionConfigDialog(
                                         telegramChatId = chat.chatId
                                         telegramChatName = chat.title
                                         selectedChat = chat
+                                        pendingGroupChat = null
                                         isAddingNewChat = false
                                         isSelectingExistingGroup = false
                                         coroutineScope.launch {
@@ -600,6 +598,75 @@ fun SendTelegramPositionConfigDialog(
                                 ) {
                                     Text(stringResource(R.string.cancel))
                                 }
+                            }
+                        }
+                    )
+                }
+
+                if (showSelectGroupDialog) {
+                    var selectedGroup by remember { mutableStateOf<TelegramChat?>(null) }
+                    AlertDialog(
+                        onDismissRequest = { showSelectGroupDialog = false },
+                        title = { Text(stringResource(R.string.select_your_group_title)) },
+                        text = {
+                            Column {
+                                Text(stringResource(R.string.select_your_group_message))
+                                Spacer(modifier = Modifier.height(8.dp))
+                                if (chats.any { it.isGroup && it.isBotMember && it.isBotActive }) {
+                                    LazyColumn(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .heightIn(max = 200.dp)
+                                    ) {
+                                        items(
+                                            items = chats.filter { it.isGroup && it.isBotMember && it.isBotActive },
+                                            key = { it.chatId }
+                                        ) { chat ->
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clickable { selectedGroup = chat }
+                                                    .padding(8.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                RadioButton(
+                                                    selected = selectedGroup?.chatId == chat.chatId,
+                                                    onClick = { selectedGroup = chat }
+                                                )
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text(
+                                                    text = chat.title,
+                                                    style = TextStyle(fontSize = 16.sp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    Text(stringResource(R.string.no_groups_available))
+                                }
+                            }
+                        },
+                        confirmButton = {
+                            Button(
+                                onClick = {
+                                    selectedGroup?.let { chat ->
+                                        telegramChatId = chat.chatId
+                                        telegramChatName = chat.title
+                                        selectedChat = chat
+                                        coroutineScope.launch {
+                                            telegramChatManager.checkBotInSelectedChat(chat)
+                                        }
+                                    }
+                                    showSelectGroupDialog = false
+                                },
+                                enabled = selectedGroup != null
+                            ) {
+                                Text(stringResource(R.string.select_group_button))
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showSelectGroupDialog = false }) {
+                                Text(stringResource(R.string.cancel))
                             }
                         }
                     )

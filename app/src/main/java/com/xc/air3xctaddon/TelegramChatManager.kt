@@ -93,7 +93,6 @@ class TelegramChatManager(
         Log.d("TelegramChatManager", "Handling chat selection: isAddingNewChat=$isAddingNewChat, pendingGroupChat=${pendingGroupChat?.title}, currentChatId=$currentChatId")
         when {
             pendingGroupChat != null -> {
-                // Check if the pending group chat exists in fetched chats and is a group
                 fetchedChats.find { it.chatId == pendingGroupChat.chatId && it.isGroup }?.let { chat ->
                     Log.d("TelegramChatManager", "Selected pending group chat: ${chat.title} (${chat.chatId})")
                     telegramBotHelper.checkBotAccess(
@@ -117,12 +116,12 @@ class TelegramChatManager(
                 }
             }
             isAddingNewChat -> {
-                // Prioritize group chats where the bot is a member
+                // Prioritize the most recently created group chat
                 val groupChat = fetchedChats
-                    .filter { it.isGroup && it.isBotMember }
+                    .filter { it.isGroup }
                     .maxByOrNull { it.chatId.toLongOrNull() ?: 0L }
                 if (groupChat != null) {
-                    Log.d("TelegramChatManager", "Selected newest group chat with bot: ${groupChat.title} (${groupChat.chatId})")
+                    Log.d("TelegramChatManager", "Selected newest group chat: ${groupChat.title} (${groupChat.chatId})")
                     telegramBotHelper.checkBotAccess(
                         chatId = groupChat.chatId,
                         onResult = { isBotMember, isBotActive, isUserMember ->
@@ -131,7 +130,12 @@ class TelegramChatManager(
                                 isBotActive = isBotActive,
                                 isUserMember = isUserMember
                             )
-                            onChatSelected(updatedChat)
+                            if (isBotMember && isBotActive) {
+                                onChatSelected(updatedChat)
+                            } else {
+                                Log.d("TelegramChatManager", "Newest group chat ${groupChat.title} is not bot-active")
+                                onChatNotFound()
+                            }
                         },
                         onError = { error ->
                             Log.e("TelegramChatManager", "Error checking bot access for group chat ${groupChat.title}: $error")
@@ -139,12 +143,11 @@ class TelegramChatManager(
                         }
                     )
                 } else {
-                    Log.d("TelegramChatManager", "No group chats with bot found")
+                    Log.d("TelegramChatManager", "No group chats found")
                     onChatNotFound()
                 }
             }
             currentChatId.isNotEmpty() -> {
-                // Check if the current chat ID corresponds to a group chat
                 fetchedChats.find { it.chatId == currentChatId && it.isGroup }?.let { chat ->
                     Log.d("TelegramChatManager", "Selected current group chat: ${chat.title} (${chat.chatId})")
                     telegramBotHelper.checkBotAccess(
@@ -238,9 +241,10 @@ class TelegramChatManager(
                     val seenChatIds = mutableSetOf<String>()
                     var maxUpdateId = offset
 
-                    // Prioritize group chats
-                    val groupChats = mutableListOf<TelegramChat>()
-                    val privateChats = mutableListOf<TelegramChat>()
+                    // Track group chats with their latest update_id
+                    data class ChatWithUpdate(val chat: TelegramChat, val updateId: Int)
+                    val groupChats = mutableListOf<ChatWithUpdate>()
+                    val privateChats = mutableListOf<ChatWithUpdate>()
 
                     for (i in 0 until updates.length()) {
                         val update = updates.getJSONObject(i)
@@ -265,19 +269,19 @@ class TelegramChatManager(
                                 }
                                 val telegramChat = TelegramChat(chatId, title, isGroup)
                                 if (isGroup) {
-                                    groupChats.add(telegramChat)
+                                    groupChats.add(ChatWithUpdate(telegramChat, updateId))
                                 } else {
-                                    privateChats.add(telegramChat)
+                                    privateChats.add(ChatWithUpdate(telegramChat, updateId))
                                 }
                                 seenChatIds.add(chatId)
-                                Log.d("TelegramChatManager", "Added chat: $title ($chatId, isGroup=$isGroup)")
+                                Log.d("TelegramChatManager", "Added chat: $title ($chatId, isGroup=$isGroup, updateId=$updateId)")
                             }
                         }
                     }
 
-                    // Combine group chats first, then private chats
-                    chats.addAll(groupChats)
-                    chats.addAll(privateChats)
+                    // Sort group chats by update_id descending to prioritize recent interactions
+                    chats.addAll(groupChats.sortedByDescending { it.updateId }.map { it.chat })
+                    chats.addAll(privateChats.sortedByDescending { it.updateId }.map { it.chat })
 
                     if (updates.length() == 1000) {
                         Log.d("TelegramChatManager", "More updates available, fetching with offset ${maxUpdateId + 1}")
