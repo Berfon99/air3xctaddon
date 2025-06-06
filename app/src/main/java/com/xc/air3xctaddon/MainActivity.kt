@@ -1,7 +1,6 @@
 package com.xc.air3xctaddon
 
 import android.Manifest
-import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -86,8 +85,8 @@ class MainActivity : ComponentActivity() {
             -1L // Use -1 for errors
         }
 
-        // Show dialog if XCTrack is installed and version code is < 91230
-        if (xcTrackVersionCode in 0 until 91230) {
+        // Show dialog if XCTrack is installed and version code is < XC_TRACK_MIN_VERSION_CODE
+        if (xcTrackVersionCode in 0 until Constants.XC_TRACK_MIN_VERSION_CODE) {
             showXCTrackVersionDialog = true
         } else {
             // Proceed with normal flow if XCTrack is not installed or version is OK

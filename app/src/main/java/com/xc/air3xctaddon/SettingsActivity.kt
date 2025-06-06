@@ -315,23 +315,15 @@ class SettingsActivity : ComponentActivity() {
                         },
                         onValidationSuccess = { userId ->
                             Log.d("SettingsActivity", "TelegramValidationDialog - Authentication succeeded with user ID: $userId")
-
-                            // Save the authentication data
                             SettingsRepository.saveUserId(userId)
                             SettingsRepository.setTelegramValidated(true)
-
-                            // Verify the data was saved correctly
                             val savedUserId = SettingsRepository.getUserId()
                             val isValidated = SettingsRepository.isTelegramValidated()
                             Log.d("SettingsActivity", "After saving - UserId: $savedUserId, Validated: $isValidated")
-
-                            authenticationTrigger++ // Increment trigger to force recomposition
+                            authenticationTrigger++
                             showAuthenticationDialog = false
-
-                            // Clear the authentication pending state since we're handling it here
                             authenticationPending = false
                             onAuthenticationSuccess = null
-
                             when (pendingTelegramTaskType) {
                                 "SendTelegramPosition" -> {
                                     if (SettingsRepository.getPilotName().isNullOrBlank()) {
@@ -359,7 +351,7 @@ class SettingsActivity : ComponentActivity() {
                             botToken = BuildConfig.TELEGRAM_BOT_TOKEN,
                             settingsRepository = SettingsRepository
                         ),
-                        settingsRepository = SettingsRepository, // Add this line to fix the error
+                        settingsRepository = SettingsRepository,
                         onValidationStarted = { callback ->
                             authenticationPending = true
                             onAuthenticationSuccess = callback
@@ -384,7 +376,6 @@ class SettingsActivity : ComponentActivity() {
                 telegramAuthentication.fetchUserId(
                     onResult = { userId ->
                         Log.d("SettingsActivity", "OnResume - Authentication succeeded with user ID: $userId")
-                        // Only save if we don't already have this user ID saved
                         val currentUserId = SettingsRepository.getUserId()
                         if (currentUserId != userId) {
                             SettingsRepository.saveUserId(userId)
@@ -393,8 +384,6 @@ class SettingsActivity : ComponentActivity() {
                         } else {
                             Log.d("SettingsActivity", "OnResume - User ID already saved: $currentUserId")
                         }
-
-                        // Always call the callback if it exists
                         onAuthenticationSuccess?.invoke(userId)
                         authenticationPending = false
                         onAuthenticationSuccess = null
@@ -437,8 +426,8 @@ fun SettingsScreen(
     var showPilotNameDialog by remember { mutableStateOf(false) }
     var showTelegramNotInstalledDialog by remember { mutableStateOf(false) }
     var showClearAuthConfirmation by remember { mutableStateOf(false) }
+    var showAddEventDialog by remember { mutableStateOf(false) }
 
-    // Make pilot name reactive to changes
     var pilotNameTrigger by remember { mutableStateOf(0) }
     val pilotName = remember(pilotNameTrigger) { SettingsRepository.getPilotName() }
 
@@ -532,9 +521,7 @@ fun SettingsScreen(
 
             item {
                 Button(
-                    onClick = {
-                        context.startActivity(Intent(context, AddEventActivity::class.java))
-                    },
+                    onClick = { showAddEventDialog = true },
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(stringResource(R.string.add_new_event))
@@ -642,6 +629,45 @@ fun SettingsScreen(
                         Text(stringResource(android.R.string.cancel))
                     }
                 }
+            )
+        }
+
+        if (showAddEventDialog) {
+            AlertDialog(
+                onDismissRequest = { showAddEventDialog = false },
+                title = { Text(stringResource(R.string.select_event_type)) },
+                text = {
+                    Column {
+                        Button(
+                            onClick = {
+                                context.startActivity(Intent(context, AddXCTrackEventActivity::class.java))
+                                showAddEventDialog = false
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                        ) {
+                            Text(stringResource(R.string.add_new_xctrack_event))
+                        }
+                        Button(
+                            onClick = {
+                                context.startActivity(Intent(context, AddButtonEventActivity::class.java))
+                                showAddEventDialog = false
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                        ) {
+                            Text(stringResource(R.string.add_new_button_event))
+                        }
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showAddEventDialog = false }) {
+                        Text(stringResource(android.R.string.cancel))
+                    }
+                },
+                confirmButton = {}
             )
         }
     }

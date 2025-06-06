@@ -25,7 +25,7 @@
     <string name="confirm">Confirm</string>
     <string name="cancel">Cancel</string>
     <string name="select_task">Select Task</string>
-    <string name="add_new_event">Add a new event</string>
+    <string name="add_new_event">Add a new trigger event</string>
     <string name="event_name">Event Name</string>
     <string name="event_count">Total Events: %1$d</string>
     <string name="no_items_available">No items available</string>
@@ -280,6 +280,13 @@ Or\n
     <string name="start_command_required">Please send /start in the bot chat to complete authentication.</string>
     <string name="xctrack_version_title">XCTrack Version Required</string>
     <string name="xctrack_version_message">AIR³ XCT Addon only works with a recent version of XCTrack. Please upgrade XCTrack to the latest version first.</string>
+    <string name="title_add_xctrack_event">Add new XCTrack event</string>
+    <string name="title_add_button_event">Add new button event</string>
+    <string name="to_be_implemented">To be implemented</string>
+    <string name="select_event_type">Select Event Type</string>
+    <string name="add_new_xctrack_event">Add new XCTrack event</string>
+    <string name="add_new_button_event">Add new button event</string>
+    <string name="category_label">Category: %s</string>
 
 
 </resources>

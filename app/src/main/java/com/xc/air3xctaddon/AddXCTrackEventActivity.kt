@@ -21,19 +21,19 @@ import com.xc.air3xctaddon.MainViewModel.EventItem
 import com.xc.air3xctaddon.MainViewModelFactory
 import kotlinx.coroutines.launch
 
-class AddEventActivity : ComponentActivity() {
+class AddXCTrackEventActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             AIR3XCTAddonTheme {
-                AddEventScreen()
+                AddXCTrackEventScreen()
             }
         }
     }
 }
 
 @Composable
-fun AddEventScreen() {
+fun AddXCTrackEventScreen() {
     val context = LocalContext.current
     val viewModel: MainViewModel = viewModel(
         factory = MainViewModelFactory(context.applicationContext as android.app.Application)
@@ -49,15 +49,15 @@ fun AddEventScreen() {
     var message by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
-    Log.d("AddEventScreen", "Events: ${events.size}, AvailableEvents: ${availableEvents.size}, Categories: $categories")
+    Log.d("AddXCTrackEventScreen", "Events: ${events.size}, AvailableEvents: ${availableEvents.size}, Categories: $categories")
     if (categories.isEmpty()) {
-        Log.w("AddEventScreen", "No categories available; check MainViewModel initialization or database")
+        Log.w("AddXCTrackEventScreen", "No categories available; check MainViewModel initialization or database")
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.title_add_event)) }
+                title = { Text(stringResource(R.string.title_add_xctrack_event)) }
             )
         }
     ) { padding ->
@@ -85,7 +85,7 @@ fun AddEventScreen() {
                     enabled = categories.isNotEmpty()
                 ) {
                     Text(
-                        text = if (selectedCategory.isEmpty()) stringResource(R.string.select_category) else selectedCategory,
+                        text = if (selectedCategory.isEmpty()) stringResource(R.string.select_category) else stringResource(R.string.category_label, selectedCategory),
                         maxLines = 1
                     )
                 }
@@ -108,7 +108,7 @@ fun AddEventScreen() {
                                 onClick = {
                                     selectedCategory = category
                                     categoryMenuExpanded = false
-                                    Log.d("AddEventScreen", "Selected category: $category")
+                                    Log.d("AddXCTrackEventScreen", "Selected category: $category")
                                 }
                             )
                         }
@@ -129,17 +129,16 @@ fun AddEventScreen() {
                     if (selectedCategory.isNotEmpty() && eventName.isNotEmpty()) {
                         scope.launch {
                             viewModel.addEvent(selectedCategory, eventName)
-                            Log.d("AddEventScreen", "Confirm clicked: Adding event '$eventName' to category '$selectedCategory'")
-                            // Restart LogMonitorService to register new event
+                            Log.d("AddXCTrackEventScreen", "Confirm clicked: Adding event '$eventName' to category '$selectedCategory'")
                             val intent = Intent(context, LogMonitorService::class.java)
                             context.stopService(intent)
                             context.startService(intent)
-                            Log.d("AddEventScreen", "Restarted LogMonitorService for new event: $eventName")
+                            Log.d("AddXCTrackEventScreen", "Restarted LogMonitorService for new event: $eventName")
                             kotlinx.coroutines.delay(100)
                             (context as ComponentActivity).finish()
                         }
                     } else {
-                        Log.w("AddEventScreen", "Cannot add event: Category or event name empty")
+                        Log.w("AddXCTrackEventScreen", "Cannot add event: Category or event name empty")
                         message = "Please select a category and enter an event name."
                     }
                 },

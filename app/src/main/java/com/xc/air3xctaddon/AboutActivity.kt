@@ -44,7 +44,7 @@ fun AboutScreen() {
         val packageInfo = context.packageManager.getPackageInfo("org.xcontest.XCTrack", 0)
         val versionCode = PackageInfoCompat.getLongVersionCode(packageInfo)
         Log.d("AboutScreen", "XCTrack detected, version code: $versionCode")
-        if (versionCode >= 91230) {
+        if (versionCode >= Constants.XC_TRACK_MIN_VERSION_CODE) {
             "XCTrack OK" to versionCode.toString()
         } else {
             "XCTrack KO" to versionCode.toString()

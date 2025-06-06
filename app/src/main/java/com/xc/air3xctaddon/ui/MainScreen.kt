@@ -61,7 +61,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
         val packageInfo = context.packageManager.getPackageInfo("org.xcontest.XCTrack", 0)
         val versionCode = PackageInfoCompat.getLongVersionCode(packageInfo)
         Log.d("MainScreen", "XCTrack detected, version code: $versionCode")
-        if (versionCode >= 91230) "XCTrack OK" else "XCTrack KO"
+        if (versionCode >= Constants.XC_TRACK_MIN_VERSION_CODE) "XCTrack OK" else "XCTrack KO"
     } catch (e: PackageManager.NameNotFoundException) {
         Log.e("MainScreen", "XCTrack not found: ${e.message}")
         "XCTrack Not Installed"

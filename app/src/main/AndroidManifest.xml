@@ -32,7 +32,9 @@
             </intent-filter>
         </activity>
         <activity android:name=".SettingsActivity" />
-        <activity android:name=".AddEventActivity" />
+        <activity android:name=".AddXCTrackEventActivity" />
+        <activity android:name=".AddButtonEventActivity" />
+
         <activity android:name=".AddTaskActivity" />
         <activity android:name=".AboutActivity" />
         <activity
