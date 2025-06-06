@@ -1,0 +1,11 @@
+Dans bash, lancer le scrip pour copier le xml dans csv
+
+cd  /c/Workspace/AIR3XCTAddon
+
+python xml_to_csv.py
+
+Améliorer les traductions dans translation.csv
+
+Renvoyer le CSV dans les xml
+
+python csv_to_xml.py
