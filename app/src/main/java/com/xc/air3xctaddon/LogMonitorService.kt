@@ -124,13 +124,19 @@ class LogMonitorService : Service() {
                                         }
                                         "ZELLO_PTT" -> {
                                             try {
-                                                val zelloIntent = Intent("com.zello.ptt.up").apply {
+                                                val zelloDownIntent = Intent("com.zello.ptt.down").apply {
                                                     putExtra("com.zello.stayHidden", true)
                                                 }
-                                                sendBroadcast(zelloIntent)
-                                                Log.d("LogMonitorService", "Sent Zello PTT intent for event $event, configId=${config.id}")
+                                                sendBroadcast(zelloDownIntent)
+                                                Log.d("LogMonitorService", "Sent Zello PTT down intent for event $event, configId=${config.id}")
+                                                Thread.sleep(100) // Brief delay to mimic press duration
+                                                val zelloUpIntent = Intent("com.zello.ptt.up").apply {
+                                                    putExtra("com.zello.stayHidden", true)
+                                                }
+                                                sendBroadcast(zelloUpIntent)
+                                                Log.d("LogMonitorService", "Sent Zello PTT up intent for event $event, configId=${config.id}")
                                             } catch (e: Exception) {
-                                                Log.e("LogMonitorService", "Failed to send Zello PTT intent for event $event, configId=${config.id}", e)
+                                                Log.e("LogMonitorService", "Failed to send Zello PTT intents for event $event, configId=${config.id}", e)
                                             }
                                         }
                                         "SendTelegramMessage" -> {

@@ -87,13 +87,19 @@ fun ControlButtons(
                     }
                     "ZELLO_PTT" -> {
                         try {
-                            val zelloIntent = Intent("com.zello.ptt.up").apply {
+                            val zelloDownIntent = Intent("com.zello.ptt.down").apply {
                                 putExtra("com.zello.stayHidden", true)
                             }
-                            context.sendBroadcast(zelloIntent)
+                            context.sendBroadcast(zelloDownIntent)
+                            Log.d("ControlButtons", "Main play button clicked for ZELLO_PTT: sent com.zello.ptt.down")
+                            Thread.sleep(100) // Brief delay to mimic press duration
+                            val zelloUpIntent = Intent("com.zello.ptt.up").apply {
+                                putExtra("com.zello.stayHidden", true)
+                            }
+                            context.sendBroadcast(zelloUpIntent)
                             Log.d("ControlButtons", "Main play button clicked for ZELLO_PTT: sent com.zello.ptt.up")
                         } catch (e: Exception) {
-                            Log.e("ControlButtons", "Failed to send Zello PTT intent for event: ${config.event}, configId=${config.id}", e)
+                            Log.e("ControlButtons", "Failed to send Zello PTT intents for event: ${config.event}, configId=${config.id}", e)
                         }
                     }
                     "SendTelegramMessage" -> {

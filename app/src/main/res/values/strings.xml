@@ -287,6 +287,9 @@ Or\n
     <string name="add_new_xctrack_event">Add new XCTrack event</string>
     <string name="add_new_button_event">Add new button event</string>
     <string name="category_label">Category: %s</string>
+    <string name="start_listening">Start Listening</string>
+    <string name="stop_listening">Stop Listening</string>
+    <string name="button_id_label">Button ID: %s</string>
 
 
 </resources>
