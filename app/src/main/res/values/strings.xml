@@ -290,6 +290,7 @@ Or\n
     <string name="start_listening">Start Listening</string>
     <string name="stop_listening">Stop Listening</string>
     <string name="button_id_label">Button ID: %s</string>
-
+    <string name="listening_for_button">Listening for button press...</string>
+    <string name="button_info">ID: %1$d (%2$s)</string>
 
 </resources>
