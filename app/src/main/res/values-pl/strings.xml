@@ -1,4 +1,4 @@
-<?xml version="1.0" ?>
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
   <string name="action_prefix">org.xcontest.XCTrack.Event.</string>
   <string name="activate_bot">Aktywuj Bota</string>
@@ -134,7 +134,7 @@
   <string name="open_telegram_prompt">Czy chcesz otworzyć Telegram, aby dodać bota do istniejącej grupy?</string>
   <string name="open_telegram_with_start">Otwórz Telegram z /start</string>
   <string name="other_option">Inne...</string>
-  <string name="overlay_permission_denied">Zezwolenie na nakładkę zostało odrzucone. Jeśli aplikacja nie jest wymieniona w Ustawieniach, spróbuj ponownie zainstalować lub użyj ADB: 'adb shell appops set com.xc.air3xctaddon SYSTEM_ALERT_WINDOW allow'</string>
+  <string name="overlay_permission_denied">Zezwolenie na nakładkę zostało odrzucone. Jeśli aplikacja nie jest wymieniona w Ustawieniach, spróbuj ponownie zainstalować lub użyj ADB: \'adb shell appops set com.xc.air3xctaddon SYSTEM_ALERT_WINDOW allow\'</string>
   <string name="overlay_permission_description">Ta aplikacja wymaga uprawnień do wyświetlania ponad innymi aplikacjami, aby uruchamiać aplikacje w tle, jednocześnie utrzymując XCTrack aktywnym. Proszę włączyć „Wyświetlaj ponad innymi aplikacjami” w Ustawieniach.</string>
   <string name="overlay_permission_granted">Zezwolenie na nakładkę zostało przyznane</string>
   <string name="overlay_permission_required">Wymagane jest zezwolenie na nakładkę, aby uruchamiać aplikacje w tle</string>

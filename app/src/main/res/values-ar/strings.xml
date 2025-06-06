@@ -1,4 +1,4 @@
-<?xml version="1.0" ?>
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
   <string name="action_prefix">org.xcontest.XCTrack.Event.</string>
   <string name="activate_bot">تفعيل البوت</string>
@@ -134,7 +134,7 @@
   <string name="open_telegram_prompt">هل ترغب في فتح تيليجرام لإضافة البوت إلى مجموعة موجودة؟</string>
   <string name="open_telegram_with_start">فتح تيليجرام مع /start</string>
   <string name="other_option">آخر...</string>
-  <string name="overlay_permission_denied">تم رفض إذن التراكب. إذا لم يتم إدراج التطبيق في الإعدادات، حاول إعادة التثبيت أو استخدم ADB: 'adb shell appops set com.xc.air3xctaddon SYSTEM_ALERT_WINDOW allow'</string>
+  <string name="overlay_permission_denied">تم رفض إذن التراكب. إذا لم يتم إدراج التطبيق في الإعدادات، حاول إعادة التثبيت أو استخدم ADB: \'adb shell appops set com.xc.air3xctaddon SYSTEM_ALERT_WINDOW allow\'</string>
   <string name="overlay_permission_description">هذا التطبيق يحتاج إلى إذن للعرض فوق التطبيقات الأخرى لتشغيل التطبيقات في الخلفية مع الحفاظ على XCTrack نشطًا. يرجى تمكين "العرض فوق التطبيقات الأخرى" في الإعدادات.</string>
   <string name="overlay_permission_granted">تم منح إذن التراكب</string>
   <string name="overlay_permission_required">مطلوب إذن التراكب لتشغيل التطبيقات في الخلفية</string>

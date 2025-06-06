@@ -1,4 +1,4 @@
-<?xml version="1.0" ?>
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
   <string name="action_prefix">org.xcontest.XCTrack.Event.</string>
   <string name="activate_bot">Ativar Bot</string>
@@ -134,8 +134,8 @@
   <string name="open_telegram_prompt">Você gostaria de abrir o Telegram para adicionar o bot a um grupo existente?</string>
   <string name="open_telegram_with_start">Abrir Telegram com /start</string>
   <string name="other_option">Outro...</string>
-  <string name="overlay_permission_denied">Permissão de sobreposição negada. Se o aplicativo não estiver listado em Configurações, tente reinstalar ou use ADB: 'adb shell appops set com.xc.air3xctaddon SYSTEM_ALERT_WINDOW allow'</string>
-  <string name="overlay_permission_description">Este aplicativo precisa de permissão para exibir sobre outros aplicativos para lançar aplicações em segundo plano enquanto mantém o XCTrack ativo. Por favor, ative 'Exibir sobre outros aplicativos' em Configurações.</string>
+  <string name="overlay_permission_denied">Permissão de sobreposição negada. Se o aplicativo não estiver listado em Configurações, tente reinstalar ou use ADB: \'adb shell appops set com.xc.air3xctaddon SYSTEM_ALERT_WINDOW allow\'</string>
+  <string name="overlay_permission_description">Este aplicativo precisa de permissão para exibir sobre outros aplicativos para lançar aplicações em segundo plano enquanto mantém o XCTrack ativo. Por favor, ative \'Exibir sobre outros aplicativos\' em Configurações.</string>
   <string name="overlay_permission_granted">Permissão de sobreposição concedida</string>
   <string name="overlay_permission_required">Permissão de sobreposição é necessária para lançar aplicativos em segundo plano</string>
   <string name="pilot_name_label">Nome do Piloto</string>

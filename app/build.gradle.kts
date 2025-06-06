@@ -47,7 +47,7 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             // Add this for debugging
-   //         isDebuggable = true // Remove this after fixing
+            //         isDebuggable = true // Remove this after fixing
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -72,6 +72,15 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
+    }
+    applicationVariants.all {
+        outputs.all {
+            if (this is com.android.build.gradle.internal.api.ApkVariantOutputImpl) {
+                val variantName = name
+                val versionName = defaultConfig.versionName ?: "unknown"
+                outputFileName = "AIR3_XCT_Addon_$versionName.apk"
+            }
         }
     }
 }

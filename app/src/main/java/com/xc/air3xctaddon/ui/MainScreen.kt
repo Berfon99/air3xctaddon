@@ -1,6 +1,7 @@
 package com.xc.air3xctaddon.ui
 
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.layout.*
@@ -20,6 +21,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
+import androidx.core.content.pm.PackageInfoCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xc.air3xctaddon.*
 import com.xc.air3xctaddon.R
@@ -54,12 +56,31 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
     // Filter out TASK_CONFIG entries for display
     val filteredConfigs = configs.filter { it.event != "TASK_CONFIG" }
 
+    // Determine XCTrack status by checking its version code
+    val xcTrackStatus = try {
+        val packageInfo = context.packageManager.getPackageInfo("org.xcontest.XCTrack", 0)
+        val versionCode = PackageInfoCompat.getLongVersionCode(packageInfo)
+        Log.d("MainScreen", "XCTrack detected, version code: $versionCode")
+        if (versionCode >= 91230) "XCTrack OK" else "XCTrack KO"
+    } catch (e: PackageManager.NameNotFoundException) {
+        Log.e("MainScreen", "XCTrack not found: ${e.message}")
+        "XCTrack Not Installed"
+    } catch (e: Exception) {
+        Log.e("MainScreen", "Error checking XCTrack: ${e.message}")
+        "XCTrack Error"
+    }
+
     Log.d("MainScreen", "Filtered Configs: $filteredConfigs, AvailableEvents: $availableEvents")
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.title_main)) },
+                title = {
+                    Text(
+                        text = "${stringResource(R.string.title_main)} ${BuildConfig.VERSION_NAME} - $xcTrackStatus",
+                        maxLines = 1
+                    )
+                },
                 actions = {
                     IconButton(onClick = { showMenu = true }) {
                         Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.menu_settings))

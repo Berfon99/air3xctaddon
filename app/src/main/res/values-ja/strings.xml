@@ -1,4 +1,4 @@
-<?xml version="1.0" ?>
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
   <string name="action_prefix">org.xcontest.XCTrack.Event.</string>
   <string name="activate_bot">ボットを有効化</string>
@@ -134,7 +134,7 @@
   <string name="open_telegram_prompt">既存のグループにボットを追加するためにTelegramを開きますか？</string>
   <string name="open_telegram_with_start">/startでTelegramを開く</string>
   <string name="other_option">その他...</string>
-  <string name="overlay_permission_denied">オーバーレイの許可が拒否されました。アプリが設定にリストされていない場合、再インストールを試すか、ADBを使用してください: 'adb shell appops set com.xc.air3xctaddon SYSTEM_ALERT_WINDOW allow'</string>
+  <string name="overlay_permission_denied">オーバーレイの許可が拒否されました。アプリが設定にリストされていない場合、再インストールを試すか、ADBを使用してください: \'adb shell appops set com.xc.air3xctaddon SYSTEM_ALERT_WINDOW allow\'</string>
   <string name="overlay_permission_description">このアプリは、XCTrackをアクティブに保ちながらバックグラウンドでアプリケーションを起動するために、他のアプリケーションの上に表示する許可が必要です。「他のアプリケーションの上に表示」を設定で有効にしてください。</string>
   <string name="overlay_permission_granted">オーバーレイの許可が与えられました</string>
   <string name="overlay_permission_required">バックグラウンドでアプリを起動するにはオーバーレイの許可が必要です</string>

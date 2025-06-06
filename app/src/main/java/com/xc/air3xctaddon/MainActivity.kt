@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.core.content.pm.PackageInfoCompat
 import com.xc.air3xctaddon.ui.MainScreen
 import com.xc.air3xctaddon.ui.theme.AIR3XCTAddonTheme
 import com.xc.air3xctaddon.utils.copySoundFilesFromAssets
@@ -31,18 +32,6 @@ import java.io.File
 import android.content.pm.PackageManager
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
-import androidx.compose.foundation.background
 
 // Define preference key
 private val IS_AIR3_DEVICE = booleanPreferencesKey("is_air3_device")
@@ -57,6 +46,7 @@ class MainActivity : ComponentActivity() {
 
     private val scope = CoroutineScope(Dispatchers.Main)
     private var showOverlayDialog by mutableStateOf(false)
+    private var showXCTrackVersionDialog by mutableStateOf(false)
 
     private val systemAlertWindowLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         scope.launch {
@@ -82,6 +72,67 @@ class MainActivity : ComponentActivity() {
         // Initialize DataStoreSingleton
         DataStoreSingleton.initialize(applicationContext)
 
+        // Check XCTrack version code
+        val xcTrackVersionCode = try {
+            val packageInfo = packageManager.getPackageInfo("org.xcontest.XCTrack", 0)
+            val versionCode = PackageInfoCompat.getLongVersionCode(packageInfo)
+            Log.d(TAG, "XCTrack detected, version code: $versionCode")
+            versionCode
+        } catch (e: PackageManager.NameNotFoundException) {
+            Log.e(TAG, "XCTrack not found: ${e.message}")
+            -1L // Use -1 to indicate not installed
+        } catch (e: Exception) {
+            Log.e(TAG, "Error checking XCTrack: ${e.message}")
+            -1L // Use -1 for errors
+        }
+
+        // Show dialog if XCTrack is installed and version code is < 91230
+        if (xcTrackVersionCode in 0 until 91230) {
+            showXCTrackVersionDialog = true
+        } else {
+            // Proceed with normal flow if XCTrack is not installed or version is OK
+            proceedWithAppInitialization()
+        }
+
+        setContent {
+            AIR3XCTAddonTheme {
+                if (showXCTrackVersionDialog) {
+                    XCTrackVersionDialog(
+                        onConfirm = {
+                            showXCTrackVersionDialog = false
+                            finish() // Close the app
+                        }
+                    )
+                } else {
+                    MainScreen()
+                    if (showOverlayDialog) {
+                        OverlayPermissionDialog(
+                            onConfirm = {
+                                showOverlayDialog = false
+                                val intent = Intent(
+                                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                    Uri.parse("package:$packageName")
+                                )
+                                Log.d(TAG, "Requesting SYSTEM_ALERT_WINDOW for package: $packageName")
+                                systemAlertWindowLauncher.launch(intent)
+                            },
+                            onDismiss = {
+                                showOverlayDialog = false
+                                Toast.makeText(
+                                    this@MainActivity,
+                                    getString(R.string.overlay_permission_required),
+                                    Toast.LENGTH_LONG
+                                ).show()
+                                startLogMonitorService() // Proceed even if denied
+                            }
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private fun proceedWithAppInitialization() {
         // Save AIR³ status to DataStore
         scope.launch {
             DataStoreSingleton.getDataStore().edit { preferences ->
@@ -117,7 +168,7 @@ class MainActivity : ComponentActivity() {
         }
 
         if (permissionsToRequest.isNotEmpty()) {
-            Log.d(TAG, "Requesting permissions: ${permissionsToRequest.toString()}")
+            Log.d(TAG, "Requesting permissions: ${permissionsToRequest.joinToString()}")
             requestPermissions(
                 permissionsToRequest.toTypedArray(),
                 REQUEST_LOCATION_PERMISSION
@@ -131,34 +182,6 @@ class MainActivity : ComponentActivity() {
                 startLogMonitorService()
             }
         }
-
-        setContent {
-            AIR3XCTAddonTheme {
-                MainScreen()
-                if (showOverlayDialog) {
-                    OverlayPermissionDialog(
-                        onConfirm = {
-                            showOverlayDialog = false
-                            val intent = Intent(
-                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                Uri.parse("package:$packageName")
-                            )
-                            Log.d(TAG, "Requesting SYSTEM_ALERT_WINDOW for package: $packageName")
-                            systemAlertWindowLauncher.launch(intent)
-                        },
-                        onDismiss = {
-                            showOverlayDialog = false
-                            Toast.makeText(
-                                this,
-                                getString(R.string.overlay_permission_required),
-                                Toast.LENGTH_LONG
-                            ).show()
-                            startLogMonitorService() // Proceed even if denied
-                        }
-                    )
-                }
-            }
-        }
     }
 
     private fun copyAndVerifySoundFiles() {
@@ -168,14 +191,14 @@ class MainActivity : ComponentActivity() {
 
             if (!success) {
                 Log.e(TAG, "Failed to copy sound files")
-                Toast.makeText(this, R.string.sound_files_copy_failed, Toast.LENGTH_LONG).show()
+                Toast.makeText(this@MainActivity, R.string.sound_files_copy_failed, Toast.LENGTH_LONG).show()
                 return
             }
 
             val files = externalSoundsDir.listFiles()?.filter { it.isFile && it.canRead() }
             if (files == null || files.isEmpty()) {
                 Log.e(TAG, "No files found in ${externalSoundsDir.absolutePath}")
-                Toast.makeText(this, R.string.sound_files_not_found, Toast.LENGTH_LONG).show()
+                Toast.makeText(this@MainActivity, R.string.sound_files_not_found, Toast.LENGTH_LONG).show()
                 return
             }
 
@@ -185,7 +208,7 @@ class MainActivity : ComponentActivity() {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error setting up sound files", e)
-            Toast.makeText(this, R.string.sound_files_error, Toast.LENGTH_LONG).show()
+            Toast.makeText(this@MainActivity, R.string.sound_files_error, Toast.LENGTH_LONG).show()
         }
     }
 
@@ -338,6 +361,50 @@ fun OverlayPermissionDialog(
                 )
             }
         },
+        containerColor = androidx.compose.ui.graphics.Color.White,
+        titleContentColor = androidx.compose.ui.graphics.Color(0xFF2C387A),
+        textContentColor = androidx.compose.ui.graphics.Color(0xFF2C387A).copy(alpha = 0.8f),
+        tonalElevation = 8.dp,
+        shape = MaterialTheme.shapes.medium
+    )
+}
+
+@Composable
+fun XCTrackVersionDialog(
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = { /* Non-dismissable */ },
+        title = {
+            Text(
+                text = stringResource(R.string.xctrack_version_title),
+                style = MaterialTheme.typography.headlineSmall,
+                color = androidx.compose.ui.graphics.Color(0xFF2C387A) // Dark blue
+            )
+        },
+        text = {
+            Text(
+                text = stringResource(R.string.xctrack_version_message),
+                style = MaterialTheme.typography.bodyMedium,
+                color = androidx.compose.ui.graphics.Color(0xFF2C387A).copy(alpha = 0.8f) // Dark blue with transparency
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = androidx.compose.ui.graphics.Color(0xFFFF6D00), // Orange
+                    contentColor = androidx.compose.ui.graphics.Color.White
+                ),
+                shape = MaterialTheme.shapes.small
+            ) {
+                Text(
+                    text = stringResource(R.string.ok_button),
+                    style = MaterialTheme.typography.labelLarge
+                )
+            }
+        },
+        dismissButton = null, // Non-dismissable
         containerColor = androidx.compose.ui.graphics.Color.White,
         titleContentColor = androidx.compose.ui.graphics.Color(0xFF2C387A),
         textContentColor = androidx.compose.ui.graphics.Color(0xFF2C387A).copy(alpha = 0.8f),

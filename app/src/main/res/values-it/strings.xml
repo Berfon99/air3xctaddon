@@ -1,4 +1,4 @@
-<?xml version="1.0" ?>
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
   <string name="action_prefix">org.xcontest.XCTrack.Event.</string>
   <string name="activate_bot">Attiva Bot</string>
@@ -25,22 +25,22 @@
   <string name="app_version">Versione</string>
   <string name="asset_sounds_path">suoni</string>
   <string name="background">Sfondo</string>
-  <string name="bot_description">Questo bot ti permette di inviare aggiornamenti di posizione o messaggi dall'addon AIR3 XCT.</string>
+  <string name="bot_description">Questo bot ti permette di inviare aggiornamenti di posizione o messaggi dall\'addon AIR3 XCT.</string>
   <string name="bot_info_unavailable">Impossibile recuperare le informazioni del bot. Controlla il tuo token del bot e riprova.</string>
   <string name="bot_link_copied_fallback">Link del bot copiato negli appunti. Per favore condividilo manualmente con il tuo contatto.</string>
-  <string name="bot_no_access_private_chat">Il bot non ha accesso a questa chat privata. L'utente deve avviare una conversazione con il bot per primo.</string>
+  <string name="bot_no_access_private_chat">Il bot non ha accesso a questa chat privata. L\'utente deve avviare una conversazione con il bot per primo.</string>
   <string name="bot_setup_required">Configurazione del Bot Richiesta</string>
   <string name="bot_share_additional_message">Clicca sul link per iniziare una conversazione con il bot e clicca su start in basso o invia /start al bot.</string>
   <string name="brand_air3">AIR3</string>
-  <string name="brand_limit_message">Questa app non ha limitazioni con i dispositivi AIR³. Altri dispositivi sono limitati a un'azione.</string>
-  <string name="brand_limit_restriction">Questa app non ha restrizioni con i dispositivi AIR³. Altri dispositivi sono limitati a un'azione.</string>
+  <string name="brand_limit_message">Questa app non ha limitazioni con i dispositivi AIR³. Altri dispositivi sono limitati a un\'azione.</string>
+  <string name="brand_limit_restriction">Questa app non ha restrizioni con i dispositivi AIR³. Altri dispositivi sono limitati a un\'azione.</string>
   <string name="cancel">Annulla</string>
   <string name="cannot_add_new_chat_offline">Impossibile aggiungere una nuova chat mentre offline. Per favore connettiti a internet.</string>
-  <string name="cannot_launch_app">Impossibile avviare l'app: %s</string>
+  <string name="cannot_launch_app">Impossibile avviare l\'app: %s</string>
   <string name="category_airspace">Spazio Aereo</string>
   <string name="category_battery">Batteria</string>
   <string name="category_competition">Competizione</string>
-  <string name="category_event_required">Per favore seleziona una categoria e inserisci un nome per l'evento.</string>
+  <string name="category_event_required">Per favore seleziona una categoria e inserisci un nome per l\'evento.</string>
   <string name="category_flight">Volo</string>
   <string name="category_others">Altri</string>
   <string name="change">Cambia</string>
@@ -81,20 +81,20 @@
   <string name="failed_to_access_private_chat">Impossibile accedere alla chat privata: %s</string>
   <string name="failed_to_activate_bot">Impossibile attivare il bot: %1$s</string>
   <string name="failed_to_check_bot_status">Impossibile controllare lo stato del bot: %1$s</string>
-  <string name="failed_to_check_user_status">Impossibile controllare lo stato dell'utente: %s</string>
+  <string name="failed_to_check_user_status">Impossibile controllare lo stato dell\'utente: %s</string>
   <string name="failed_to_delete_message">Impossibile eliminare il messaggio: %1$s</string>
   <string name="failed_to_fetch_groups_error">Impossibile recuperare i gruppi: %1$s</string>
   <string name="failed_to_fetch_groups_retries">Impossibile recuperare i gruppi dopo %1$d tentativi</string>
-  <string name="failed_to_fetch_user_id">Impossibile recuperare l'ID utente: %1$s</string>
+  <string name="failed_to_fetch_user_id">Impossibile recuperare l\'ID utente: %1$s</string>
   <string name="failed_to_get_bot_info">Impossibile ottenere le informazioni del bot: %1$s</string>
-  <string name="failed_to_launch_app">Impossibile avviare l'app: %s</string>
+  <string name="failed_to_launch_app">Impossibile avviare l\'app: %s</string>
   <string name="failed_to_save_message">Impossibile salvare il messaggio: %1$s</string>
   <string name="foreground">Primo Piano</string>
   <string name="go_to_settings">Vai alle Impostazioni</string>
   <string name="group_setup_message">Scegli come vuoi configurare il tuo gruppo Telegram:\n - Aggiungi il bot a un nuovo gruppo e attivalo con /start.\n Oppure\n - Seleziona un gruppo dove il bot è già presente e attivalo per te con /start</string>
   <string name="invalid_chat_id_message">Impossibile inviare il messaggio: ID chat non valido selezionato. Per favore seleziona un utente o un gruppo valido.</string>
   <string name="join_group">Unisciti al Gruppo</string>
-  <string name="launch_an_app">Lancia un'App</string>
+  <string name="launch_an_app">Lancia un\'App</string>
   <string name="launch_app_background">Lancia %1$s (Sfondo)</string>
   <string name="launch_app_foreground">Lancia %1$s (Primo Piano)</string>
   <string name="launch_in_background">Lancia in background (mantieni XCTrack in primo piano)</string>
@@ -134,8 +134,8 @@
   <string name="open_telegram_prompt">Vuoi aprire Telegram per aggiungere il bot a un gruppo esistente?</string>
   <string name="open_telegram_with_start">Apri Telegram con /start</string>
   <string name="other_option">Altro...</string>
-  <string name="overlay_permission_denied">Permesso di sovrapposizione negato. Se l'app non è elencata nelle Impostazioni, prova a reinstallare o usa ADB: 'adb shell appops set com.xc.air3xctaddon SYSTEM_ALERT_WINDOW allow'</string>
-  <string name="overlay_permission_description">Questa app necessita del permesso per visualizzare sopra altre app per lanciare applicazioni in background mantenendo XCTrack attiva. Per favore abilita 'Visualizza sopra altre app' nelle Impostazioni.</string>
+  <string name="overlay_permission_denied">Permesso di sovrapposizione negato. Se l\'app non è elencata nelle Impostazioni, prova a reinstallare o usa ADB: \'adb shell appops set com.xc.air3xctaddon SYSTEM_ALERT_WINDOW allow\'</string>
+  <string name="overlay_permission_description">Questa app necessita del permesso per visualizzare sopra altre app per lanciare applicazioni in background mantenendo XCTrack attiva. Per favore abilita \'Visualizza sopra altre app\' nelle Impostazioni.</string>
   <string name="overlay_permission_granted">Permesso di sovrapposizione concesso</string>
   <string name="overlay_permission_required">Il permesso di sovrapposizione è richiesto per lanciare app in background</string>
   <string name="pilot_name_label">Nome Pilota</string>
@@ -195,7 +195,7 @@
   <string name="sound_files_copy_failed">Impossibile copiare i file audio. Alcune funzionalità potrebbero non funzionare.</string>
   <string name="sound_files_error">Errore nella copia dei file audio.</string>
   <string name="sound_files_not_found">Nessun file audio trovato. Alcune funzionalità potrebbero non funzionare.</string>
-  <string name="start_command_required">Per favore invia /start nella chat del bot per completare l'autenticazione.</string>
+  <string name="start_command_required">Per favore invia /start nella chat del bot per completare l\'autenticazione.</string>
   <string name="start_conversation_with_bot">Avvia conversazione con il bot</string>
   <string name="stop">Ferma Suono</string>
   <string name="storage_permission_required">Il permesso di archiviazione è richiesto per copiare i file audio.</string>
@@ -229,7 +229,7 @@
   <string name="telegram_maps_link_format">https://maps.google.com/?q=%1$f,%2$f</string>
   <string name="telegram_member_status">membro</string>
   <string name="telegram_message_from_pilot">Messaggio da %1$s: %2$s</string>
-  <string name="telegram_not_installed_message">Un'app Telegram deve essere installata sul tuo dispositivo per configurare i compiti Telegram. Per favore installa Telegram da Google Play Store o usa un file APK, poi riprova.</string>
+  <string name="telegram_not_installed_message">Un\'app Telegram deve essere installata sul tuo dispositivo per configurare i compiti Telegram. Per favore installa Telegram da Google Play Store o usa un file APK, poi riprova.</string>
   <string name="telegram_not_installed_title">Telegram Richiesto</string>
   <string name="telegram_package_name">org.telegram.messenger</string>
   <string name="telegram_position_event">Posizione (%1$s): %2$s</string>

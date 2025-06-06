@@ -1,4 +1,4 @@
-<?xml version="1.0" ?>
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
   <string name="action_prefix">org.xcontest.XCTrack.Event.</string>
   <string name="activate_bot">Activeer Bot</string>
@@ -134,8 +134,8 @@
   <string name="open_telegram_prompt">Wilt u Telegram openen om de bot toe te voegen aan een bestaande groep?</string>
   <string name="open_telegram_with_start">Open Telegram met /start</string>
   <string name="other_option">Anders...</string>
-  <string name="overlay_permission_denied">Overlay-machtiging geweigerd. Als de app niet in Instellingen staat, probeer dan opnieuw te installeren of gebruik ADB: 'adb shell appops set com.xc.air3xctaddon SYSTEM_ALERT_WINDOW allow'</string>
-  <string name="overlay_permission_description">Deze app heeft toestemming nodig om boven andere apps te tonen om apps in de achtergrond te starten terwijl XCTrack actief blijft. Schakel 'Weergeven boven andere apps' in bij Instellingen.</string>
+  <string name="overlay_permission_denied">Overlay-machtiging geweigerd. Als de app niet in Instellingen staat, probeer dan opnieuw te installeren of gebruik ADB: \'adb shell appops set com.xc.air3xctaddon SYSTEM_ALERT_WINDOW allow\'</string>
+  <string name="overlay_permission_description">Deze app heeft toestemming nodig om boven andere apps te tonen om apps in de achtergrond te starten terwijl XCTrack actief blijft. Schakel \'Weergeven boven andere apps\' in bij Instellingen.</string>
   <string name="overlay_permission_granted">Overlay-machtiging verleend</string>
   <string name="overlay_permission_required">Overlay-machtiging is vereist om apps in de achtergrond te starten</string>
   <string name="pilot_name_label">Pilootnaam</string>

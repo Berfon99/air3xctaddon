@@ -278,5 +278,8 @@ Or\n
     <string name="select_group_button">Select</string>
     <string name="no_groups_available">No groups with the bot active are available.</string>
     <string name="start_command_required">Please send /start in the bot chat to complete authentication.</string>
+    <string name="xctrack_version_title">XCTrack Version Required</string>
+    <string name="xctrack_version_message">AIR³ XCT Addon only works with a recent version of XCTrack. Please upgrade XCTrack to the latest version first.</string>
+
 
 </resources>

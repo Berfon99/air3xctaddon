@@ -1,4 +1,4 @@
-<?xml version="1.0" ?>
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
   <string name="action_prefix">org.xcontest.XCTrack.Event.</string>
   <string name="activate_bot">Activar Bot</string>
@@ -134,8 +134,8 @@
   <string name="open_telegram_prompt">¿Te gustaría abrir Telegram para añadir el bot a un grupo existente?</string>
   <string name="open_telegram_with_start">Abrir Telegram con /start</string>
   <string name="other_option">Otro...</string>
-  <string name="overlay_permission_denied">Permiso de superposición denegado. Si la aplicación no está listada en Configuración, intenta reinstalar o usa ADB: 'adb shell appops set com.xc.air3xctaddon SYSTEM_ALERT_WINDOW allow'</string>
-  <string name="overlay_permission_description">Esta aplicación necesita permiso para mostrar sobre otras aplicaciones para lanzar aplicaciones en segundo plano mientras se mantiene XCTrack activo. Por favor, activa 'Mostrar sobre otras aplicaciones' en Configuración.</string>
+  <string name="overlay_permission_denied">Permiso de superposición denegado. Si la aplicación no está listada en Configuración, intenta reinstalar o usa ADB: \'adb shell appops set com.xc.air3xctaddon SYSTEM_ALERT_WINDOW allow\'</string>
+  <string name="overlay_permission_description">Esta aplicación necesita permiso para mostrar sobre otras aplicaciones para lanzar aplicaciones en segundo plano mientras se mantiene XCTrack activo. Por favor, activa \'Mostrar sobre otras aplicaciones\' en Configuración.</string>
   <string name="overlay_permission_granted">Permiso de superposición concedido</string>
   <string name="overlay_permission_required">Se requiere permiso de superposición para lanzar aplicaciones en segundo plano</string>
   <string name="pilot_name_label">Nombre del Piloto</string>
