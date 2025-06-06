@@ -1,1 +1,1 @@
-1.0.5 - Build Release ok and solving icons
+1.0.7 - remove individual Telegram and reinforcing groups. telegram validation

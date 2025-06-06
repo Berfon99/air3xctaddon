@@ -16,8 +16,8 @@ android {
         applicationId = "com.xc.air3xctaddon"
         minSdk = 33
         targetSdk = 34
-        versionCode = 107
-        versionName = "1.0.7" // remove individual Telegram and reinforcing groups. telegram validation
+        versionCode = 108
+        versionName = "1.0.8" // Zello Ptt and Button events
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
