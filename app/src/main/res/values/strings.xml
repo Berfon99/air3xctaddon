@@ -295,5 +295,7 @@ Or\n
     <string name="add_button">Add Button</string>
     <string name="comment_label">Comment</string>
     <string name="delete_button">Delete Button</string>
+    <string name="xctrack_events">XCTrack events</string>
+    <string name="button_events">Button events</string>
 
 </resources>

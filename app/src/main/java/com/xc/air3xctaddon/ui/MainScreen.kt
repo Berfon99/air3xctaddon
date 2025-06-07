@@ -4,8 +4,10 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.util.Log
 import android.widget.Toast
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.*
@@ -19,6 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
 import androidx.core.content.pm.PackageInfoCompat
@@ -33,6 +36,123 @@ import kotlinx.coroutines.launch
 // Define preference key
 private val IS_AIR3_DEVICE = booleanPreferencesKey("is_air3_device")
 
+// Add the StyledEventList composable
+@Composable
+fun StyledEventList(
+    events: List<MainViewModel.EventItem>,
+    modifier: Modifier = Modifier,
+    onEventClick: ((String) -> Unit)? = null
+) {
+    LazyColumn(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        items(events) { event ->
+            when (event) {
+                is MainViewModel.EventItem.Category -> {
+                    Text(
+                        text = event.name,
+                        style = MaterialTheme.typography.h6.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF1565C0) // Dark blue color
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(
+                                start = (event.level * 16).dp,
+                                top = if (event.level == 0) 16.dp else 8.dp,
+                                bottom = 4.dp
+                            )
+                    )
+                }
+                is MainViewModel.EventItem.Event -> {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onEventClick?.invoke(event.name) }
+                            .padding(
+                                start = (event.level * 16).dp,
+                                top = 4.dp,
+                                bottom = 4.dp,
+                                end = 8.dp
+                            ),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = event.displayName,
+                            style = MaterialTheme.typography.body1,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Alternative version if you want different styling for main categories vs subcategories
+@Composable
+fun StyledEventListDetailed(
+    events: List<MainViewModel.EventItem>,
+    modifier: Modifier = Modifier,
+    onEventClick: ((String) -> Unit)? = null
+) {
+    LazyColumn(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        items(events) { event ->
+            when (event) {
+                is MainViewModel.EventItem.Category -> {
+                    val isMainCategory = event.level == 0
+                    Text(
+                        text = event.name,
+                        style = if (isMainCategory) {
+                            MaterialTheme.typography.h6.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF1565C0) // Dark blue
+                            )
+                        } else {
+                            MaterialTheme.typography.subtitle1.copy(
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFF1976D2) // Slightly lighter blue
+                            )
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(
+                                start = (event.level * 16).dp,
+                                top = if (isMainCategory) 16.dp else 8.dp,
+                                bottom = 4.dp
+                            )
+                    )
+                }
+                is MainViewModel.EventItem.Event -> {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(
+                                start = (event.level * 16).dp,
+                                end = 8.dp,
+                                top = 2.dp,
+                                bottom = 2.dp
+                            )
+                            .clickable { onEventClick?.invoke(event.name) },
+                        elevation = 1.dp,
+                        backgroundColor = MaterialTheme.colors.surface
+                    ) {
+                        Text(
+                            text = event.displayName,
+                            style = MaterialTheme.typography.body1,
+                            modifier = Modifier.padding(12.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterialApi::class)
 @Composable
 fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFactory(LocalContext.current.applicationContext as android.app.Application))) {
@@ -41,6 +161,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
     val context = LocalContext.current
     var showMenu by remember { mutableStateOf(false) }
     var showBrandLimitDialog by remember { mutableStateOf(false) }
+    var showEventSelector by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
 
     // Initialize DataStore
@@ -181,35 +302,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
                 if (availableEvents.isNotEmpty()) {
                     Button(
                         onClick = {
-                            // Check AIR³ status and row count
-                            coroutineScope.launch {
-                                val isAir3 = DataStoreSingleton.getDataStore().data
-                                    .map { preferences ->
-                                        preferences[IS_AIR3_DEVICE] ?: true
-                                    }
-                                    .first()
-                                if (isAir3 || filteredConfigs.size < 1) {
-                                    // Always create the row regardless of Zello installation
-                                    val selectedEvent = availableEvents.firstOrNull { item -> item is MainViewModel.EventItem.Event } as? MainViewModel.EventItem.Event
-                                    if (selectedEvent != null) {
-                                        Log.d("MainScreen", "Add button clicked, adding config: event=${selectedEvent.name}, taskType=, taskData=")
-                                        viewModel.addConfig(
-                                            event = selectedEvent.name,
-                                            taskType = "",
-                                            taskData = "",
-                                            volumeType = VolumeType.SYSTEM,
-                                            volumePercentage = 100,
-                                            playCount = 1,
-                                            telegramChatId = null
-                                        )
-                                    } else {
-                                        Log.w("MainScreen", "Add button clicked, but no EventItem.Event found in availableEvents")
-                                    }
-                                } else {
-                                    showBrandLimitDialog = true
-                                    Log.d("MainScreen", "Non-AIR³ device with ${filteredConfigs.size} rows, showing limitation dialog")
-                                }
-                            }
+                            showEventSelector = true
                         },
                         modifier = Modifier.size(56.dp),
                         shape = CircleShape,
@@ -226,6 +319,52 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
                 }
             }
         }
+    }
+
+    // Event Selector Dialog
+    if (showEventSelector) {
+        AlertDialog(
+            onDismissRequest = { showEventSelector = false },
+            title = { Text("Select Event") },
+            text = {
+                StyledEventList(
+                    events = availableEvents,
+                    modifier = Modifier.height(400.dp),
+                    onEventClick = { eventName ->
+                        // Check AIR³ status and row count
+                        coroutineScope.launch {
+                            val isAir3 = DataStoreSingleton.getDataStore().data
+                                .map { preferences ->
+                                    preferences[IS_AIR3_DEVICE] ?: true
+                                }
+                                .first()
+                            if (isAir3 || filteredConfigs.size < 1) {
+                                Log.d("MainScreen", "Event selected: $eventName")
+                                viewModel.addConfig(
+                                    event = eventName,
+                                    taskType = "",
+                                    taskData = "",
+                                    volumeType = VolumeType.SYSTEM,
+                                    volumePercentage = 100,
+                                    playCount = 1,
+                                    telegramChatId = null
+                                )
+                                showEventSelector = false
+                            } else {
+                                showBrandLimitDialog = true
+                                showEventSelector = false
+                                Log.d("MainScreen", "Non-AIR³ device with ${filteredConfigs.size} rows, showing limitation dialog")
+                            }
+                        }
+                    }
+                )
+            },
+            confirmButton = {
+                Button(onClick = { showEventSelector = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 
     // Brand limitation dialog

@@ -1,5 +1,6 @@
 package com.xc.air3xctaddon
 
+import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import android.view.KeyEvent
@@ -37,7 +38,6 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.lifecycle.viewModelScope
 import com.xc.air3xctaddon.ui.theme.AIR3XCTAddonTheme
-import com.xc.air3xctaddon.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -46,7 +46,6 @@ import kotlinx.coroutines.withContext
 class AddButtonEventActivity : ComponentActivity() {
     private var isListening by mutableStateOf(false)
     private var lastKeyCode by mutableStateOf("None")
-    private var refreshTrigger by mutableStateOf(0)
     private val viewModel: MainViewModel by viewModels()
 
     data class ButtonEvent(
@@ -66,7 +65,6 @@ class AddButtonEventActivity : ComponentActivity() {
                     isListening = isListening,
                     lastKeyCode = lastKeyCode,
                     viewModel = viewModel,
-                    refreshTrigger = refreshTrigger,
                     onToggleListening = { toggleListening() },
                     onAddButtonEvent = {
                         if (lastKeyCode != "None") {
@@ -82,7 +80,7 @@ class AddButtonEventActivity : ComponentActivity() {
                                     }
                                 }
                             }
-                            lastKeyCode = "None" // Reset after adding
+                            lastKeyCode = "None"
                             Log.d("AddButtonEventActivity", "Added button event: keyCode=$keyCode, designation=$designation, eventName=$eventName")
                         }
                     },
@@ -105,7 +103,6 @@ class AddButtonEventActivity : ComponentActivity() {
                             }
                             Log.d("AddButtonEventActivity", "Updated isChecked for $eventName: $isChecked")
                         }
-                        refreshTrigger++
                     },
                     onDeleteButtonEvent = { eventName ->
                         viewModel.deleteEvent(eventName)
@@ -146,8 +143,12 @@ class AddButtonEventActivity : ComponentActivity() {
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         if (isListening && event?.action == KeyEvent.ACTION_DOWN) {
             lastKeyCode = keyCode.toString()
-            isListening = false // Stop listening automatically after detecting a key
+            isListening = false
             Log.d("AddButtonEventActivity", "Key event detected: keyCode=$keyCode")
+            // Send broadcast for testing button event
+            val intent = Intent("com.xc.air3xctaddon.BUTTON_$keyCode")
+            sendBroadcast(intent)
+            Log.d("AddButtonEventActivity", "Sent broadcast: com.xc.air3xctaddon.BUTTON_$keyCode")
         }
         return super.onKeyDown(keyCode, event)
     }
@@ -158,26 +159,28 @@ fun ButtonEventScreen(
     isListening: Boolean,
     lastKeyCode: String,
     viewModel: MainViewModel,
-    refreshTrigger: Int,
     onToggleListening: () -> Unit,
     onAddButtonEvent: () -> Unit,
     onUpdateComment: (String, String) -> Unit,
     onUpdateChecked: (String, Boolean) -> Unit,
     onDeleteButtonEvent: (String) -> Unit
 ) {
-    val events by viewModel.events.collectAsState()
     var buttonEvents by remember { mutableStateOf<List<AddButtonEventActivity.ButtonEvent>>(emptyList()) }
+    var refreshTrigger by remember { mutableStateOf(0) }
 
-    // Load button events asynchronously when events change or when refresh is triggered
-    LaunchedEffect(events, refreshTrigger) {
-        val eventItems = events.filterIsInstance<MainViewModel.EventItem.Event>()
-            .filter { event ->
-                event.name.startsWith("BUTTON_") &&
-                        event.name != "BUTTON_CLICK" && // Exclude BUTTON_CLICK
-                        event.name.removePrefix("BUTTON_").toIntOrNull() != null // Only include events with numeric keyCodes
-            }
+    // Load button events directly from database, not from the filtered events list
+    LaunchedEffect(refreshTrigger) {
+        val eventDao = AppDatabase.getDatabase(viewModel.getApplication()).eventDao()
+        val allDbEvents = eventDao.getAllEvents().first()
 
-        val loadedEvents = eventItems.map { event ->
+        val buttonDbEvents = allDbEvents.filter {
+            it.type == "event" &&
+                    it.name.startsWith("BUTTON_") &&
+                    it.name != "BUTTON_CLICK" &&
+                    it.name.removePrefix("BUTTON_").toIntOrNull() != null
+        }
+
+        val loadedEvents = buttonDbEvents.map { event ->
             val keyCode = event.name.removePrefix("BUTTON_")
             val designation = when (keyCode.toIntOrNull()) {
                 KeyEvent.KEYCODE_VOLUME_UP -> "Volume +"
@@ -188,7 +191,6 @@ fun ButtonEventScreen(
                 else -> "Button $keyCode"
             }
 
-            // Load comment and isChecked from DataStore
             val dataStore = DataStoreSingleton.getDataStore()
             val preferences = dataStore.data.first()
             val comment = preferences[stringPreferencesKey("${event.name}_comment")] ?: ""
@@ -223,7 +225,10 @@ fun ButtonEventScreen(
                 style = MaterialTheme.typography.body1
             )
             if (lastKeyCode != "None") {
-                IconButton(onClick = { onAddButtonEvent() }) {
+                IconButton(onClick = {
+                    onAddButtonEvent()
+                    refreshTrigger++ // Trigger refresh after adding
+                }) {
                     Icon(
                         imageVector = Icons.Default.Add,
                         contentDescription = stringResource(R.string.add_button),
@@ -232,7 +237,6 @@ fun ButtonEventScreen(
                 }
             }
         }
-        // Display list of added button events (only show actual events, not headers)
         if (buttonEvents.isNotEmpty()) {
             buttonEvents.forEach { event ->
                 Row(
@@ -254,7 +258,10 @@ fun ButtonEventScreen(
                     )
                     TextField(
                         value = event.comment,
-                        onValueChange = { onUpdateComment(event.eventName, it) },
+                        onValueChange = {
+                            onUpdateComment(event.eventName, it)
+                            refreshTrigger++ // Trigger refresh after updating comment
+                        },
                         label = { Text(text = stringResource(R.string.comment_label)) },
                         modifier = Modifier.weight(2f)
                     )
@@ -262,9 +269,13 @@ fun ButtonEventScreen(
                         checked = event.isChecked,
                         onCheckedChange = { newCheckedState ->
                             onUpdateChecked(event.eventName, newCheckedState)
+                            refreshTrigger++ // Trigger refresh after updating checked state
                         }
                     )
-                    IconButton(onClick = { onDeleteButtonEvent(event.eventName) }) {
+                    IconButton(onClick = {
+                        onDeleteButtonEvent(event.eventName)
+                        refreshTrigger++ // Trigger refresh after deleting
+                    }) {
                         Icon(
                             imageVector = Icons.Default.Delete,
                             contentDescription = stringResource(R.string.delete_button),

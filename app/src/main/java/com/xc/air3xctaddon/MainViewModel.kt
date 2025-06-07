@@ -2,6 +2,7 @@ package com.xc.air3xctaddon
 
 import android.app.Application
 import android.util.Log
+import android.view.KeyEvent
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -9,6 +10,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import java.util.UUID
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -24,12 +27,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val events: StateFlow<List<EventItem>> = _events.asStateFlow()
 
     sealed class EventItem {
-        data class Category(val name: String) : EventItem()
-        data class Event(val name: String) : EventItem()
+        data class Category(val name: String, val level: Int = 0) : EventItem()
+        data class Event(
+            val name: String,
+            val displayName: String = name,
+            val level: Int = 0
+        ) : EventItem()
     }
 
     companion object {
-        private val CATEGORIZED_EVENTS = mutableListOf<EventItem>().apply {
+        private val XCTRACK_EVENTS = mutableListOf<EventItem>().apply {
             add(EventItem.Category("Battery"))
             add(EventItem.Event("BATTERY50"))
             add(EventItem.Event("BATTERY40"))
@@ -70,6 +77,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     init {
+        DataStoreSingleton.initialize(context)
         viewModelScope.launch {
             configDao.getAllConfigs().collect { configs ->
                 _configs.value = configs
@@ -77,34 +85,76 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
         viewModelScope.launch {
-            _events.value = CATEGORIZED_EVENTS
-            Log.d("MainViewModel", "Initialized with CATEGORIZED_EVENTS: ${CATEGORIZED_EVENTS.size}, Categories: ${CATEGORIZED_EVENTS.filterIsInstance<EventItem.Category>().size}")
-
+            updateEvents()
             eventDao.getAllEvents().collect { dbEvents ->
-                val updatedItems = mutableListOf<EventItem>()
-                var currentCategory: String? = null
-
-                CATEGORIZED_EVENTS.forEach { item ->
-                    if (item is EventItem.Category) {
-                        currentCategory = item.name
-                        updatedItems.add(item)
-                    } else if (item is EventItem.Event && dbEvents.none { it.type == "event" && it.name == item.name }) {
-                        updatedItems.add(item)
-                    }
-                }
-
-                dbEvents.filter { it.type == "event" }.forEach { dbEvent ->
-                    if (dbEvent.name !in CATEGORIZED_EVENTS.filterIsInstance<EventItem.Event>().map { it.name }) {
-                        val targetCategory = dbEvent.category ?: "Others"
-                        val insertIndex = updatedItems.indexOfFirst { it is EventItem.Category && it.name == targetCategory }
-                            .takeIf { it >= 0 }?.let { it + 1 } ?: updatedItems.size
-                        updatedItems.add(insertIndex, EventItem.Event(dbEvent.name))
-                    }
-                }
-
-                _events.value = updatedItems
-                Log.d("MainViewModel", "Updated events: ${updatedItems.size}, Categories: ${updatedItems.filterIsInstance<EventItem.Category>().size}, DB events: ${dbEvents.size}")
+                updateEvents(dbEvents)
             }
+        }
+    }
+
+    private suspend fun updateEvents(dbEvents: List<EventEntity>? = null) {
+        val actualDbEvents = dbEvents ?: eventDao.getAllEvents().first()
+        val dataStore = DataStoreSingleton.getDataStore()
+        val updatedItems = mutableListOf<EventItem>()
+
+        // Add XCTrack events
+        updatedItems.add(EventItem.Category("XCTrack events", level = 0))
+        var currentCategory: String? = null
+        XCTRACK_EVENTS.forEach { item ->
+            if (item is EventItem.Category) {
+                currentCategory = item.name
+                updatedItems.add(EventItem.Category("XCTrack events > ${item.name}", level = 1))
+            } else if (item is EventItem.Event && actualDbEvents.none { it.type == "event" && it.name == item.name }) {
+                updatedItems.add(EventItem.Event(item.name, level = 2))
+            }
+        }
+
+        // Add custom XCTrack events from database (not in XCTRACK_EVENTS, not BUTTON_)
+        actualDbEvents.filter { it.type == "event" && !it.name.startsWith("BUTTON_") && it.name !in XCTRACK_EVENTS.filterIsInstance<EventItem.Event>().map { it.name } }
+            .forEach { dbEvent ->
+                val targetCategory = dbEvent.category?.let { "XCTrack events > $it" } ?: "XCTrack events > Others"
+                val insertIndex = updatedItems.indexOfFirst { it is EventItem.Category && it.name == targetCategory }
+                    .takeIf { it >= 0 }?.let { it + 1 } ?: updatedItems.size
+                updatedItems.add(insertIndex, EventItem.Event(dbEvent.name, level = 2))
+            }
+
+        // Add Button events
+        updatedItems.add(EventItem.Category("Button events", level = 0))
+        actualDbEvents.filter { it.type == "event" && it.name.startsWith("BUTTON_") }
+            .forEach { event ->
+                val eventName = event.name
+                val isChecked = dataStore.data.first()[booleanPreferencesKey("${eventName}_isChecked")] ?: false
+                if (isChecked) {
+                    val keyCode = eventName.removePrefix("BUTTON_").toIntOrNull()
+                    val designation = getButtonDesignation(keyCode)
+                    val comment = dataStore.data.first()[stringPreferencesKey("${eventName}_comment")] ?: ""
+
+                    val displayName = buildString {
+                        append(eventName)
+                        if (designation.isNotEmpty()) {
+                            append(" ($designation)")
+                        }
+                        if (comment.isNotEmpty()) {
+                            append(" - $comment")
+                        }
+                    }
+
+                    updatedItems.add(EventItem.Event(eventName, displayName, level = 1))
+                }
+            }
+
+        _events.value = updatedItems
+        Log.d("MainViewModel", "Updated events: ${updatedItems.size}, Categories: ${updatedItems.filterIsInstance<EventItem.Category>().size}, DB events: ${actualDbEvents.size}")
+    }
+
+    private fun getButtonDesignation(keyCode: Int?): String {
+        return when (keyCode) {
+            KeyEvent.KEYCODE_VOLUME_UP -> "Volume +"
+            KeyEvent.KEYCODE_VOLUME_DOWN -> "Volume -"
+            KeyEvent.KEYCODE_BACK -> "Back"
+            KeyEvent.KEYCODE_MENU -> "Menu"
+            KeyEvent.KEYCODE_POWER -> "Power"
+            else -> if (keyCode != null) "Button $keyCode" else ""
         }
     }
 
@@ -123,6 +173,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val newEvent = EventEntity(type = "event", name = eventName, category = category)
             eventDao.insert(newEvent)
             Log.d("MainViewModel", "Added event '$eventName' to category '$category'")
+            updateEvents()
         }
     }
 
@@ -133,6 +184,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             if (event != null) {
                 eventDao.delete(event)
                 Log.d("MainViewModel", "Deleted event '$eventName'")
+                updateEvents()
             } else {
                 Log.w("MainViewModel", "Event '$eventName' not found for deletion")
             }

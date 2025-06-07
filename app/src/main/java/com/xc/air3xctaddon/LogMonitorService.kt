@@ -17,6 +17,7 @@ import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -29,6 +30,7 @@ class LogMonitorService : Service() {
 
     companion object {
         private const val NOTIFICATION_ID = 1
+        private const val ACTION_PREFIX = "com.xc.air3xctaddon."
     }
 
     override fun onCreate() {
@@ -44,7 +46,7 @@ class LogMonitorService : Service() {
         Log.d("LogMonitorService", "Started foreground service")
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
-        SettingsRepository.initialize(this) // Initialize singleton
+        SettingsRepository.initialize(this)
         telegramBotHelper = TelegramBotHelper(this, BuildConfig.TELEGRAM_BOT_TOKEN, fusedLocationClient)
 
         eventReceiver = object : BroadcastReceiver() {
@@ -52,7 +54,7 @@ class LogMonitorService : Service() {
                 intent?.let {
                     val extrasString = it.extras?.keySet()?.joinToString() ?: "none"
                     Log.d("LogMonitorService", "Received intent: action=${it.action}, extras=$extrasString")
-                    val event = it.action?.removePrefix(getString(R.string.action_prefix))
+                    val event = it.action?.removePrefix(ACTION_PREFIX)
                     val formatArgs = it.getSerializableExtra("formatArgs")
                     Log.d("LogMonitorService", "Received event: $event, formatArgs=$formatArgs")
                     if (event != null) {
@@ -129,7 +131,7 @@ class LogMonitorService : Service() {
                                                 }
                                                 sendBroadcast(zelloDownIntent)
                                                 Log.d("LogMonitorService", "Sent Zello PTT down intent for event $event, configId=${config.id}")
-                                                Thread.sleep(100) // Brief delay to mimic press duration
+                                                Thread.sleep(100)
                                                 val zelloUpIntent = Intent("com.zello.ptt.up").apply {
                                                     putExtra("com.zello.stayHidden", true)
                                                 }
@@ -171,39 +173,29 @@ class LogMonitorService : Service() {
             }
         }
 
-        filter = IntentFilter().apply {
-            addAction("${getString(R.string.action_prefix)}TAKEOFF")
-            addAction("${getString(R.string.action_prefix)}LANDING")
-            addAction("${getString(R.string.action_prefix)}BATTERY50")
-            addAction("${getString(R.string.action_prefix)}BATTERY40")
-            addAction("${getString(R.string.action_prefix)}BATTERY30")
-            addAction("${getString(R.string.action_prefix)}BATTERY20")
-            addAction("${getString(R.string.action_prefix)}BATTERY10")
-            addAction("${getString(R.string.action_prefix)}BATTERY5")
-            addAction("${getString(R.string.action_prefix)}BATTERY_CHARGING")
-            addAction("${getString(R.string.action_prefix)}BATTERY_DISCHARGING")
-            addAction("${getString(R.string.action_prefix)}START_THERMALING")
-            addAction("${getString(R.string.action_prefix)}STOP_THERMALING")
-            addAction("${getString(R.string.action_prefix)}COMP_SSS_CROSSED")
-            addAction("${getString(R.string.action_prefix)}COMP_TURNPOINT_CROSSED")
-            addAction("${getString(R.string.action_prefix)}COMP_ESS_CROSSED")
-            addAction("${getString(R.string.action_prefix)}COMP_GOAL_CROSSED")
-            addAction("${getString(R.string.action_prefix)}SYSTEM_GPS_OK")
-            addAction("${getString(R.string.action_prefix)}AIRSPACE_CROSSED")
-            addAction("${getString(R.string.action_prefix)}AIRSPACE_RED_WARN")
-            addAction("${getString(R.string.action_prefix)}AIRSPACE_ORANGE_WARN")
-            addAction("${getString(R.string.action_prefix)}AIRSPACE_CROSSED_SOON")
-            addAction("${getString(R.string.action_prefix)}AIRSPACE_OBSTACLE")
-            addAction("${getString(R.string.action_prefix)}LIVETRACK_MESSAGE")
-            addAction("${getString(R.string.action_prefix)}LIVETRACK_ENABLED")
-            addAction("${getString(R.string.action_prefix)}BUTTON_CLICK")
-            addAction("${getString(R.string.action_prefix)}CALL_REJECTED")
-            addAction("${getString(R.string.action_prefix)}COMP_TURNPOINT_PREV")
-            addAction("${getString(R.string.action_prefix)}_LANDING_CONFIRMATION_NEEDED")
-            addAction("${getString(R.string.action_prefix)}BT_OK")
-            addAction("${getString(R.string.action_prefix)}BT_KO")
-            addAction("${getString(R.string.action_prefix)}TEST")
-            addAction("com.xc.air3xctaddon.EVENT")
+        filter = IntentFilter()
+        scope.launch {
+            val db = AppDatabase.getDatabase(applicationContext)
+            val events = db.eventDao().getAllEvents().first()
+            // Add XCTrack event actions
+            listOf(
+                "TAKEOFF", "LANDING", "BATTERY50", "BATTERY40", "BATTERY30", "BATTERY20", "BATTERY10",
+                "BATTERY5", "BATTERY_CHARGING", "BATTERY_DISCHARGING", "START_THERMALING", "STOP_THERMALING",
+                "COMP_SSS_CROSSED", "COMP_TURNPOINT_CROSSED", "COMP_ESS_CROSSED", "COMP_GOAL_CROSSED",
+                "SYSTEM_GPS_OK", "AIRSPACE_CROSSED", "AIRSPACE_RED_WARN", "AIRSPACE_ORANGE_WARN",
+                "AIRSPACE_CROSSED_SOON", "AIRSPACE_OBSTACLE", "LIVETRACK_MESSAGE", "LIVETRACK_ENABLED",
+                "BUTTON_CLICK", "CALL_REJECTED", "COMP_TURNPOINT_PREV", "_LANDING_CONFIRMATION_NEEDED",
+                "BT_OK", "BT_KO", "TEST"
+            ).forEach { event ->
+                filter.addAction("$ACTION_PREFIX$event")
+            }
+            // Add button event actions
+            events.filter { it.type == "event" && it.name.startsWith("BUTTON_") }
+                .forEach { event ->
+                    filter.addAction("$ACTION_PREFIX${event.name}")
+                }
+            filter.addAction("com.xc.air3xctaddon.EVENT")
+            Log.d("LogMonitorService", "IntentFilter updated with ${events.count { it.name.startsWith("BUTTON_") }} button events")
         }
 
         registerReceiver(
