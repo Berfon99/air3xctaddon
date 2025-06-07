@@ -88,7 +88,11 @@ class LogMonitorService : Service() {
 
                     // Extract event name from action
                     val event = when {
-                        // Handle XCTrack events with ACTION_PREFIX
+                        // Handle XCTrack events with their format
+                        it.action?.startsWith("org.xcontest.XCTrack.Event.") == true -> {
+                            it.action?.removePrefix("org.xcontest.XCTrack.Event.")
+                        }
+                        // Handle internal events with ACTION_PREFIX
                         it.action?.startsWith(ACTION_PREFIX) == true -> {
                             it.action?.removePrefix(ACTION_PREFIX)
                         }
@@ -113,7 +117,7 @@ class LogMonitorService : Service() {
 
         // Setup static filter for XCTrack events
         filter = IntentFilter().apply {
-            // Add XCTrack event actions
+            // Add XCTrack event actions with correct format
             listOf(
                 "TAKEOFF", "LANDING", "BATTERY50", "BATTERY40", "BATTERY30", "BATTERY20", "BATTERY10",
                 "BATTERY5", "BATTERY_CHARGING", "BATTERY_DISCHARGING", "START_THERMALING", "STOP_THERMALING",
@@ -123,7 +127,9 @@ class LogMonitorService : Service() {
                 "BUTTON_CLICK", "CALL_REJECTED", "COMP_TURNPOINT_PREV", "_LANDING_CONFIRMATION_NEEDED",
                 "BT_OK", "BT_KO", "TEST"
             ).forEach { event ->
-                addAction("$ACTION_PREFIX$event")
+                // Add both formats for compatibility
+                addAction("$ACTION_PREFIX$event")  // Our internal format
+                addAction("org.xcontest.XCTrack.Event.$event")  // XCTrack format
             }
             addAction("com.xc.air3xctaddon.EVENT")
         }
