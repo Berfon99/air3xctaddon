@@ -22,10 +22,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.io.File
 import androidx.datastore.preferences.core.booleanPreferencesKey
-import androidx.datastore.preferences.core.stringPreferencesKey
 import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
-import java.util.*
+import java.io.Serializable
 
 class LogMonitorService : Service() {
     private lateinit var eventReceiver: BroadcastReceiver
@@ -67,7 +66,7 @@ class LogMonitorService : Service() {
                     if (keyEvent != null && keyEvent.action == KeyEvent.ACTION_UP) {
                         val eventName = "BUTTON_${keyEvent.keyCode}"
                         Log.d("LogMonitorService", "Received media button event: $eventName")
-                        handleEvent(eventName)
+                        processEvent(eventName, null)
                     }
                 }
                 return true
@@ -86,146 +85,34 @@ class LogMonitorService : Service() {
                 intent?.let {
                     val extrasString = it.extras?.keySet()?.joinToString() ?: "none"
                     Log.d("LogMonitorService", "Received intent: action=${it.action}, extras=$extrasString")
-                    val event = it.action?.removePrefix(ACTION_PREFIX)
-                    val formatArgs = it.getSerializableExtra("formatArgs")
-                    Log.d("LogMonitorService", "Received event: $event, formatArgs=$formatArgs")
-                    if (event != null) {
-                        scope.launch {
-                            val db = AppDatabase.getDatabase(applicationContext)
-                            val configDao = db.eventConfigDao()
-                            val taskDao = db.taskDao()
-                            val configs = configDao.getAllConfigsSync()
-                                .filter { it.event.equals(event, ignoreCase = true) }
-                                .sortedBy { it.position }
-                            val tasks = taskDao.getAllTasksSync()
-                            Log.d("LogMonitorService", "Found ${configs.size} configs for event $event: ${configs.map { "id=${it.id}, taskData=${it.taskData}, taskType=${it.taskType}" }}")
-                            if (configs.isNotEmpty()) {
-                                configs.forEach { config ->
-                                    Log.d("LogMonitorService", "Found config for event $event: taskData=${config.taskData}, taskType=${config.taskType}, id=${config.id}, launchInBackground=${config.launchInBackground}")
-                                    when (config.taskType) {
-                                        "Sound" -> {
-                                            if (!config.taskData.isNullOrEmpty()) {
-                                                playSound(
-                                                    config.taskData,
-                                                    config.volumeType,
-                                                    config.volumePercentage,
-                                                    config.playCount
-                                                )
-                                            } else {
-                                                Log.w("LogMonitorService", "No sound file specified for event $event, configId=${config.id}")
-                                            }
-                                        }
-                                        "SendTelegramPosition" -> {
-                                            if (!config.taskData.isNullOrEmpty()) {
-                                                Log.d("LogMonitorService", "Sending Telegram position: chatId=${config.taskData}, configId=${config.id}")
-                                                telegramBotHelper.getCurrentLocation(
-                                                    onResult = { latitude, longitude ->
-                                                        telegramBotHelper.sendLocationMessage(
-                                                            chatId = config.taskData,
-                                                            latitude = latitude,
-                                                            longitude = longitude,
-                                                            event = config.event
-                                                        )
-                                                        Log.d("LogMonitorService", "Sent Telegram position for event $event: lat=$latitude, lon=$longitude")
-                                                    },
-                                                    onError = { error ->
-                                                        Log.e("LogMonitorService", "Error getting location for event $event, configId=${config.id}: $error")
-                                                    }
-                                                )
-                                            } else {
-                                                Log.w("LogMonitorService", "Invalid taskData for ${config.taskType}, configId=${config.id}")
-                                            }
-                                        }
-                                        "LaunchApp" -> {
-                                            val task = tasks.find { it.taskType == config.taskType && it.taskData == config.taskData }
-                                            if (task != null) {
-                                                Log.d("LogMonitorService", "Preparing to launch app: packageName=${config.taskData}, configId=${config.id}, launchInBackground=${config.launchInBackground}")
-                                                val launchIntent = Intent(this@LogMonitorService, LaunchActivity::class.java).apply {
-                                                    putExtra("packageName", config.taskData)
-                                                    putExtra("configId", config.id)
-                                                    putExtra("launchInBackground", config.launchInBackground)
-                                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                                }
-                                                try {
-                                                    startActivity(launchIntent)
-                                                    Log.d("LogMonitorService", "Started LaunchActivity: packageName=${config.taskData}, configId=${config.id}, launchInBackground=${config.launchInBackground}")
-                                                } catch (e: SecurityException) {
-                                                    Log.e("LogMonitorService", "Failed to start LaunchActivity: packageName=${config.taskData}, configId=${config.id}, error=$e")
-                                                }
-                                            } else {
-                                                Log.w("LogMonitorService", "No task found for type=${config.taskType}, taskData=${config.taskData}, event=$event, configId=${config.id}")
-                                            }
-                                        }
-                                        "ZELLO_PTT" -> {
-                                            try {
-                                                val zelloDownIntent = Intent("com.zello.ptt.down").apply {
-                                                    putExtra("com.zello.stayHidden", true)
-                                                }
-                                                sendBroadcast(zelloDownIntent)
-                                                Log.d("LogMonitorService", "Sent Zello PTT down intent for event $event, configId=${config.id}")
-                                                Thread.sleep(100)
-                                                val zelloUpIntent = Intent("com.zello.ptt.up").apply {
-                                                    putExtra("com.zello.stayHidden", true)
-                                                }
-                                                sendBroadcast(zelloUpIntent)
-                                                Log.d("LogMonitorService", "Sent Zello PTT up intent for event $event, configId=${config.id}")
-                                            } catch (e: Exception) {
-                                                Log.e("LogMonitorService", "Failed to send Zello PTT intents for event $event, configId=${config.id}", e)
-                                            }
-                                        }
-                                        "SendTelegramMessage" -> {
-                                            if (!config.taskData.isNullOrEmpty() && config.taskData.contains("|")) {
-                                                val (chatId, message) = config.taskData.split("|", limit = 2)
-                                                if (chatId.isNotEmpty() && message.isNotEmpty()) {
-                                                    telegramBotHelper.sendMessage(
-                                                        chatId = chatId,
-                                                        message = message
-                                                    )
-                                                    Log.d("LogMonitorService", "Sent Telegram message for event $event: chatId=$chatId, message=$message")
-                                                } else {
-                                                    Log.e("LogMonitorService", "Invalid Telegram message config for event $event, configId=${config.id}")
-                                                }
-                                            } else {
-                                                Log.e("LogMonitorService", "Invalid Telegram message format for event $event, configId=${config.id}: ${config.taskData ?: "null"}")
-                                            }
-                                        }
-                                        else -> {
-                                            Log.w("LogMonitorService", "Unknown task type: ${config.taskType ?: "null"} for event $event, configId=${config.id}")
-                                        }
-                                    }
-                                }
-                            } else {
-                                Log.w("LogMonitorService", "No configs found for event: $event")
-                            }
+
+                    // Extract event name from action
+                    val event = when {
+                        // Handle XCTrack events with ACTION_PREFIX
+                        it.action?.startsWith(ACTION_PREFIX) == true -> {
+                            it.action?.removePrefix(ACTION_PREFIX)
                         }
+                        // Handle custom events
+                        it.action == "com.xc.air3xctaddon.EVENT" -> {
+                            it.getStringExtra("event")
+                        }
+                        else -> null
+                    }
+
+                    val formatArgs = it.getSerializableExtra("formatArgs")
+                    Log.d("LogMonitorService", "Extracted event: $event, formatArgs=$formatArgs")
+
+                    if (event != null) {
+                        processEvent(event, formatArgs)
                     } else {
                         Log.w("LogMonitorService", "No event extracted from action: ${it.action ?: "null"}")
                     }
                 }
             }
         }
-        scope.launch {
-            val db = AppDatabase.getDatabase(applicationContext)
-            db.eventDao().getAllEvents().collect { events ->
-                updateIntentFilter(events)
-            }
-        }
-    }
 
-    private suspend fun updateIntentFilter(events: List<EventEntity>) {
-        if (isReceiverRegistered) {
-            try {
-                unregisterReceiver(eventReceiver)
-                isReceiverRegistered = false
-                Log.d("LogMonitorService", "Unregistered event receiver for update")
-            } catch (e: Exception) {
-                Log.e("LogMonitorService", "Error unregistering receiver during update", e)
-            }
-        }
-
-        filter = IntentFilter()
-        scope.launch {
-            val dataStore = DataStoreSingleton.getDataStore()
+        // Setup static filter for XCTrack events
+        filter = IntentFilter().apply {
             // Add XCTrack event actions
             listOf(
                 "TAKEOFF", "LANDING", "BATTERY50", "BATTERY40", "BATTERY30", "BATTERY20", "BATTERY10",
@@ -236,36 +123,154 @@ class LogMonitorService : Service() {
                 "BUTTON_CLICK", "CALL_REJECTED", "COMP_TURNPOINT_PREV", "_LANDING_CONFIRMATION_NEEDED",
                 "BT_OK", "BT_KO", "TEST"
             ).forEach { event ->
-                filter.addAction("$ACTION_PREFIX$event")
+                addAction("$ACTION_PREFIX$event")
             }
-            // Add button event actions only if isChecked is true
-            val checkedButtonEvents = events.filter { it.type == "event" && it.name.startsWith("BUTTON_") }
-                .filter { event ->
-                    val isChecked = dataStore.data.first()[booleanPreferencesKey("${event.name}_isChecked")] ?: false
-                    if (isChecked) {
-                        Log.d("LogMonitorService", "Added button event to filter: ${event.name}")
-                    } else {
-                        Log.d("LogMonitorService", "Skipped unchecked button event: ${event.name}")
-                    }
-                    isChecked
+            addAction("com.xc.air3xctaddon.EVENT")
+        }
+
+        registerReceiver(
+            eventReceiver,
+            filter,
+            "org.xcontest.XCTrack.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION",
+            null,
+            Context.RECEIVER_EXPORTED
+        )
+        isReceiverRegistered = true
+        Log.d("LogMonitorService", "Registered event receiver for XCTrack events")
+
+        // Observe for database changes to update dynamic button events
+        scope.launch {
+            val db = AppDatabase.getDatabase(applicationContext)
+            db.eventDao().getAllEvents().collect { events ->
+                updateDynamicButtonEvents(events)
+            }
+        }
+    }
+
+    private fun processEvent(event: String, formatArgs: Serializable?) {
+        scope.launch {
+            if (event.startsWith("BUTTON_")) {
+                val dataStore = DataStoreSingleton.getDataStore()
+                val isChecked = dataStore.data.first()[booleanPreferencesKey("${event}_isChecked")] ?: false
+                if (!isChecked) {
+                    Log.d("LogMonitorService", "Event $event is not checked, skipping")
+                    return@launch
                 }
-            checkedButtonEvents.forEach { event ->
-                filter.addAction("$ACTION_PREFIX${event.name}")
             }
-            filter.addAction("com.xc.air3xctaddon.EVENT")
-            Log.d("LogMonitorService", "IntentFilter updated with ${checkedButtonEvents.size} button events")
+            val db = AppDatabase.getDatabase(applicationContext)
+            val configDao = db.eventConfigDao()
+            val taskDao = db.taskDao()
+            val configs = configDao.getAllConfigsSync()
+                .filter { it.event.equals(event, ignoreCase = true) }
+                .sortedBy { it.position }
+            val tasks = taskDao.getAllTasksSync()
+            Log.d("LogMonitorService", "Found ${configs.size} configs for event $event: ${configs.map { "id=${it.id}, taskData=${it.taskData}, taskType=${it.taskType}" }}")
+            if (configs.isNotEmpty()) {
+                configs.forEach { config ->
+                    Log.d("LogMonitorService", "Found config for event $event: taskData=${config.taskData}, taskType=${config.taskType}, id=${config.id}, launchInBackground=${config.launchInBackground}")
+                    when (config.taskType) {
+                        "Sound" -> {
+                            if (!config.taskData.isNullOrEmpty()) {
+                                playSound(
+                                    config.taskData,
+                                    config.volumeType,
+                                    config.volumePercentage,
+                                    config.playCount
+                                )
+                            } else {
+                                Log.w("LogMonitorService", "No sound file specified for event $event, configId=${config.id}")
+                            }
+                        }
+                        "SendTelegramPosition" -> {
+                            if (!config.taskData.isNullOrEmpty()) {
+                                Log.d("LogMonitorService", "Sending Telegram position: chatId=${config.taskData}, configId=${config.id}")
+                                telegramBotHelper.getCurrentLocation(
+                                    onResult = { latitude, longitude ->
+                                        telegramBotHelper.sendLocationMessage(
+                                            chatId = config.taskData,
+                                            latitude = latitude,
+                                            longitude = longitude,
+                                            event = config.event
+                                        )
+                                        Log.d("LogMonitorService", "Sent Telegram position for event $event: lat=$latitude, lon=$longitude")
+                                    },
+                                    onError = { error ->
+                                        Log.e("LogMonitorService", "Error getting location for event $event, configId=${config.id}: $error")
+                                    }
+                                )
+                            } else {
+                                Log.w("LogMonitorService", "Invalid taskData for ${config.taskType}, configId=${config.id}")
+                            }
+                        }
+                        "LaunchApp" -> {
+                            val task = tasks.find { it.taskType == config.taskType && it.taskData == config.taskData }
+                            if (task != null) {
+                                Log.d("LogMonitorService", "Preparing to launch app: packageName=${config.taskData}, configId=${config.id}, launchInBackground=${config.launchInBackground}")
+                                val launchIntent = Intent(this@LogMonitorService, LaunchActivity::class.java).apply {
+                                    putExtra("packageName", config.taskData)
+                                    putExtra("configId", config.id)
+                                    putExtra("launchInBackground", config.launchInBackground)
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
+                                try {
+                                    startActivity(launchIntent)
+                                    Log.d("LogMonitorService", "Started LaunchActivity: packageName=${config.taskData}, configId=${config.id}, launchInBackground=${config.launchInBackground}")
+                                } catch (e: SecurityException) {
+                                    Log.e("LogMonitorService", "Failed to start LaunchActivity: packageName=${config.taskData}, configId=${config.id}, error=$e")
+                                }
+                            } else {
+                                Log.w("LogMonitorService", "No task found for type=${config.taskType}, taskData=${config.taskData}, event=$event, configId=${config.id}")
+                            }
+                        }
+                        "ZELLO_PTT" -> {
+                            try {
+                                val zelloDownIntent = Intent("com.zello.ptt.down").apply {
+                                    putExtra("com.zello.stayHidden", true)
+                                }
+                                sendBroadcast(zelloDownIntent)
+                                Log.d("LogMonitorService", "Sent Zello PTT down intent for event $event, configId=${config.id}")
+                                Thread.sleep(100)
+                                val zelloUpIntent = Intent("com.zello.ptt.up").apply {
+                                    putExtra("com.zello.stayHidden", true)
+                                }
+                                sendBroadcast(zelloUpIntent)
+                                Log.d("LogMonitorService", "Sent Zello PTT up intent for event $event, configId=${config.id}")
+                            } catch (e: Exception) {
+                                Log.e("LogMonitorService", "Failed to send Zello PTT intents for event $event, configId=${config.id}", e)
+                            }
+                        }
+                        "SendTelegramMessage" -> {
+                            if (!config.taskData.isNullOrEmpty() && config.taskData.contains("|")) {
+                                val (chatId, message) = config.taskData.split("|", limit = 2)
+                                if (chatId.isNotEmpty() && message.isNotEmpty()) {
+                                    telegramBotHelper.sendMessage(
+                                        chatId = chatId,
+                                        message = message
+                                    )
+                                    Log.d("LogMonitorService", "Sent Telegram message for event $event: chatId=$chatId, message=$message")
+                                } else {
+                                    Log.e("LogMonitorService", "Invalid Telegram message config for event $event, configId=${config.id}")
+                                }
+                            } else {
+                                Log.e("LogMonitorService", "Invalid Telegram message format for event $event, configId=${config.id}: ${config.taskData ?: "null"}")
+                            }
+                        }
+                        else -> {
+                            Log.w("LogMonitorService", "Unknown task type: ${config.taskType ?: "null"} for event $event, configId=${config.id}")
+                        }
+                    }
+                }
+            } else {
+                Log.w("LogMonitorService", "No configs found for event: $event")
+            }
         }
-        if (!isReceiverRegistered) {
-            registerReceiver(
-                eventReceiver,
-                filter,
-                "org.xcontest.XCTrack.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION",
-                null,
-                Context.RECEIVER_EXPORTED
-            )
-            isReceiverRegistered = true
-            Log.d("LogMonitorService", "Registered event receiver")
-        }
+    }
+
+    private suspend fun updateDynamicButtonEvents(events: List<EventEntity>) {
+        // This function can be used to handle dynamic button events if needed
+        // For now, we'll just log the button events from the database
+        val buttonEvents = events.filter { it.type == "event" && it.name.startsWith("BUTTON_") }
+        Log.d("LogMonitorService", "Dynamic button events in database: ${buttonEvents.map { it.name }}")
     }
 
     private fun createNotificationChannel() {
@@ -278,8 +283,6 @@ class LogMonitorService : Service() {
                 description = getString(R.string.notification_channel_description)
             }
             val manager = getSystemService(NotificationManager::class.java)
-
-
             manager.createNotificationChannel(channel)
         }
     }
@@ -342,13 +345,6 @@ class LogMonitorService : Service() {
         }
     }
 
-    private fun handleEvent(eventName: String) {
-        val intent = Intent().apply {
-            action = "$ACTION_PREFIX$eventName"
-        }
-        eventReceiver.onReceive(this, intent)
-    }
-
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d("LogMonitorService", "Service started")
         return START_STICKY
@@ -357,11 +353,14 @@ class LogMonitorService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         mediaSession.release()
-        try {
-            unregisterReceiver(eventReceiver)
-            Log.d("LogMonitorService", "Unregistered event receiver")
-        } catch (e: Exception) {
-            Log.e("LogMonitorService", "Error unregistering receiver", e)
+        if (isReceiverRegistered) {
+            try {
+                unregisterReceiver(eventReceiver)
+                isReceiverRegistered = false
+                Log.d("LogMonitorService", "Unregistered event receiver")
+            } catch (e: Exception) {
+                Log.e("LogMonitorService", "Error unregistering receiver", e)
+            }
         }
     }
 
