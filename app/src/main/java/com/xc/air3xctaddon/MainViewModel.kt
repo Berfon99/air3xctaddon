@@ -97,28 +97,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val dataStore = DataStoreSingleton.getDataStore()
         val updatedItems = mutableListOf<EventItem>()
 
-        // Add XCTrack events
+// Add XCTrack events
         updatedItems.add(EventItem.Category("XCTrack events", level = 0))
         var currentCategory: String? = null
         XCTRACK_EVENTS.forEach { item ->
             if (item is EventItem.Category) {
                 currentCategory = item.name
-                updatedItems.add(EventItem.Category("XCTrack events > ${item.name}", level = 1))
+                updatedItems.add(EventItem.Category(item.name, level = 1))
             } else if (item is EventItem.Event && actualDbEvents.none { it.type == "event" && it.name == item.name }) {
                 updatedItems.add(EventItem.Event(item.name, level = 2))
             }
         }
 
-        // Add custom XCTrack events from database (not in XCTRACK_EVENTS, not BUTTON_)
+// Add custom XCTrack events from database (not in XCTRACK_EVENTS, not BUTTON_)
         actualDbEvents.filter { it.type == "event" && !it.name.startsWith("BUTTON_") && it.name !in XCTRACK_EVENTS.filterIsInstance<EventItem.Event>().map { it.name } }
             .forEach { dbEvent ->
-                val targetCategory = dbEvent.category?.let { "XCTrack events > $it" } ?: "XCTrack events > Others"
+                val targetCategory = dbEvent.category ?: "Others"
                 val insertIndex = updatedItems.indexOfFirst { it is EventItem.Category && it.name == targetCategory }
                     .takeIf { it >= 0 }?.let { it + 1 } ?: updatedItems.size
                 updatedItems.add(insertIndex, EventItem.Event(dbEvent.name, level = 2))
             }
 
-        // Add Button events
+// Add Button events
         updatedItems.add(EventItem.Category("Button events", level = 0))
         actualDbEvents.filter { it.type == "event" && it.name.startsWith("BUTTON_") }
             .forEach { event ->
@@ -139,7 +139,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         }
                     }
 
-                    updatedItems.add(EventItem.Event(eventName, displayName, level = 1))
+                    updatedItems.add(EventItem.Event(eventName, displayName, level = 2))
                 }
             }
 

@@ -8,6 +8,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.xc.air3xctaddon.MainViewModel
@@ -34,7 +36,8 @@ fun EventSelector(
             Text(
                 text = selectedEvent,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth() // Ensure left-align
             )
         }
         DropdownMenu(
@@ -55,20 +58,32 @@ fun EventSelector(
                         is MainViewModel.EventItem.Category -> {
                             Text(
                                 text = item.name,
-                                style = MaterialTheme.typography.subtitle1,
+                                style = MaterialTheme.typography.subtitle1.copy(
+                                    fontWeight = if (item.level == 0) FontWeight.Bold else FontWeight.SemiBold,
+                                    color = if (item.level == 0) Color(0xFF1565C0) else Color(0xFF1976D2)
+                                ),
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                                color = MaterialTheme.colors.primary
+                                    .padding(
+                                        start = (item.level * 16).dp,
+                                        top = if (item.level == 0) 8.dp else 4.dp,
+                                        bottom = 4.dp,
+                                        end = 8.dp
+                                    )
                             )
                         }
                         is MainViewModel.EventItem.Event -> {
                             DropdownMenuItem(
-                                content = { Text(item.name) },
+                                content = {
+                                    Text(
+                                        text = item.displayName,
+                                        modifier = Modifier.padding(start = (item.level * 16).dp)
+                                    )
+                                },
                                 onClick = {
                                     onEventSelected(item.name)
                                     eventMenuExpanded = false
-                                    Log.d("EventSelector", "Selected event: ${item.name}")
+                                    Log.d("EventSelector", "Selected event: ${item.name}, displayName: ${item.displayName}")
                                 }
                             )
                         }

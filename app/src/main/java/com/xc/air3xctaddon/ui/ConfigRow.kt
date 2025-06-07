@@ -211,7 +211,9 @@ fun ConfigRow(
                         onUpdate(config.copy(event = selectedEvent))
                         Log.d("ConfigRow", "Selected event: $selectedEvent")
                     },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = 0.dp) // Ensure no extra indent
                 )
 
 

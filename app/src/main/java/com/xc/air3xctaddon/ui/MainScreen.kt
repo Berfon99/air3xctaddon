@@ -36,7 +36,6 @@ import kotlinx.coroutines.launch
 // Define preference key
 private val IS_AIR3_DEVICE = booleanPreferencesKey("is_air3_device")
 
-// Add the StyledEventList composable
 @Composable
 fun StyledEventList(
     events: List<MainViewModel.EventItem>,
@@ -53,8 +52,8 @@ fun StyledEventList(
                     Text(
                         text = event.name,
                         style = MaterialTheme.typography.h6.copy(
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF1565C0) // Dark blue color
+                            fontWeight = if (event.level == 0) FontWeight.Bold else FontWeight.SemiBold,
+                            color = if (event.level == 0) Color(0xFF1565C0) else Color(0xFF1976D2) // Dark blue for main, lighter for subcategories
                         ),
                         modifier = Modifier
                             .fillMaxWidth()
