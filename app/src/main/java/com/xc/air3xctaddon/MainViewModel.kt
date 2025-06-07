@@ -191,7 +191,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun getAvailableEvents(): List<EventItem> {
         val available = _events.value
-        Log.d("MainViewModel", "Available events: ${available.size}, Categories: ${available.filterIsInstance<EventItem.Category>().size}")
+        val categories = available.filterIsInstance<EventItem.Category>()
+        Log.d("MainViewModel", "Available events: ${available.size}, Categories: ${categories.size}, Level 1: ${categories.count { it.level == 1 }}")
         return available
     }
 

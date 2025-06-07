@@ -38,12 +38,35 @@ fun AddXCTrackEventScreen() {
     val viewModel: MainViewModel = viewModel(
         factory = MainViewModelFactory(context.applicationContext as android.app.Application)
     )
-
     val events by viewModel.events.collectAsState(initial = emptyList())
-    val availableEvents by remember { derivedStateOf { viewModel.getAvailableEvents() } }
-    val categories = availableEvents.filterIsInstance<EventItem.Category>().map { it.name }
+    val availableEvents = events // met directement à jour à chaque changement
 
-    var selectedCategory by remember { mutableStateOf(categories.firstOrNull() ?: "") }
+
+    LaunchedEffect(Unit) {
+        viewModel.refreshEvents()
+    }
+
+    // Filter to only level 1 categories
+    val categories = availableEvents
+        .filterIsInstance<EventItem.Category>()
+        .filter { it.level == 1 }
+        .map { it.name }
+
+    if (categories.isEmpty()) {
+        Log.w("AddXCTrackEventScreen", "Catégories non encore disponibles, attente...")
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("Chargement des catégories…")
+        }
+        return // ⛔️ Ne pas continuer le composable tant qu'on n'a pas de catégories
+    }
+
+    var selectedCategory by remember { mutableStateOf(categories.first()) }
+
     var eventName by remember { mutableStateOf("") }
     var categoryMenuExpanded by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
