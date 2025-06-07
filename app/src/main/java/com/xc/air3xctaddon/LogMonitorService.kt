@@ -12,6 +12,7 @@ import android.media.MediaPlayer
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
+import android.view.KeyEvent
 import androidx.core.app.NotificationCompat
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
@@ -20,6 +21,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.io.File
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
+import android.support.v4.media.session.MediaSessionCompat
+import android.support.v4.media.session.PlaybackStateCompat
+import java.util.*
 
 class LogMonitorService : Service() {
     private lateinit var eventReceiver: BroadcastReceiver
@@ -27,11 +33,14 @@ class LogMonitorService : Service() {
     private val scope = CoroutineScope(Dispatchers.IO)
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var telegramBotHelper: TelegramBotHelper
+    private lateinit var mediaSession: MediaSessionCompat
 
     companion object {
         private const val NOTIFICATION_ID = 1
         private const val ACTION_PREFIX = "com.xc.air3xctaddon."
     }
+
+    private var isReceiverRegistered = false
 
     override fun onCreate() {
         super.onCreate()
@@ -48,6 +57,29 @@ class LogMonitorService : Service() {
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         SettingsRepository.initialize(this)
         telegramBotHelper = TelegramBotHelper(this, BuildConfig.TELEGRAM_BOT_TOKEN, fusedLocationClient)
+
+        // Initialize MediaSession
+        mediaSession = MediaSessionCompat(this, "LogMonitorService")
+        mediaSession.setCallback(object : MediaSessionCompat.Callback() {
+            override fun onMediaButtonEvent(mediaButtonIntent: Intent?): Boolean {
+                mediaButtonIntent?.let {
+                    val keyEvent = it.getParcelableExtra<KeyEvent>(Intent.EXTRA_KEY_EVENT)
+                    if (keyEvent != null && keyEvent.action == KeyEvent.ACTION_UP) {
+                        val eventName = "BUTTON_${keyEvent.keyCode}"
+                        Log.d("LogMonitorService", "Received media button event: $eventName")
+                        handleEvent(eventName)
+                    }
+                }
+                return true
+            }
+        })
+        mediaSession.setPlaybackState(
+            PlaybackStateCompat.Builder()
+                .setState(PlaybackStateCompat.STATE_PLAYING, 0, 1.0f)
+                .build()
+        )
+        mediaSession.isActive = true
+        Log.d("LogMonitorService", "MediaSession activated")
 
         eventReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
@@ -172,11 +204,28 @@ class LogMonitorService : Service() {
                 }
             }
         }
+        scope.launch {
+            val db = AppDatabase.getDatabase(applicationContext)
+            db.eventDao().getAllEvents().collect { events ->
+                updateIntentFilter(events)
+            }
+        }
+    }
+
+    private suspend fun updateIntentFilter(events: List<EventEntity>) {
+        if (isReceiverRegistered) {
+            try {
+                unregisterReceiver(eventReceiver)
+                isReceiverRegistered = false
+                Log.d("LogMonitorService", "Unregistered event receiver for update")
+            } catch (e: Exception) {
+                Log.e("LogMonitorService", "Error unregistering receiver during update", e)
+            }
+        }
 
         filter = IntentFilter()
         scope.launch {
-            val db = AppDatabase.getDatabase(applicationContext)
-            val events = db.eventDao().getAllEvents().first()
+            val dataStore = DataStoreSingleton.getDataStore()
             // Add XCTrack event actions
             listOf(
                 "TAKEOFF", "LANDING", "BATTERY50", "BATTERY40", "BATTERY30", "BATTERY20", "BATTERY10",
@@ -189,23 +238,34 @@ class LogMonitorService : Service() {
             ).forEach { event ->
                 filter.addAction("$ACTION_PREFIX$event")
             }
-            // Add button event actions
-            events.filter { it.type == "event" && it.name.startsWith("BUTTON_") }
-                .forEach { event ->
-                    filter.addAction("$ACTION_PREFIX${event.name}")
+            // Add button event actions only if isChecked is true
+            val checkedButtonEvents = events.filter { it.type == "event" && it.name.startsWith("BUTTON_") }
+                .filter { event ->
+                    val isChecked = dataStore.data.first()[booleanPreferencesKey("${event.name}_isChecked")] ?: false
+                    if (isChecked) {
+                        Log.d("LogMonitorService", "Added button event to filter: ${event.name}")
+                    } else {
+                        Log.d("LogMonitorService", "Skipped unchecked button event: ${event.name}")
+                    }
+                    isChecked
                 }
+            checkedButtonEvents.forEach { event ->
+                filter.addAction("$ACTION_PREFIX${event.name}")
+            }
             filter.addAction("com.xc.air3xctaddon.EVENT")
-            Log.d("LogMonitorService", "IntentFilter updated with ${events.count { it.name.startsWith("BUTTON_") }} button events")
+            Log.d("LogMonitorService", "IntentFilter updated with ${checkedButtonEvents.size} button events")
         }
-
-        registerReceiver(
-            eventReceiver,
-            filter,
-            "org.xcontest.XCTrack.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION",
-            null,
-            Context.RECEIVER_EXPORTED
-        )
-        Log.d("LogMonitorService", "Registered event receiver")
+        if (!isReceiverRegistered) {
+            registerReceiver(
+                eventReceiver,
+                filter,
+                "org.xcontest.XCTrack.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION",
+                null,
+                Context.RECEIVER_EXPORTED
+            )
+            isReceiverRegistered = true
+            Log.d("LogMonitorService", "Registered event receiver")
+        }
     }
 
     private fun createNotificationChannel() {
@@ -218,6 +278,8 @@ class LogMonitorService : Service() {
                 description = getString(R.string.notification_channel_description)
             }
             val manager = getSystemService(NotificationManager::class.java)
+
+
             manager.createNotificationChannel(channel)
         }
     }
@@ -226,7 +288,7 @@ class LogMonitorService : Service() {
         try {
             val soundsDir = File(getExternalFilesDir(null), "Sounds")
             val soundFilePath = File(soundsDir, fileName).absolutePath
-            Log.d("LogMonitorService", "Playing sound: $soundFilePath, volumeType=${volumeType.toString()}, volumePercentage=${volumePercentage ?: 100}%, playCount=${playCount ?: 1}")
+            Log.d("LogMonitorService", "Playing sound: $soundFilePath, volumeType=${volumeType?.toString()}, volumePercentage=${volumePercentage ?: 100}%, playCount=${playCount ?: 1}")
 
             val volume = when (volumeType) {
                 VolumeType.MAXIMUM -> 1.0f
@@ -280,6 +342,13 @@ class LogMonitorService : Service() {
         }
     }
 
+    private fun handleEvent(eventName: String) {
+        val intent = Intent().apply {
+            action = "$ACTION_PREFIX$eventName"
+        }
+        eventReceiver.onReceive(this, intent)
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d("LogMonitorService", "Service started")
         return START_STICKY
@@ -287,6 +356,7 @@ class LogMonitorService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        mediaSession.release()
         try {
             unregisterReceiver(eventReceiver)
             Log.d("LogMonitorService", "Unregistered event receiver")

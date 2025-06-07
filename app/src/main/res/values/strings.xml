@@ -297,5 +297,7 @@ Or\n
     <string name="delete_button">Delete Button</string>
     <string name="xctrack_events">XCTrack events</string>
     <string name="button_events">Button events</string>
+    <string name="add_button_event">Add Button Event</string>
+
 
 </resources>

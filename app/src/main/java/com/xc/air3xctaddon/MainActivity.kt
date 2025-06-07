@@ -71,6 +71,13 @@ class MainActivity : ComponentActivity() {
         // Initialize DataStoreSingleton
         DataStoreSingleton.initialize(applicationContext)
 
+        // Register activity result launcher for AddButtonEventActivity
+        val addButtonEventLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode == RESULT_OK && result.data?.getBooleanExtra("EVENTS_UPDATED", false) == true) {
+                Log.d(TAG, "Received result from AddButtonEventActivity, refreshing events")
+            }
+        }
+
         // Check XCTrack version code
         val xcTrackVersionCode = try {
             val packageInfo = packageManager.getPackageInfo("org.xcontest.XCTrack", 0)
@@ -103,7 +110,7 @@ class MainActivity : ComponentActivity() {
                         }
                     )
                 } else {
-                    MainScreen()
+                    MainScreen(addButtonEventLauncher = addButtonEventLauncher)
                     if (showOverlayDialog) {
                         OverlayPermissionDialog(
                             onConfirm = {
@@ -130,7 +137,6 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-
     private fun proceedWithAppInitialization() {
         // Save AIR³ status to DataStore
         scope.launch {

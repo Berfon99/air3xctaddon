@@ -10,6 +10,7 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.Button
@@ -17,6 +18,7 @@ import androidx.compose.material.Checkbox
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
 import androidx.compose.material.MaterialTheme
+import androidx.compose.material.Surface
 import androidx.compose.material.Text
 import androidx.compose.material.TextField
 import androidx.compose.material.icons.Icons
@@ -28,7 +30,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -60,63 +61,67 @@ class AddButtonEventActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         DataStoreSingleton.initialize(applicationContext)
         setContent {
-            AIR3XCTAddonTheme {
-                ButtonEventScreen(
-                    isListening = isListening,
-                    lastKeyCode = lastKeyCode,
-                    viewModel = viewModel,
-                    onToggleListening = { toggleListening() },
-                    onAddButtonEvent = {
-                        if (lastKeyCode != "None") {
-                            val keyCode = lastKeyCode
-                            val designation = getButtonDesignation(keyCode.toInt())
-                            val eventName = "BUTTON_$keyCode"
-                            viewModel.addEvent("Button Events", eventName)
+            Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colors.background) {
+                AIR3XCTAddonTheme {
+                    ButtonEventScreen(
+                        isListening = isListening,
+                        lastKeyCode = lastKeyCode,
+                        viewModel = viewModel,
+                        onToggleListening = { toggleListening() },
+                        onAddButtonEvent = {
+                            if (lastKeyCode != "None") {
+                                val keyCode = lastKeyCode
+                                val designation = getButtonDesignation(keyCode.toInt())
+                                val eventName = "BUTTON_$keyCode"
+                                viewModel.addEvent("Button Events", eventName)
+                                viewModel.viewModelScope.launch {
+                                    withContext(Dispatchers.IO) {
+                                        DataStoreSingleton.getDataStore().edit { preferences ->
+                                            preferences[stringPreferencesKey("${eventName}_comment")] = ""
+                                            preferences[booleanPreferencesKey("${eventName}_isChecked")] = true
+                                        }
+                                    }
+                                }
+                                lastKeyCode = "None"
+                                Log.d("AddButtonEventActivity", "Added button event: keyCode=$keyCode, designation=$designation, eventName=$eventName")
+                            }
+                        },
+                        onUpdateComment = { eventName, comment ->
                             viewModel.viewModelScope.launch {
                                 withContext(Dispatchers.IO) {
                                     DataStoreSingleton.getDataStore().edit { preferences ->
-                                        preferences[stringPreferencesKey("${eventName}_comment")] = ""
-                                        preferences[booleanPreferencesKey("${eventName}_isChecked")] = true
+                                        preferences[stringPreferencesKey("${eventName}_comment")] = comment
                                     }
                                 }
+                                Log.d("AddButtonEventActivity", "Updated comment for $eventName: $comment")
                             }
-                            lastKeyCode = "None"
-                            Log.d("AddButtonEventActivity", "Added button event: keyCode=$keyCode, designation=$designation, eventName=$eventName")
-                        }
-                    },
-                    onUpdateComment = { eventName, comment ->
-                        viewModel.viewModelScope.launch {
-                            withContext(Dispatchers.IO) {
-                                DataStoreSingleton.getDataStore().edit { preferences ->
-                                    preferences[stringPreferencesKey("${eventName}_comment")] = comment
+                        },
+                        onUpdateChecked = { eventName, isChecked ->
+                            viewModel.viewModelScope.launch {
+                                withContext(Dispatchers.IO) {
+                                    DataStoreSingleton.getDataStore().edit { preferences ->
+                                        preferences[booleanPreferencesKey("${eventName}_isChecked")] = isChecked
+                                    }
                                 }
+                                Log.d("AddButtonEventActivity", "Updated isChecked for $eventName: $isChecked")
+                                viewModel.refreshEvents()
                             }
-                            Log.d("AddButtonEventActivity", "Updated comment for $eventName: $comment")
-                        }
-                    },
-                    onUpdateChecked = { eventName, isChecked ->
-                        viewModel.viewModelScope.launch {
-                            withContext(Dispatchers.IO) {
-                                DataStoreSingleton.getDataStore().edit { preferences ->
-                                    preferences[booleanPreferencesKey("${eventName}_isChecked")] = isChecked
+                            setResult(RESULT_OK, Intent().putExtra("EVENTS_UPDATED", true))
+                        },
+                        onDeleteButtonEvent = { eventName ->
+                            viewModel.deleteEvent(eventName)
+                            viewModel.viewModelScope.launch {
+                                withContext(Dispatchers.IO) {
+                                    DataStoreSingleton.getDataStore().edit { preferences ->
+                                        preferences.remove(stringPreferencesKey("${eventName}_comment"))
+                                        preferences.remove(booleanPreferencesKey("${eventName}_isChecked"))
+                                    }
                                 }
+                                Log.d("AddButtonEventActivity", "Deleted button event: $eventName")
                             }
-                            Log.d("AddButtonEventActivity", "Updated isChecked for $eventName: $isChecked")
                         }
-                    },
-                    onDeleteButtonEvent = { eventName ->
-                        viewModel.deleteEvent(eventName)
-                        viewModel.viewModelScope.launch {
-                            withContext(Dispatchers.IO) {
-                                DataStoreSingleton.getDataStore().edit { preferences ->
-                                    preferences.remove(stringPreferencesKey("${eventName}_comment"))
-                                    preferences.remove(booleanPreferencesKey("${eventName}_isChecked"))
-                                }
-                            }
-                            Log.d("AddButtonEventActivity", "Deleted button event: $eventName")
-                        }
-                    }
-                )
+                    )
+                }
             }
         }
     }
@@ -179,6 +184,7 @@ class AddButtonEventActivity : ComponentActivity() {
         Log.d("AddButtonEventActivity", "Sent broadcast: com.xc.air3xctaddon.BUTTON_$keyCode")
     }
 }
+
 @Composable
 fun ButtonEventScreen(
     isListening: Boolean,
@@ -193,7 +199,6 @@ fun ButtonEventScreen(
     var buttonEvents by remember { mutableStateOf<List<AddButtonEventActivity.ButtonEvent>>(emptyList()) }
     var refreshTrigger by remember { mutableStateOf(0) }
 
-    // Load button events directly from database, not from the filtered events list
     LaunchedEffect(refreshTrigger) {
         val eventDao = AppDatabase.getDatabase(viewModel.getApplication()).eventDao()
         val allDbEvents = eventDao.getAllEvents().first()
@@ -213,6 +218,12 @@ fun ButtonEventScreen(
                 KeyEvent.KEYCODE_BACK -> "Back"
                 KeyEvent.KEYCODE_MENU -> "Menu"
                 KeyEvent.KEYCODE_POWER -> "Power"
+                KeyEvent.KEYCODE_MEDIA_NEXT -> "Next Track"
+                KeyEvent.KEYCODE_MEDIA_PREVIOUS -> "Previous Track"
+                KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> "Play/Pause"
+                KeyEvent.KEYCODE_MEDIA_STOP -> "Stop"
+                KeyEvent.KEYCODE_MEDIA_PLAY -> "Play"
+                KeyEvent.KEYCODE_MEDIA_PAUSE -> "Pause"
                 else -> "Button $keyCode"
             }
 
@@ -296,6 +307,7 @@ fun ButtonEventScreen(
                         checked = event.isChecked,
                         onCheckedChange = { newCheckedState ->
                             onUpdateChecked(event.eventName, newCheckedState)
+                            viewModel.refreshEvents()
                             refreshTrigger++ // Trigger refresh after updating checked state
                         }
                     )

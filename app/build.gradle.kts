@@ -146,6 +146,8 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
     implementation("androidx.activity:activity-compose:1.9.2")
     implementation("androidx.compose.material:material:1.7.3")
+    implementation("androidx.media:media:1.6.0")
+    implementation("androidx.media2:media2-session:1.2.0")
 }
 
 tasks.register<DefaultTask>("generateVersionHistory") {

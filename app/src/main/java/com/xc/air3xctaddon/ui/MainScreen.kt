@@ -1,6 +1,8 @@
 package com.xc.air3xctaddon.ui
 
 import android.content.Intent
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 import android.content.pm.PackageManager
 import android.util.Log
 import android.widget.Toast
@@ -53,7 +55,7 @@ fun StyledEventList(
                         text = event.name,
                         style = MaterialTheme.typography.h6.copy(
                             fontWeight = if (event.level == 0) FontWeight.Bold else FontWeight.SemiBold,
-                            color = if (event.level == 0) Color(0xFF1565C0) else Color(0xFF1976D2) // Dark blue for main, lighter for subcategories
+                            color = if (event.level == 0) Color(0xFF1565C0) else Color(0xFF1976D2)
                         ),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -89,7 +91,6 @@ fun StyledEventList(
     }
 }
 
-// Alternative version if you want different styling for main categories vs subcategories
 @Composable
 fun StyledEventListDetailed(
     events: List<MainViewModel.EventItem>,
@@ -109,12 +110,12 @@ fun StyledEventListDetailed(
                         style = if (isMainCategory) {
                             MaterialTheme.typography.h6.copy(
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF1565C0) // Dark blue
+                                color = Color(0xFF1565C0)
                             )
                         } else {
                             MaterialTheme.typography.subtitle1.copy(
                                 fontWeight = FontWeight.SemiBold,
-                                color = Color(0xFF1976D2) // Slightly lighter blue
+                                color = Color(0xFF1976D2)
                             )
                         },
                         modifier = Modifier
@@ -154,7 +155,10 @@ fun StyledEventListDetailed(
 
 @OptIn(ExperimentalMaterialApi::class)
 @Composable
-fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFactory(LocalContext.current.applicationContext as android.app.Application))) {
+fun MainScreen(
+    viewModel: MainViewModel = viewModel(factory = MainViewModelFactory(LocalContext.current.applicationContext as android.app.Application)),
+    addButtonEventLauncher: ActivityResultLauncher<Intent>
+) {
     val configs by viewModel.configs.collectAsState()
     val availableEvents by viewModel.events.collectAsState()
     val context = LocalContext.current
@@ -163,7 +167,6 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
     var showEventSelector by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
 
-    // Initialize DataStore
     LaunchedEffect(Unit) {
         DataStoreSingleton.initialize(context.applicationContext)
     }
@@ -173,10 +176,8 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
     val rowHeight: Dp = 48.dp
     val rowHeightPx: Float = LocalDensity.current.run { rowHeight.toPx() }
 
-    // Filter out TASK_CONFIG entries for display
     val filteredConfigs = configs.filter { it.event != "TASK_CONFIG" }
 
-    // Determine XCTrack status by checking its version code
     val xcTrackStatus = try {
         val packageInfo = context.packageManager.getPackageInfo("org.xcontest.XCTrack", 0)
         val versionCode = PackageInfoCompat.getLongVersionCode(packageInfo)
@@ -191,6 +192,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
     }
 
     Log.d("MainScreen", "Filtered Configs: $filteredConfigs, AvailableEvents: $availableEvents")
+    Log.d("MainScreen", "AvailableEvents count: ${availableEvents.size}")
 
     Scaffold(
         topBar = {
@@ -221,6 +223,13 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
                             onClick = {
                                 showMenu = false
                                 context.startActivity(Intent(context, AboutActivity::class.java))
+                            }
+                        )
+                        DropdownMenuItem(
+                            content = { Text(stringResource(R.string.add_button_event)) },
+                            onClick = {
+                                showMenu = false
+                                addButtonEventLauncher.launch(Intent(context, AddButtonEventActivity::class.java))
                             }
                         )
                     }
@@ -320,7 +329,6 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
         }
     }
 
-    // Event Selector Dialog
     if (showEventSelector) {
         AlertDialog(
             onDismissRequest = { showEventSelector = false },
@@ -330,7 +338,6 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
                     events = availableEvents,
                     modifier = Modifier.height(400.dp),
                     onEventClick = { eventName ->
-                        // Check AIR³ status and row count
                         coroutineScope.launch {
                             val isAir3 = DataStoreSingleton.getDataStore().data
                                 .map { preferences ->
@@ -349,6 +356,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
                                     telegramChatId = null
                                 )
                                 showEventSelector = false
+                                viewModel.refreshEvents()
                             } else {
                                 showBrandLimitDialog = true
                                 showEventSelector = false
@@ -366,7 +374,6 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
         )
     }
 
-    // Brand limitation dialog
     if (showBrandLimitDialog) {
         AlertDialog(
             onDismissRequest = { /* Non-dismissable */ },
@@ -377,7 +384,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel(factory = MainViewModelFacto
                     Text(stringResource(R.string.ok_button))
                 }
             },
-            dismissButton = null // Makes dialog non-dismissable
+            dismissButton = null
         )
     }
 }
