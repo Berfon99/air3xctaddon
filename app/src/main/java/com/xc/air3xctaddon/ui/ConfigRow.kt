@@ -203,8 +203,12 @@ fun ConfigRow(
                     .padding(start = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                val selectedEventDisplayName = availableEvents
+                    .filterIsInstance<MainViewModel.EventItem.Event>()
+                    .find { it.name == event }?.displayName ?: event
+
                 EventSelector(
-                    selectedEvent = event,
+                    selectedEvent = selectedEventDisplayName,
                     availableEvents = availableEvents,
                     onEventSelected = { selectedEvent ->
                         event = selectedEvent

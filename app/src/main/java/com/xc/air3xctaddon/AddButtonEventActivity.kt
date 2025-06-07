@@ -283,9 +283,11 @@ fun ButtonEventScreen(
                     )
                     TextField(
                         value = event.comment,
-                        onValueChange = {
-                            onUpdateComment(event.eventName, it)
-                            refreshTrigger++ // Trigger refresh after updating comment
+                        onValueChange = { newComment ->
+                            onUpdateComment(event.eventName, newComment)
+                            buttonEvents = buttonEvents.map {
+                                if (it.eventName == event.eventName) it.copy(comment = newComment) else it
+                            }
                         },
                         label = { Text(text = stringResource(R.string.comment_label)) },
                         modifier = Modifier.weight(2f)

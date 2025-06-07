@@ -140,6 +140,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     }
 
                     updatedItems.add(EventItem.Event(eventName, displayName, level = 2))
+                    Log.d("MainViewModel", "Button event: name=$eventName, designation=$designation, comment=$comment, displayName=$displayName")
                 }
             }
 
