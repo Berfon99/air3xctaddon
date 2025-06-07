@@ -136,24 +136,49 @@ class AddButtonEventActivity : ComponentActivity() {
             KeyEvent.KEYCODE_BACK -> "Back"
             KeyEvent.KEYCODE_MENU -> "Menu"
             KeyEvent.KEYCODE_POWER -> "Power"
+            KeyEvent.KEYCODE_MEDIA_NEXT -> "Next Track"
+            KeyEvent.KEYCODE_MEDIA_PREVIOUS -> "Previous Track"
+            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> "Play/Pause"
+            KeyEvent.KEYCODE_MEDIA_STOP -> "Stop"
+            KeyEvent.KEYCODE_MEDIA_PLAY -> "Play"
+            KeyEvent.KEYCODE_MEDIA_PAUSE -> "Pause"
             else -> "Button $keyCode"
         }
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         if (isListening && event?.action == KeyEvent.ACTION_DOWN) {
-            lastKeyCode = keyCode.toString()
-            isListening = false
-            Log.d("AddButtonEventActivity", "Key event detected: keyCode=$keyCode")
-            // Send broadcast for testing button event
-            val intent = Intent("com.xc.air3xctaddon.BUTTON_$keyCode")
-            sendBroadcast(intent)
-            Log.d("AddButtonEventActivity", "Sent broadcast: com.xc.air3xctaddon.BUTTON_$keyCode")
+            handleKeyEvent(keyCode, event)
+            return true
         }
         return super.onKeyDown(keyCode, event)
     }
-}
 
+    override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean {
+        if (isListening && event?.action == KeyEvent.ACTION_UP) {
+            handleKeyEvent(keyCode, event)
+            return true
+        }
+        return super.onKeyUp(keyCode, event)
+    }
+
+    override fun onKeyMultiple(keyCode: Int, repeatCount: Int, event: KeyEvent?): Boolean {
+        if (isListening) {
+            handleKeyEvent(keyCode, event)
+            return true
+        }
+        return super.onKeyMultiple(keyCode, repeatCount, event)
+    }
+
+    private fun handleKeyEvent(keyCode: Int, event: KeyEvent?) {
+        Log.d("AddButtonEventActivity", "Key event: keyCode=$keyCode, action=${event?.action}, flags=${event?.flags}")
+        lastKeyCode = keyCode.toString()
+        isListening = false
+        val intent = Intent("com.xc.air3xctaddon.BUTTON_$keyCode")
+        sendBroadcast(intent)
+        Log.d("AddButtonEventActivity", "Sent broadcast: com.xc.air3xctaddon.BUTTON_$keyCode")
+    }
+}
 @Composable
 fun ButtonEventScreen(
     isListening: Boolean,
