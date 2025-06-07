@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.util.UUID
 
@@ -122,6 +123,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val newEvent = EventEntity(type = "event", name = eventName, category = category)
             eventDao.insert(newEvent)
             Log.d("MainViewModel", "Added event '$eventName' to category '$category'")
+        }
+    }
+
+    fun deleteEvent(eventName: String) {
+        viewModelScope.launch {
+            val allEvents = eventDao.getAllEvents().first()
+            val event = allEvents.find { it.name == eventName && it.type == "event" }
+            if (event != null) {
+                eventDao.delete(event)
+                Log.d("MainViewModel", "Deleted event '$eventName'")
+            } else {
+                Log.w("MainViewModel", "Event '$eventName' not found for deletion")
+            }
         }
     }
 

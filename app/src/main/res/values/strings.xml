@@ -292,5 +292,8 @@ Or\n
     <string name="button_id_label">Button ID: %s</string>
     <string name="listening_for_button">Listening for button press...</string>
     <string name="button_info">ID: %1$d (%2$s)</string>
+    <string name="add_button">Add Button</string>
+    <string name="comment_label">Comment</string>
+    <string name="delete_button">Delete Button</string>
 
 </resources>
