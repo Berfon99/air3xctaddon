@@ -107,24 +107,42 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             if (item is EventItem.Category) {
                 currentCategory = item.name
                 updatedItems.add(EventItem.Category(item.name, level = 1))
-            } else if (item is EventItem.Event && dbEvents.none { it.type == "event" && it.name == item.name }) {
+            } else if (item is EventItem.Event) {
+                // Show all predefined XCTrack events, regardless of database state
                 updatedItems.add(EventItem.Event(item.name, level = 2))
             }
         }
 
         // Add custom XCTrack events from database (not in XCTRACK_EVENTS, not BUTTON_)
-        dbEvents.filter { it.type == "event" && !it.name.startsWith("BUTTON_") && it.name !in XCTRACK_EVENTS.filterIsInstance<EventItem.Event>().map { it.name } }
-            .forEach { dbEvent ->
-                val targetCategory = dbEvent.category ?: "Others"
-                val insertIndex = updatedItems.indexOfFirst { it is EventItem.Category && it.name == targetCategory }
-                    .takeIf { it >= 0 }?.let { it + 1 } ?: updatedItems.size
-                updatedItems.add(insertIndex, EventItem.Event(dbEvent.name, level = 2))
+        val predefinedEventNames = XCTRACK_EVENTS.filterIsInstance<EventItem.Event>().map { it.name }.toSet()
+        dbEvents.filter {
+            it.type == "event" &&
+                    !it.name.startsWith("BUTTON_") &&
+                    it.name !in predefinedEventNames
+        }.forEach { dbEvent ->
+            val targetCategory = dbEvent.category ?: "Others"
+            // Find the index after the target category
+            val categoryIndex = updatedItems.indexOfFirst {
+                it is EventItem.Category && it.name == targetCategory && it.level == 1
             }
+            if (categoryIndex >= 0) {
+                // Find the next category or end of list to insert before
+                val nextCategoryIndex = updatedItems.drop(categoryIndex + 1).indexOfFirst {
+                    it is EventItem.Category && it.level == 1
+                }.let { if (it >= 0) it + categoryIndex + 1 else updatedItems.size }
+                updatedItems.add(nextCategoryIndex, EventItem.Event(dbEvent.name, level = 2))
+            } else {
+                // If category doesn't exist, add it and the event
+                updatedItems.add(EventItem.Category(targetCategory, level = 1))
+                updatedItems.add(EventItem.Event(dbEvent.name, level = 2))
+            }
+        }
 
         // Add Button events
-        updatedItems.add(EventItem.Category("Button events", level = 0))
-        dbEvents.filter { it.type == "event" && it.name.startsWith("BUTTON_") }
-            .forEach { event ->
+        val buttonEvents = dbEvents.filter { it.type == "event" && it.name.startsWith("BUTTON_") }
+        if (buttonEvents.isNotEmpty()) {
+            updatedItems.add(EventItem.Category("Button events", level = 0))
+            buttonEvents.forEach { event ->
                 val eventName = event.name
                 val isChecked = dataStore.data.first()[booleanPreferencesKey("${eventName}_isChecked")] ?: false
                 if (isChecked) {
@@ -148,6 +166,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     Log.d("MainViewModel", "Skipped unchecked button event: $eventName")
                 }
             }
+        }
 
         _events.value = updatedItems
         Log.d("MainViewModel", "Updated events: ${updatedItems.size}, Categories: ${updatedItems.filterIsInstance<EventItem.Category>().size}, DB events: ${dbEvents.size}")
